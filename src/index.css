@@ -1,0 +1,127 @@
+@import "tailwindcss";
+
+@theme {
+  /* Core palette */
+  --color-cream: #fff7eb;
+  --color-sand: #f9f0e0;
+  --color-sand-deep: #f2e7d3;
+  --color-olive: #a2ab73;
+  --color-olive-deep: #7f8857;
+  --color-rose: #cc3a63;
+  --color-rose-deep: #a82c4f;
+  --color-ink: #26241f;
+  --color-ink-soft: #4a463d;
+  --color-ink-muted: #857e70;
+  --color-line: #e7dbc5;
+  --color-night: #1f1d19;
+
+  --font-display: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    background-color: var(--color-cream);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+  }
+  ::selection {
+    background: #cc3a63;
+    color: #fff7eb;
+  }
+  :focus-visible {
+    outline: 2px solid #cc3a63;
+    outline-offset: 3px;
+    border-radius: 6px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@utility neu-raised {
+  box-shadow:
+    10px 12px 26px rgba(169, 143, 101, 0.24),
+    -10px -10px 24px rgba(255, 255, 255, 0.95),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+@utility neu-raised-sm {
+  box-shadow:
+    5px 6px 14px rgba(169, 143, 101, 0.2),
+    -5px -5px 12px rgba(255, 255, 255, 0.92),
+    inset 0 1px 0 rgba(255, 255, 255, 0.65);
+}
+
+@utility neu-inset {
+  box-shadow:
+    inset 8px 9px 18px rgba(169, 143, 101, 0.26),
+    inset -8px -8px 18px rgba(255, 255, 255, 0.92);
+}
+
+@utility neu-inset-sm {
+  box-shadow:
+    inset 4px 4px 9px rgba(169, 143, 101, 0.22),
+    inset -4px -4px 9px rgba(255, 255, 255, 0.9);
+}
+
+@utility neu-float {
+  box-shadow:
+    26px 34px 70px rgba(150, 123, 80, 0.26),
+    -16px -16px 44px rgba(255, 255, 255, 0.9),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+@utility neu-dark-raised {
+  box-shadow:
+    12px 14px 30px rgba(0, 0, 0, 0.45),
+    -8px -8px 22px rgba(255, 255, 255, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+@utility text-display-xl {
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  line-height: 0.94;
+}
+
+@keyframes drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -14px, 0);
+  }
+}
+
+@utility animate-drift {
+  animation: drift 9s ease-in-out infinite;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 22px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@utility animate-rise {
+  animation: rise 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
