@@ -1,28 +1,29 @@
-import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import PageHeader from '../components/PageHeader';
 import { SearchBar, FilterChips, Tag, EmptyState, StatRow } from '../components/ui';
-import { books, subjects, subjectById } from '../data';
+import { listPublishedContents, listPublicScholars, listPublicSubjects, type BackendContent, type BackendScholar, type BackendSubject } from '@/lib/api';
 
-function BookCover({ id }: { id: string }) {
-  const b = books.find((x) => x.id === id)!;
-  const subj = subjectById(b.subjectId);
-  const cover =
-    subj?.accent === 'rose'
-      ? 'from-rose/85 to-rose-deep'
-      : subj?.accent === 'olive'
-        ? 'from-olive to-olive-deep'
-        : 'from-ink/80 to-ink';
+function BookCover({ c }: { c: BackendContent }) {
+  if (c.coverUrl) {
+    return (
+      <div className="bg-sand neu-inset grid h-48 place-items-center rounded-[22px] overflow-hidden">
+        <img src={c.coverUrl} alt="" className="h-full w-full object-cover" loading="lazy" onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} />
+      </div>
+    );
+  }
+  const subj = c.subjects[0]?.subject;
+  const cover = subj?.accent === 'rose' ? 'from-rose/85 to-rose-deep' : subj?.accent === 'olive' ? 'from-olive to-olive-deep' : 'from-ink/80 to-ink';
   return (
     <div className="bg-sand neu-inset grid h-48 place-items-center rounded-[22px]">
       <div className={`relative h-[150px] w-[112px] overflow-hidden rounded-[8px] bg-gradient-to-br ${cover} shadow-[10px_14px_26px_rgba(60,45,30,0.28)]`}>
         <div className="absolute inset-y-0 left-0 w-2.5 bg-black/20" />
         <div className="absolute inset-y-0 left-2.5 w-1 bg-white/25" />
         <div className="flex h-full flex-col justify-between p-3 pl-4">
-          <span className="text-cream/80 text-[0.6rem] font-semibold uppercase tracking-[0.14em]">{b.format}</span>
+          <span className="text-cream/80 text-[0.6rem] font-semibold uppercase tracking-[0.14em]">{c.type === 'document' ? 'Document' : 'Book'}</span>
           <div>
-            <p className="font-display text-cream text-[0.92rem] leading-tight font-extrabold">{b.title}</p>
-            <p className="text-cream/70 mt-1 text-[0.66rem]">{b.author}</p>
+            <p className="font-display text-cream text-[0.92rem] leading-tight font-extrabold line-clamp-3">{c.title}</p>
+            <p className="text-cream/70 mt-1 text-[0.66rem] line-clamp-1">{c.scholars[0]?.scholar?.name ?? ''}</p>
           </div>
         </div>
       </div>
@@ -30,93 +31,225 @@ function BookCover({ id }: { id: string }) {
   );
 }
 
-function BookCard({ id }: { id: string }) {
-  const b = books.find((x) => x.id === id)!;
-  const subj = subjectById(b.subjectId);
+function BookCard({ c }: { c: BackendContent }) {
+  const subj = c.subjects[0]?.subject;
+  const author = c.scholars[0]?.scholar?.name ?? 'Unknown';
   return (
-    <article className="bg-cream neu-raised group flex flex-col rounded-[30px] p-6 transition-transform duration-500 hover:-translate-y-1.5">
-      <BookCover id={id} />
+    <Link to={`/books/${c.slug}`} className="bg-cream neu-raised group flex flex-col rounded-[30px] p-6 transition-transform duration-500 hover:-translate-y-1.5">
+      <BookCover c={c} />
       <div className="flex flex-1 flex-col px-1 pt-5">
-        <Tag tone={subj?.accent}>{subj?.name}</Tag>
-        <h3 className="font-display text-ink mt-3 text-[1.18rem] leading-snug font-extrabold tracking-[-0.02em]">
-          {b.title}
+        {subj && <Tag tone={subj.accent as any}>{subj.name}</Tag>}
+        <h3 className="font-display text-ink mt-3 text-[1.18rem] leading-snug font-extrabold tracking-[-0.02em] line-clamp-2">
+          {c.title}
         </h3>
-        <Link to="/scholars" className="text-rose mt-1.5 text-[0.9rem] font-semibold">
-          {b.author}
-        </Link>
-        <p className="text-ink-soft mt-3 text-[0.88rem] leading-relaxed">{b.description}</p>
+        <span className="text-rose mt-1.5 text-[0.9rem] font-semibold line-clamp-1">
+          {author}
+        </span>
+        <p className="text-ink-soft mt-3 text-[0.88rem] leading-relaxed line-clamp-3">{c.description ?? ''}</p>
         <div className="border-line/70 mt-5 flex items-center justify-between border-t pt-4 text-[0.8rem]">
-          <span className="text-ink-soft font-medium">{b.pages} pages</span>
-          <span className="text-ink-muted">{b.year}</span>
+          <span className="text-ink-soft font-medium">{c.pages ? `${c.pages} pages` : c.type === 'document' ? 'Document' : 'Book'}</span>
+          <span className="text-ink-muted">{c.year ?? ''}</span>
         </div>
+      </div>
+    </Link>
+  );
+}
+
+function SkeletonCard() {
+  return (
+    <article className="bg-cream neu-raised flex flex-col rounded-[30px] p-6 animate-pulse">
+      <div className="bg-sand neu-inset h-48 rounded-[22px]" />
+      <div className="mt-5 space-y-3">
+        <div className="bg-sand h-4 w-24 rounded-full" />
+        <div className="bg-sand h-6 w-full rounded-full" />
+        <div className="bg-sand h-4 w-3/4 rounded-full" />
+        <div className="bg-sand h-3 w-full rounded-full" />
       </div>
     </article>
   );
 }
 
 export default function Books() {
-  const [query, setQuery] = useState('');
-  const [subject, setSubject] = useState<string | 'all'>('all');
-  const [format, setFormat] = useState<string | 'all'>('all');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlQ = searchParams.get('q') ?? '';
+  const urlScholar = searchParams.get('scholar') ?? 'all';
+  const urlSubject = searchParams.get('subject') ?? 'all';
+  const urlType = searchParams.get('type') ?? 'all'; // 'all' | 'book' | 'document'
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return books.filter((b) => {
-      const matchesQ =
-        !q ||
-        b.title.toLowerCase().includes(q) ||
-        b.author.toLowerCase().includes(q) ||
-        b.description.toLowerCase().includes(q);
-      const matchesS = subject === 'all' || b.subjectId === subject;
-      const matchesF = format === 'all' || b.format === format;
-      return matchesQ && matchesS && matchesF;
+  const [inputQ, setInputQ] = useState(urlQ);
+  useEffect(() => setInputQ(urlQ), [urlQ]);
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (inputQ !== urlQ) {
+        const next = new URLSearchParams(searchParams);
+        if (inputQ.trim()) next.set('q', inputQ.trim());
+        else next.delete('q');
+        setSearchParams(next, { replace: true });
+      }
+    }, 340);
+    return () => clearTimeout(t);
+  }, [inputQ]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const typeFilter = useMemo(() => {
+    if (urlType === 'book' || urlType === 'document') return urlType;
+    return 'all';
+  }, [urlType]);
+
+  const [contents, setContents] = useState<BackendContent[]>([]);
+  const [scholars, setScholars] = useState<BackendScholar[]>([]);
+  const [subjects, setSubjects] = useState<BackendSubject[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const scholarBySlug = useMemo(() => new Map(scholars.map(s => [s.slug, s])), [scholars]);
+  const subjectBySlug = useMemo(() => new Map(subjects.map(s => [s.slug, s])), [subjects]);
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([
+      listPublicScholars().catch(() => ({ data: [] as BackendScholar[] })),
+      listPublicSubjects().catch(() => ({ data: [] as BackendSubject[] })),
+    ]).then(([schRes, subjRes]) => {
+      if (cancelled) return;
+      setScholars((schRes as any).data ?? []);
+      setSubjects((subjRes as any).data ?? []);
     });
-  }, [query, subject, format]);
+    return () => { cancelled = true; };
+  }, []);
 
-  const subjectOptions = subjects.map((s) => ({ value: s.id, label: s.name.replace(/ &.*/, '') }));
-  const formatOptions = ['Translation', 'Commentary', 'Primer', 'Classical'].map((f) => ({ value: f, label: f }));
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      setLoading(true);
+      setError(null);
+      try {
+        const q = searchParams.get('q') ?? undefined;
+        const scholar = searchParams.get('scholar') ?? undefined;
+        const subject = searchParams.get('subject') ?? undefined;
+        const typeParam = searchParams.get('type') ?? undefined;
+
+        let typeForApi: string | undefined;
+        if (!typeParam || typeParam === 'all') typeForApi = 'book,document';
+        else if (typeParam === 'book' || typeParam === 'document') typeForApi = typeParam;
+        else typeForApi = typeParam;
+
+        const params: Record<string, string | number | undefined> = {
+          limit: 100,
+          type: typeForApi,
+        };
+        if (q?.trim()) params.q = q.trim();
+        if (scholar && scholar !== 'all') params.scholar = scholar;
+        if (subject && subject !== 'all') params.subject = subject;
+
+        const res = await listPublishedContents(params);
+        if (!cancelled) setContents(res.data);
+      } catch (e: any) {
+        if (!cancelled) setError(e.message || 'Failed to load books');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [searchParams]);
+
+  const subjectOptions = subjects.map((s) => ({ value: s.slug, label: s.name.replace(/ &.*/, '') }));
+  const scholarChipOptions = scholars.map((s) => ({ value: s.slug, label: s.name }));
+  const formatOptions = [
+    { value: 'book', label: 'Books' },
+    { value: 'document', label: 'Documents' },
+  ];
+
+  function updateParam(key: string, value: string) {
+    const next = new URLSearchParams(searchParams);
+    if (!value || value === 'all') next.delete(key);
+    else next.set(key, value);
+    setSearchParams(next, { replace: false });
+  }
+
+  const hasActiveFilters = urlQ || urlScholar !== 'all' || urlSubject !== 'all' || typeFilter !== 'all';
+
+  function clearAll() {
+    setInputQ('');
+    setSearchParams(new URLSearchParams(), { replace: false });
+  }
 
   return (
     <>
       <PageHeader
         eyebrow="Read & Reflect"
         title="Books"
-        intro="Classical texts and contemporary works, with clean reading, saved progress and chapter navigation. Browse by subject or the kind of edition you need."
-        meta={
-          <StatRow
-            items={[
-              { value: `${books.length}`, label: 'Titles' },
-              { value: `${subjects.length}`, label: 'Subjects' },
-              { value: 'Free', label: 'To read' },
-            ]}
-          />
-        }
+        intro="Classical texts and contemporary works — search by title, subject or scholar. Filters are shareable via the URL."
+        meta={<StatRow items={[{ value: loading ? '—' : `${contents.length}`, label: 'Results' }, { value: loading ? '—' : `${subjects.length}`, label: 'Subjects' }, { value: 'Free', label: 'To read' }]} />}
       />
 
       <section className="px-5 pb-24 sm:px-6 lg:pb-32">
         <div className="mx-auto max-w-[1180px]">
           <div className="bg-sand/70 neu-inset sticky top-[88px] z-30 rounded-[34px] p-4 sm:p-6">
-            <SearchBar value={query} onChange={setQuery} placeholder="Search titles, authors, descriptions…" />
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
+              <div className="lg:flex-1">
+                <SearchBar value={inputQ} onChange={setInputQ} placeholder="Search titles, authors, descriptions…" />
+              </div>
+              {hasActiveFilters && (
+                <button onClick={clearAll} className="bg-cream neu-raised-sm text-ink hover:text-rose shrink-0 rounded-full px-5 py-3 text-[0.86rem] font-semibold transition-colors">
+                  Reset filters
+                </button>
+              )}
+            </div>
             <div className="mt-4 flex flex-col gap-4">
-              <FilterChips options={subjectOptions} active={subject} onChange={setSubject} allLabel="All subjects" />
-              <FilterChips options={formatOptions} active={format} onChange={setFormat} allLabel="All formats" />
+              <div>
+                <p className="text-ink-muted mb-2 text-[0.7rem] font-semibold tracking-[0.14em] uppercase">Scholar</p>
+                <FilterChips options={scholarChipOptions} active={urlScholar as any} onChange={(v) => updateParam('scholar', v as string)} allLabel="All scholars" />
+              </div>
+              <div>
+                <p className="text-ink-muted mb-2 text-[0.7rem] font-semibold tracking-[0.14em] uppercase">Subject</p>
+                <FilterChips options={subjectOptions} active={urlSubject as any} onChange={(v) => updateParam('subject', v as string)} allLabel="All subjects" />
+              </div>
+              <div>
+                <p className="text-ink-muted mb-2 text-[0.7rem] font-semibold tracking-[0.14em] uppercase">Edition</p>
+                <FilterChips options={formatOptions} active={typeFilter as any} onChange={(v) => updateParam('type', v as string)} allLabel="All formats" />
+              </div>
+              {hasActiveFilters && (
+                <p className="text-ink-muted text-[0.74rem]">
+                  Filters: {urlQ ? `“${urlQ}”` : ''} {urlScholar !== 'all' ? `· ${scholarBySlug.get(urlScholar)?.name ?? urlScholar}` : ''} {urlSubject !== 'all' ? `· ${subjectBySlug.get(urlSubject)?.name ?? urlSubject}` : ''} {typeFilter !== 'all' ? `· ${typeFilter}` : ''} <span className="text-ink-soft">— share this URL</span>
+                </p>
+              )}
             </div>
           </div>
 
-          <p className="text-ink-muted mt-8 text-[0.86rem] font-medium">
-            {filtered.length} {filtered.length === 1 ? 'book' : 'books'} shown
-          </p>
-
-          {filtered.length ? (
-            <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {filtered.map((b) => (
-                <BookCard key={b.id} id={b.id} />
-              ))}
+          {loading ? (
+            <>
+              <p className="text-ink-muted mt-8 text-[0.86rem] font-medium">Searching books…</p>
+              <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
+              </div>
+            </>
+          ) : error ? (
+            <div className="mt-10 bg-cream neu-raised rounded-[24px] p-8 text-center">
+              <p className="font-display text-ink text-[1.1rem] font-bold">Could not load books</p>
+              <p className="text-ink-soft mt-2 text-[0.9rem]">{error}</p>
+              <button onClick={() => window.location.reload()} className="bg-rose text-cream mt-6 rounded-full px-6 py-3 text-[0.9rem] font-semibold">Try again</button>
             </div>
           ) : (
-            <div className="mt-10">
-              <EmptyState title="No books match" body="Try a different subject, edition or search term." />
-            </div>
+            <>
+              <p className="text-ink-muted mt-8 text-[0.86rem] font-medium">
+                {contents.length} {contents.length === 1 ? 'book' : 'books'} found
+              </p>
+              {contents.length ? (
+                <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                  {contents.map((c) => (
+                    <BookCard key={c.id} c={c} />
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-10">
+                  <EmptyState title="No books match" body="Try a different search term, scholar, subject or edition. Your filters are shareable via the URL." />
+                  <div className="mt-6 flex justify-center">
+                    <button onClick={clearAll} className="bg-rose text-cream rounded-full px-6 py-3 text-[0.9rem] font-semibold">Clear all filters</button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </section>

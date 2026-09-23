@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useAdmin } from './store';
-import { PageIntro, PrimaryButton } from './ui';
+import { PageIntro, PrimaryButton, GhostButton } from './ui';
 
 export default function Overview() {
   const { lectures, books, scholars, subjects, activity } = useAdmin();
@@ -9,26 +9,33 @@ export default function Overview() {
   const draftL = lectures.filter((x) => x.status === 'draft').length;
   const pubB = books.filter((x) => x.status === 'published').length;
   const draftB = books.filter((x) => x.status === 'draft').length;
+  const archiveLectures = lectures.filter((x) => (x as any).provider === 'archive').length;
   const drafts = [
     ...lectures.filter((x) => x.status === 'draft').map((x) => ({ id: x.id, title: x.title, kind: 'Lecture', to: `/admin/lectures/${x.id}` })),
     ...books.filter((x) => x.status === 'draft').map((x) => ({ id: x.id, title: x.title, kind: 'Book', to: `/admin/books/${x.id}` })),
   ];
 
   const stats = [
-    { value: String(pubL), label: 'Published lectures', to: '/admin/lectures' },
-    { value: String(draftL), label: 'Lecture drafts', to: '/admin/lectures' },
-    { value: String(pubB), label: 'Published books', to: '/admin/books' },
-    { value: String(scholars.length), label: 'Scholars', to: '/admin/scholars' },
-    { value: String(subjects.length), label: 'Subjects', to: '/admin/subjects' },
+    { value: String(pubL), label: 'Published lectures', to: '/admin/lectures', hint: `YouTube + ${archiveLectures} Archive` },
+    { value: String(draftL), label: 'Lecture drafts', to: '/admin/lectures', hint: 'Awaiting review' },
+    { value: String(pubB), label: 'Published books', to: '/admin/books', hint: 'Archive.org + external' },
+    { value: String(scholars.length), label: 'Scholars', to: '/admin/scholars', hint: 'Authors & teachers' },
+    { value: String(subjects.length), label: 'Subjects', to: '/admin/subjects', hint: 'Shelves' },
   ];
 
   return (
-    <div className="mx-auto max-w-[1080px] space-y-12">
+    <div className="mx-auto max-w-[1080px] space-y-10">
       <PageIntro
-        eyebrow="Library desk"
-        title="Overview"
-        intro="Add a YouTube lecture or an Archive.org book, attach a scholar and subjects, then publish it to the public library. Changes stay in this session until a backend exists."
-        action={<PrimaryButton to="/admin/lectures/new">Add lecture</PrimaryButton>}
+        eyebrow="Library desk — frontend only"
+        title="Admin overview"
+        intro="The public ilmNet library stays free and needs no login. Here you curate everything that appears there — YouTube (videos/playlists) and Archive.org — now as a generic provider for lectures, audio, video, books, documents and mixed collections. Bulk import can turn one Archive.org link into 100 separate records. Nothing is written to a server yet."
+        action={
+          <div className="flex flex-col gap-2.5">
+            <PrimaryButton to="/admin/archive-import">Archive.org Bulk Import</PrimaryButton>
+            <PrimaryButton to="/admin/new" tone="sand">Add single item — guided flow</PrimaryButton>
+            <span className="text-ink-muted text-center text-[0.72rem] font-medium">Providers: YouTube · Archive.org · External</span>
+          </div>
+        }
       />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
@@ -39,43 +46,114 @@ export default function Overview() {
             className="bg-cream neu-raised rounded-[24px] px-5 py-6 transition-transform hover:-translate-y-1"
           >
             <p className="font-display text-ink text-[1.7rem] font-extrabold tracking-tight">{s.value}</p>
-            <p className="text-ink-muted mt-2 text-[0.75rem] font-medium tracking-[0.08em] uppercase">{s.label}</p>
+            <p className="text-ink-muted mt-2 text-[0.72rem] font-semibold tracking-[0.08em] uppercase">{s.label}</p>
+            <p className="text-ink-muted/70 mt-1 text-[0.72rem]">{s.hint}</p>
           </Link>
         ))}
       </div>
 
+      {/* Bulk import highlight — new requirement */}
+      <section className="bg-olive/10 neu-raised overflow-hidden rounded-[32px] border border-olive/10">
+        <div className="bg-olive px-6 py-5 sm:px-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-cream/80 text-[0.72rem] font-semibold tracking-[0.18em] uppercase">New · Archive.org is now generic</p>
+            <h2 className="font-display text-cream mt-1 text-[1.4rem] font-extrabold">One Archive.org link → up to 100 separate records</h2>
+            <p className="text-cream/85 mt-1 max-w-[560px] text-[0.88rem] leading-relaxed">Paste a collection page, ilmNet detects every item — title, type (audio/video/book/etc.), media, thumbnail, identifier/link, speaker, date, language, description — then you select which to import and configure each individually.</p>
+          </div>
+          <PrimaryButton to="/admin/archive-import" tone="sand">Open Bulk Import</PrimaryButton>
+        </div>
+        <div className="px-6 py-4 sm:px-8 bg-cream/70 flex flex-wrap gap-2 text-[0.78rem]">
+          <span className="bg-cream neu-raised-sm rounded-full px-3 py-1 font-medium">Example: 100 audio lectures</span>
+          <span className="bg-cream neu-raised-sm rounded-full px-3 py-1 font-medium">“Archive.org collection detected — 100 items found”</span>
+          <span className="bg-cream neu-raised-sm rounded-full px-3 py-1 font-medium">Per-item: select · title · type · scholar · subject · language · draft/publish/skip</span>
+        </div>
+      </section>
+
+      {/* Guided workflow hero */}
       <section className="bg-sand neu-raised overflow-hidden rounded-[32px] p-6 sm:p-8">
-        <p className="text-ink-muted text-[0.72rem] font-semibold tracking-[0.22em] uppercase">How content reaches the library</p>
-        <h2 className="font-display text-ink mt-3 text-[1.55rem] font-extrabold tracking-[-0.03em]">Two sources. One publish step.</h2>
-        <div className="mt-8 grid gap-4 md:grid-cols-2">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="max-w-[560px]">
+            <p className="text-ink-muted text-[0.72rem] font-semibold tracking-[0.22em] uppercase">Content creation flow</p>
+            <h2 className="font-display text-ink mt-3 text-[1.55rem] font-extrabold tracking-[-0.03em] leading-tight">One workflow for every source & type.</h2>
+            <p className="text-ink-soft mt-3 text-[0.92rem] leading-relaxed">Add content → choose Lecture/Book/Audio/Video/Document → pick provider (YouTube, Archive.org, External) → paste URL → preview embed → metadata → scholar(s) → subject(s) → draft/publish. For Archive.org collections, the bulk step surfaces every detected item before you save.</p>
+          </div>
+          <div className="flex flex-col gap-2">
+            <PrimaryButton to="/admin/new">Add single item</PrimaryButton>
+            <GhostButton to="/admin/archive-import">Bulk Archive import</GhostButton>
+          </div>
+        </div>
+
+        <div className="bg-cream neu-inset mt-8 rounded-[24px] p-4 sm:p-5">
+          <div className="flex flex-wrap items-center gap-2">
+            {[
+              'Add content',
+              'Content type',
+              'Provider',
+              'Paste URL',
+              'Preview embed',
+              'Metadata',
+              'Scholar(s)',
+              'Subject(s)',
+              'Save',
+            ].map((label, i) => (
+              <div key={label} className="flex items-center gap-2">
+                <span className={`grid h-7 w-7 place-items-center rounded-full text-[0.72rem] font-bold ${i === 8 ? 'bg-rose text-cream' : i < 8 ? 'bg-olive text-cream' : 'bg-sand text-ink-muted'}`}>{i + 1}</span>
+                <span className={`hidden text-[0.78rem] font-semibold sm:inline ${i === 8 ? 'text-rose' : 'text-ink-soft'}`}>{label}</span>
+                {i < 8 && <span className="text-line mx-1 hidden sm:inline">—</span>}
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 hidden gap-1 sm:flex">
+            <div className="bg-rose h-1.5 flex-1 rounded-full" />
+            <div className="bg-olive h-1.5 flex-1 rounded-full" />
+            <div className="bg-cream neu-inset h-1.5 flex-1 rounded-full" />
+          </div>
+        </div>
+
+        <div className="mt-8 grid gap-4 md:grid-cols-3">
           <article className="bg-cream neu-raised-sm rounded-[24px] p-6">
-            <p className="text-ink-muted text-[0.72rem] font-semibold tracking-[0.18em] uppercase">01 — Lectures</p>
-            <h3 className="font-display text-ink mt-3 text-[1.2rem] font-extrabold tracking-tight">Paste a YouTube URL</h3>
-            <p className="text-ink-soft mt-3 text-[0.92rem] leading-relaxed">
-              Enter the link, give it a title, choose the scholar and subjects, then publish. ilmNet does not host the video — it catalogues it.
-            </p>
-            <div className="mt-6">
+            <p className="text-ink-muted text-[0.72rem] font-semibold tracking-[0.18em] uppercase">YouTube · unchanged</p>
+            <h3 className="font-display text-ink mt-3 text-[1.15rem] font-extrabold tracking-tight leading-tight">YouTube videos & playlists</h3>
+            <p className="text-ink-soft mt-3 text-[0.9rem] leading-relaxed">Single talk or 40-part course — choose Video or Playlist, paste, embed. Fully preserved.</p>
+            <div className="mt-5 flex flex-wrap gap-2">
+              <span className="bg-sand text-ink-muted rounded-full px-3 py-1.5 text-[0.72rem] font-semibold">youtube.com / youtu.be</span>
+              <span className="bg-sand text-ink-muted rounded-full px-3 py-1.5 text-[0.72rem] font-semibold">playlist?list=…</span>
+            </div>
+            <div className="mt-6 flex gap-3">
               <PrimaryButton to="/admin/lectures/new">Add lecture</PrimaryButton>
+              <GhostButton to="/admin/lectures">Manage</GhostButton>
+            </div>
+          </article>
+          <article className="bg-cream neu-raised-sm rounded-[24px] p-6 ring-1 ring-olive/10">
+            <p className="text-ink-muted text-[0.72rem] font-semibold tracking-[0.18em] uppercase">Archive.org · generic</p>
+            <h3 className="font-display text-ink mt-3 text-[1.15rem] font-extrabold tracking-tight leading-tight">Audio · Video · Books · Documents · Collections</h3>
+            <p className="text-ink-soft mt-3 text-[0.9rem] leading-relaxed">Not only books. A collection with 100 recordings is detected as 100 items — you curate each one: type, scholar, subject, language, series, draft/publish/skip.</p>
+            <div className="mt-5 flex flex-wrap gap-2">
+              <span className="bg-olive/15 text-olive-deep rounded-full px-3 py-1.5 text-[0.72rem] font-semibold">audio</span>
+              <span className="bg-rose/10 text-rose rounded-full px-3 py-1.5 text-[0.72rem] font-semibold">video</span>
+              <span className="bg-sand text-ink-muted rounded-full px-3 py-1.5 text-[0.72rem] font-semibold">book / document</span>
+            </div>
+            <div className="mt-6 flex gap-3">
+              <PrimaryButton to="/admin/archive-import" tone="olive">Bulk import</PrimaryButton>
+              <GhostButton to="/admin/lectures/new">Single Archive lecture</GhostButton>
             </div>
           </article>
           <article className="bg-cream neu-raised-sm rounded-[24px] p-6">
-            <p className="text-ink-muted text-[0.72rem] font-semibold tracking-[0.18em] uppercase">02 — Books</p>
-            <h3 className="font-display text-ink mt-3 text-[1.2rem] font-extrabold tracking-tight">Paste an Archive.org URL</h3>
-            <p className="text-ink-soft mt-3 text-[0.92rem] leading-relaxed">
-              Point to the scan or edition on Archive.org, name the author, attach subjects, then publish it to the reading shelf.
-            </p>
-            <div className="mt-6">
-              <PrimaryButton to="/admin/books/new" tone="olive">
-                Add book
-              </PrimaryButton>
+            <p className="text-ink-muted text-[0.72rem] font-semibold tracking-[0.18em] uppercase">Taxonomy</p>
+            <h3 className="font-display text-ink mt-3 text-[1.15rem] font-extrabold tracking-tight leading-tight">Scholars & Subjects</h3>
+            <p className="text-ink-soft mt-3 text-[0.9rem] leading-relaxed">Shared across all providers and content types. Bulk import lets you assign per-item or in bulk.</p>
+            <div className="mt-6 flex gap-3">
+              <GhostButton to="/admin/scholars">Scholars</GhostButton>
+              <GhostButton to="/admin/subjects">Subjects</GhostButton>
             </div>
+            <p className="text-ink-muted mt-4 text-[0.78rem] leading-relaxed">Providers: <span className="font-semibold text-ink-soft">YouTube</span>, <span className="font-semibold text-ink-soft">Archive.org</span>, <span className="font-semibold text-ink-soft">External</span> · Content types: Lecture, Book, Audio, Video, Document.</p>
           </article>
         </div>
       </section>
 
       <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
         <section>
-          <p className="text-ink-muted text-[0.72rem] font-semibold tracking-[0.22em] uppercase">Recent activity</p>
+          <p className="text-ink-muted text-[0.72rem] font-semibold tracking-[0.22em] uppercase">Recent activity · session only</p>
           <div className="bg-cream neu-raised mt-4 overflow-hidden rounded-[28px]">
             {activity.slice(0, 8).map((a, i) => (
               <div
@@ -98,7 +176,7 @@ export default function Overview() {
           <p className="text-ink-muted text-[0.72rem] font-semibold tracking-[0.22em] uppercase">Waiting to publish</p>
           <div className="bg-sand neu-inset mt-4 rounded-[28px] p-4">
             {drafts.length === 0 ? (
-              <p className="text-ink-muted px-3 py-8 text-center text-[0.92rem]">Nothing in draft.</p>
+              <p className="text-ink-muted px-3 py-8 text-center text-[0.92rem]">Nothing in draft — everything is live.</p>
             ) : (
               <ul className="space-y-2">
                 {drafts.map((d) => (
@@ -120,8 +198,12 @@ export default function Overview() {
               </ul>
             )}
             <p className="text-ink-muted mt-3 px-2 text-[0.78rem]">
-              {draftB} book {draftB === 1 ? 'draft' : 'drafts'} · {draftL} lecture {draftL === 1 ? 'draft' : 'drafts'}
+              {draftB} book {draftB === 1 ? 'draft' : 'drafts'} · {draftL} lecture {draftL === 1 ? 'draft' : 'drafts'} · {pubL + pubB} published
             </p>
+          </div>
+          <div className="mt-4 rounded-[20px] bg-cream neu-raised-sm p-4">
+            <p className="text-ink-muted text-[0.72rem] font-semibold tracking-[0.14em] uppercase">Tip for reviewers</p>
+            <p className="text-ink-soft mt-2 text-[0.86rem] leading-relaxed">Try <Link to="/admin/archive-import" className="text-rose font-semibold underline decoration-rose/30">Archive.org Bulk Import</Link> with “100 items” to see the detection banner and per-item configuration. Single YouTube flows remain at <Link to="/admin/new" className="text-rose font-semibold underline decoration-rose/30">Add content</Link>.</p>
           </div>
         </section>
       </div>

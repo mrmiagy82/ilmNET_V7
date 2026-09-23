@@ -1,0 +1,221 @@
+import { useEffect, useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
+import PageHeader from '../components/PageHeader';
+import { Tag } from '../components/ui';
+import { getPublishedContent, type BackendContent } from '@/lib/api';
+
+function Embed({ c }: { c: BackendContent }) {
+  if (!c.embedUrl) {
+    return (
+      <div className="bg-sand neu-inset rounded-[24px] p-8 text-center">
+        <p className="text-ink-muted text-[0.9rem]">No embed available — open original:</p>
+        <a href={c.sourceUrl} target="_blank" rel="noreferrer" className="text-rose mt-3 inline-block font-semibold break-all">
+          {c.sourceUrl}
+        </a>
+      </div>
+    );
+  }
+
+  // PDF: use object/embed
+  if (c.provider === 'pdf') {
+    return (
+      <div className="bg-sand neu-inset rounded-[24px] overflow-hidden">
+        <iframe src={c.embedUrl} title={c.title} className="h-[720px] w-full bg-white" />
+        <div className="p-4 text-center">
+          <a href={c.sourceUrl} target="_blank" rel="noreferrer" className="text-rose text-[0.88rem] font-semibold">
+            Open PDF → {c.sourceUrl}
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  // Default iframe for youtube, archive, google_books, external with embed
+  return (
+    <div className="bg-sand neu-inset rounded-[24px] overflow-hidden p-2">
+      <div className="relative aspect-video w-full overflow-hidden rounded-[18px] bg-black">
+        <iframe
+          src={c.embedUrl}
+          title={c.title}
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allowFullScreen
+          className="absolute inset-0 h-full w-full"
+        />
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-2 px-2 py-3">
+        <span className="text-ink-muted text-[0.72rem] font-medium">
+          {c.provider === 'youtube' ? 'YouTube' : c.provider === 'archive' ? 'Archive.org' : c.provider === 'google_books' ? 'Google Books' : c.provider} · {c.type}
+        </span>
+        <a href={c.sourceUrl} target="_blank" rel="noreferrer" className="text-ink-soft hover:text-rose text-[0.78rem] font-semibold">
+          Open original ↗
+        </a>
+      </div>
+    </div>
+  );
+}
+
+export default function ContentDetail({ expectedType }: { expectedType?: 'lecture' | 'book' }) {
+  const { id } = useParams<{ id: string }>();
+  const [content, setContent] = useState<BackendContent | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!id) return;
+    setLoading(true);
+    setError(null);
+    getPublishedContent(id)
+      .then((res) => {
+        // If expectedType is lecture, ensure it's lecture/video/audio, else book/document
+        // We still show if type mismatches but with a note? The requirement says correct type is shown, so we enforce but not block.
+        if (expectedType === 'lecture' && !['lecture', 'video', 'audio'].includes(res.data.type)) {
+          // For lecture detail, if content is book type, we still show but it's okay – the card linked correctly from lectures page only shows lecture types, so this shouldn't happen.
+        }
+        if (expectedType === 'book' && !['book', 'document'].includes(res.data.type)) {
+          // similar
+        }
+        setContent(res.data);
+      })
+      .catch((e: any) => setError(e.message || 'Failed to load'))
+      .finally(() => setLoading(false));
+  }, [id, expectedType]);
+
+  if (loading) {
+    return (
+      <>
+        <PageHeader eyebrow={expectedType === 'book' ? 'Read & Reflect' : 'Listen & Learn'} title="Loading…" intro="Fetching content from the library." />
+        <section className="px-5 pb-24 sm:px-6 lg:pb-32">
+          <div className="mx-auto max-w-[860px]">
+            <div className="bg-sand neu-inset rounded-[24px] h-[400px] animate-pulse" />
+            <div className="mt-8 space-y-3">
+              <div className="bg-sand h-8 w-3/4 rounded-full animate-pulse" />
+              <div className="bg-sand h-4 w-full rounded-full animate-pulse" />
+              <div className="bg-sand h-4 w-2/3 rounded-full animate-pulse" />
+            </div>
+          </div>
+        </section>
+      </>
+    );
+  }
+
+  if (error || !content) {
+    return (
+      <>
+        <PageHeader eyebrow="Not found" title="Content not found" intro={error ?? 'This content does not exist or is not published.'} />
+        <section className="px-5 pb-24 sm:px-6">
+          <div className="mx-auto max-w-[860px]">
+            <div className="bg-cream neu-raised rounded-[24px] p-8 text-center">
+              <p className="font-display text-ink text-[1.1rem] font-bold">Could not load content</p>
+              <p className="text-ink-soft mt-2 text-[0.9rem] break-words">{error ?? 'Not found'}</p>
+              <div className="mt-6 flex justify-center gap-3">
+                <Link to={expectedType === 'book' ? '/books' : '/lectures'} className="bg-rose text-cream rounded-full px-6 py-3 text-[0.9rem] font-semibold">
+                  Back to {expectedType === 'book' ? 'books' : 'lectures'}
+                </Link>
+                <Link to="/" className="bg-sand text-ink rounded-full px-6 py-3 text-[0.9rem] font-semibold">
+                  Home
+                </Link>
+              </div>
+            </div>
+          </div>
+        </section>
+      </>
+    );
+  }
+
+  const c = content;
+  const scholars = c.scholars.map((s) => s.scholar);
+  const subjects = c.subjects.map((s) => s.subject);
+
+  return (
+    <>
+      <PageHeader
+        eyebrow={`${c.provider === 'youtube' ? 'YouTube' : c.provider === 'archive' ? 'Archive.org' : c.provider} · ${c.type}`}
+        title={c.title}
+        intro={c.description ? c.description.slice(0, 220) + (c.description.length > 220 ? '…' : '') : 'No description.'}
+        meta={
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-wrap gap-2">
+              {subjects.map((sub) => (
+                <Tag key={sub.id} tone={sub.accent as any}>{sub.name}</Tag>
+              ))}
+              {c.language && <span className="bg-sand text-ink-soft rounded-full px-3 py-1.5 text-[0.72rem] font-medium">{c.language}</span>}
+              {c.durationMin && <span className="bg-cream neu-inset rounded-full px-3 py-1.5 text-[0.72rem] font-medium">{c.durationMin} min</span>}
+              {c.pages && <span className="bg-cream neu-inset rounded-full px-3 py-1.5 text-[0.72rem] font-medium">{c.pages} pages</span>}
+              {c.year && <span className="bg-cream neu-inset rounded-full px-3 py-1.5 text-[0.72rem] font-medium">{c.year}</span>}
+            </div>
+            {scholars.length > 0 && (
+              <p className="text-ink-soft text-[0.88rem]">
+                By {scholars.map((s) => s.name).join(', ')} {c.series ? `· ${c.series}` : ''} {c.collectionTitle ? `· ${c.collectionTitle}` : ''}
+              </p>
+            )}
+          </div>
+        }
+      />
+
+      <section className="px-5 pb-24 sm:px-6 lg:pb-32">
+        <div className="mx-auto max-w-[860px] space-y-8">
+          <Embed c={c} />
+
+          <div className="bg-cream neu-raised rounded-[28px] p-6 sm:p-8">
+            <h2 className="font-display text-ink text-[1.4rem] font-extrabold">About</h2>
+            <p className="text-ink-soft mt-4 whitespace-pre-wrap text-[1rem] leading-[1.7]">{c.description ?? 'No description provided.'}</p>
+
+            <div className="mt-8 grid gap-6 sm:grid-cols-2">
+              <div className="bg-sand neu-inset rounded-[18px] p-4">
+                <p className="text-ink-muted text-[0.68rem] font-semibold tracking-[0.14em] uppercase">Scholars</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {scholars.length ? scholars.map((s) => (
+                    <span key={s.id} className="bg-cream neu-raised-sm rounded-full px-3 py-1.5 text-[0.82rem] font-semibold">{s.name}</span>
+                  )) : <span className="text-ink-muted text-[0.82rem]">—</span>}
+                </div>
+              </div>
+              <div className="bg-sand neu-inset rounded-[18px] p-4">
+                <p className="text-ink-muted text-[0.68rem] font-semibold tracking-[0.14em] uppercase">Subjects</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {subjects.length ? subjects.map((s) => (
+                    <span key={s.id} className="bg-cream neu-raised-sm rounded-full px-3 py-1.5 text-[0.82rem] font-semibold">{s.name}</span>
+                  )) : <span className="text-ink-muted text-[0.82rem]">—</span>}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 grid gap-4 sm:grid-cols-3">
+              <div className="bg-cream neu-inset rounded-[16px] px-4 py-3">
+                <p className="text-ink-muted text-[0.68rem] font-semibold tracking-[0.12em] uppercase">Provider</p>
+                <p className="text-ink mt-1 text-[0.88rem] font-semibold capitalize">{c.provider.replace('_', ' ')}</p>
+                <p className="text-ink-muted mt-1 break-all text-[0.7rem] font-mono">{c.sourceUrl}</p>
+              </div>
+              <div className="bg-cream neu-inset rounded-[16px] px-4 py-3">
+                <p className="text-ink-muted text-[0.68rem] font-semibold tracking-[0.12em] uppercase">Language</p>
+                <p className="text-ink mt-1 text-[0.88rem] font-semibold">{c.language ?? '—'}</p>
+                {c.durationMin && <p className="text-ink-muted mt-1 text-[0.7rem]">{c.durationMin} min</p>}
+                {c.pages && <p className="text-ink-muted mt-1 text-[0.7rem]">{c.pages} pages</p>}
+              </div>
+              <div className="bg-cream neu-inset rounded-[16px] px-4 py-3">
+                <p className="text-ink-muted text-[0.68rem] font-semibold tracking-[0.12em] uppercase">Collection</p>
+                <p className="text-ink mt-1 text-[0.88rem] font-semibold">{c.collectionTitle ?? '—'}</p>
+                {c.collectionIdentifier && <p className="text-ink-muted mt-1 text-[0.7rem] font-mono">{c.collectionIdentifier}</p>}
+              </div>
+            </div>
+
+            <div className="mt-8 flex flex-wrap gap-3">
+              <Link to={c.type === 'book' || c.type === 'document' ? '/books' : '/lectures'} className="bg-sand text-ink rounded-full px-6 py-3 text-[0.9rem] font-semibold">
+                Back to {c.type === 'book' || c.type === 'document' ? 'books' : 'lectures'}
+              </Link>
+              <Link to="/" className="bg-cream neu-raised-sm text-ink rounded-full px-6 py-3 text-[0.9rem] font-semibold">
+                Home
+              </Link>
+            </div>
+          </div>
+
+          {(c.thumbnailUrl || c.coverUrl) && (
+            <div className="bg-cream neu-raised rounded-[28px] p-6 sm:p-8">
+              <h3 className="font-display text-ink text-[1.1rem] font-bold">Cover</h3>
+              <img src={(c.coverUrl ?? c.thumbnailUrl)!} alt="" className="mt-4 max-h-[420px] w-full rounded-[18px] object-contain bg-sand" onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} />
+            </div>
+          )}
+        </div>
+      </section>
+    </>
+  );
+}

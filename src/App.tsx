@@ -16,6 +16,11 @@ import ScholarsPage from './admin/ScholarsPage';
 import ScholarForm from './admin/ScholarForm';
 import SubjectsPage from './admin/SubjectsPage';
 import SubjectForm from './admin/SubjectForm';
+import ContentWizard from './admin/ContentWizard';
+import ArchiveImportPage from './admin/ArchiveImportPage';
+import YouTubeImportPage from './admin/YouTubeImportPage';
+import LectureDetail from './pages/LectureDetail';
+import BookDetail from './pages/BookDetail';
 
 export default function App() {
   return (
@@ -24,6 +29,9 @@ export default function App() {
         <Routes>
           <Route path="admin" element={<AdminLayout />}>
             <Route index element={<Overview />} />
+            <Route path="new" element={<ContentWizard />} />
+            <Route path="archive-import" element={<ArchiveImportPage />} />
+            <Route path="youtube-import" element={<YouTubeImportPage />} />
             <Route path="lectures" element={<LecturesPage />} />
             <Route path="lectures/new" element={<LectureForm />} />
             <Route path="lectures/:id" element={<LectureForm />} />
@@ -40,7 +48,9 @@ export default function App() {
           <Route element={<Layout />}>
             <Route index element={<Landing />} />
             <Route path="lectures" element={<Lectures />} />
+            <Route path="lectures/:id" element={<LectureDetail />} />
             <Route path="books" element={<Books />} />
+            <Route path="books/:id" element={<BookDetail />} />
             <Route path="scholars" element={<Scholars />} />
             <Route path="subjects" element={<Subjects />} />
             <Route path="*" element={<Landing />} />

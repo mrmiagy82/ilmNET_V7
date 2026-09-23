@@ -1,0 +1,172 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// — Enums: consistent naming (google_books with underscore) —
+enum ContentType {
+  lecture
+  audio
+  video
+  book
+  document
+}
+
+enum Provider {
+  youtube
+  archive
+  external
+  google_books
+  pdf
+}
+
+enum ContentStatus {
+  draft
+  published
+  archived
+}
+
+enum SubjectGroup {
+  Revelation
+  Practice
+  Belief
+  History
+  Language
+  Character
+}
+
+// — Scholar —
+// specialtyId is optional FK to Subject, onDelete SetNull to avoid missing relation
+model Scholar {
+  id          String        @id @default(cuid())
+  slug        String        @unique
+  name        String
+  initials    String?
+  specialtyId String?
+  specialty   Subject?      @relation(fields: [specialtyId], references: [id], onDelete: SetNull)
+  bio         String?       @db.Text
+  accent      String?       // rose | olive — kept as string for flexibility
+  status      ContentStatus @default(published)
+  metadata    Json?         // extensible: any future scholar metadata
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  contents    ContentScholar[]
+
+  @@index([status])
+  @@index([specialtyId])
+  @@map("scholars")
+}
+
+model Subject {
+  id          String        @id @default(cuid())
+  slug        String        @unique
+  name        String        @unique
+  group       SubjectGroup
+  description String?       @db.Text
+  accent      String?       // rose | olive | plain
+  status      ContentStatus @default(published)
+  metadata    Json?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  contents    ContentSubject[]
+  scholars    Scholar[]
+
+  @@index([status])
+  @@index([group])
+  @@map("subjects")
+}
+
+model Content {
+  id                   String        @id @default(cuid())
+  type                 ContentType
+  title                String
+  slug                 String        @unique
+  description          String?       @db.Text
+  status               ContentStatus @default(draft)
+  language             String?       // e.g. "English", "Arabic / English"
+  thumbnailUrl         String?
+  coverUrl             String?
+  // series correctly stored (string, nullable)
+  series               String?
+  provider             Provider
+  sourceUrl            String        // canonical external url
+  externalIdentifier   String?       // youtube videoId / archive identifier / etc.
+  embedUrl             String?
+  // collection support: one archive collection → 100 contents share collectionIdentifier
+  collectionIdentifier String?
+  collectionTitle      String?
+  durationMin          Int?
+  episodes             Int?
+  pages                Int?
+  year                 Int?
+  publishedAt          DateTime?
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+  // relation to import job (null for manually created)
+  importJobId          String?
+  importJob            ImportJob?    @relation(fields: [importJobId], references: [id], onDelete: SetNull)
+  // extensible archive.org metadata via JSONB — never requires schema change
+  metadata             Json?
+  scholars             ContentScholar[]
+  subjects             ContentSubject[]
+
+  @@index([status, publishedAt])
+  @@index([type, provider])
+  @@index([provider, externalIdentifier])
+  @@unique([provider, externalIdentifier])
+  @@index([collectionIdentifier])
+  @@index([slug])
+  @@index([language])
+  @@index([title])
+  @@index([series])
+  @@index([status, type])
+  @@map("contents")
+}
+
+model ContentScholar {
+  contentId String
+  scholarId String
+  role      String? // author | speaker | narrator | translator
+  content   Content @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  scholar   Scholar @relation(fields: [scholarId], references: [id], onDelete: Cascade)
+
+  @@id([contentId, scholarId])
+  @@map("content_scholars")
+}
+
+model ContentSubject {
+  contentId String
+  content   Content @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  subjectId String
+  subject   Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@id([contentId, subjectId])
+  @@map("content_subjects")
+}
+
+// Prepared for Archive.org collections and YouTube playlists.
+// Not yet used in Fase 1 beyond creation, but schema ready.
+model ImportJob {
+  id                 String   @id @default(cuid())
+  provider           Provider
+  sourceUrl          String
+  externalIdentifier String? // archive collection id / youtube playlist id
+  kind               String   // archive_single | archive_collection | youtube_video | youtube_playlist | external
+  status             String   @default("pending") // pending | fetching | awaiting_review | importing | completed | failed
+  totalItems         Int?
+  importedCount      Int?     @default(0)
+  preview            Json?    // snapshot of detected items for review step
+  error              String?  @db.Text
+  createdBy          String?  // userId later (auth)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  contents           Content[]
+
+  @@index([status, provider])
+  @@index([provider, externalIdentifier])
+  @@map("import_jobs")
+}

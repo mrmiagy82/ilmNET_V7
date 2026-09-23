@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.env
+.server-env
+server/node_modules/
+server/dist/
+server/.env
+*.log
+.opencode
+opencode-1.18.31-termux.tar.gz
+.DS_Store
+.vite/

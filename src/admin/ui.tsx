@@ -31,12 +31,14 @@ export function PrimaryButton({
   onClick,
   type = 'button',
   tone = 'rose',
+  disabled,
 }: {
   children: ReactNode;
   to?: string;
   onClick?: () => void;
   type?: 'button' | 'submit';
   tone?: 'rose' | 'olive' | 'sand';
+  disabled?: boolean;
 }) {
   const cls =
     tone === 'rose'
@@ -44,7 +46,7 @@ export function PrimaryButton({
       : tone === 'olive'
         ? 'bg-olive text-[#22251a] shadow-[8px_10px_22px_rgba(140,150,100,0.32)] hover:brightness-95'
         : 'bg-sand text-ink neu-raised-sm hover:text-rose';
-  const shared = `inline-flex items-center justify-center rounded-[18px] px-6 py-3 text-[0.94rem] font-semibold transition-all ${cls}`;
+  const shared = `inline-flex items-center justify-center rounded-[18px] px-6 py-3 text-[0.94rem] font-semibold transition-all ${cls} ${disabled ? 'opacity-50 pointer-events-none' : ''}`;
   if (to) {
     return (
       <Link to={to} className={shared}>
@@ -53,7 +55,7 @@ export function PrimaryButton({
     );
   }
   return (
-    <button type={type} onClick={onClick} className={shared}>
+    <button type={type} onClick={onClick} disabled={disabled} className={shared}>
       {children}
     </button>
   );
@@ -64,14 +66,15 @@ export function GhostButton({
   onClick,
   to,
   type = 'button',
+  disabled,
 }: {
   children: ReactNode;
   onClick?: () => void;
   to?: string;
   type?: 'button' | 'submit';
+  disabled?: boolean;
 }) {
-  const cls =
-    'bg-sand text-ink neu-raised-sm inline-flex items-center justify-center rounded-[18px] px-6 py-3 text-[0.94rem] font-semibold transition-transform hover:-translate-y-0.5';
+  const cls = `bg-sand text-ink neu-raised-sm inline-flex items-center justify-center rounded-[18px] px-6 py-3 text-[0.94rem] font-semibold transition-transform hover:-translate-y-0.5 ${disabled ? 'opacity-50 pointer-events-none' : ''}`;
   if (to) {
     return (
       <Link to={to} className={cls}>
@@ -80,7 +83,7 @@ export function GhostButton({
     );
   }
   return (
-    <button type={type} onClick={onClick} className={cls}>
+    <button type={type} onClick={onClick} disabled={disabled} className={cls}>
       {children}
     </button>
   );
@@ -172,6 +175,34 @@ export function ChipToggle({
   );
 }
 
+export function SourceCard({
+  active,
+  title,
+  hint,
+  icon,
+  onClick,
+}: {
+  active: boolean;
+  title: string;
+  hint: string;
+  icon: ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`text-left rounded-[20px] p-4 sm:p-5 transition-all ${
+        active ? 'bg-rose text-cream shadow-[8px_12px_24px_rgba(204,58,99,0.28)]' : 'bg-cream neu-raised-sm hover:-translate-y-0.5 text-ink'
+      }`}
+    >
+      <span className={`grid h-9 w-9 place-items-center rounded-[12px] ${active ? 'bg-white/20 text-cream' : 'bg-sand text-ink-soft'}`}>{icon}</span>
+      <p className={`mt-3 text-[0.95rem] font-bold leading-tight ${active ? 'text-cream' : 'text-ink'}`}>{title}</p>
+      <p className={`mt-1 text-[0.78rem] leading-relaxed ${active ? 'text-cream/80' : 'text-ink-muted'}`}>{hint}</p>
+    </button>
+  );
+}
+
 export function SourcePreview({
   url,
   ok,
@@ -209,6 +240,207 @@ export function SourcePreview({
           {ok ? `${expect} link recognised` : `This does not look like a ${expect} URL`}
         </p>
         <p className="text-ink-muted mt-0.5 truncate text-[0.8rem]">{url}</p>
+      </div>
+    </div>
+  );
+}
+
+// — Embedded previews —
+
+export function YoutubeEmbed({ url }: { url: string }) {
+  // dynamic import to avoid circular
+  const getEmbed = (u: string) => {
+    try {
+      const parsed = new URL(u);
+      const host = parsed.hostname.replace(/^www\./, '');
+      const v = parsed.searchParams.get('v');
+      const list = parsed.searchParams.get('list');
+      if (host === 'youtu.be') {
+        const id = parsed.pathname.slice(1).split('/')[0];
+        if (id && list) return `https://www.youtube.com/embed/${id}?list=${list}`;
+        if (id) return `https://www.youtube.com/embed/${id}`;
+      }
+      if (parsed.pathname.startsWith('/embed/')) return u;
+      if (parsed.pathname.startsWith('/shorts/')) {
+        const id = parsed.pathname.split('/')[2];
+        return `https://www.youtube.com/embed/${id}`;
+      }
+      if (parsed.pathname.includes('/playlist') && list && !v) return `https://www.youtube.com/embed/videoseries?list=${list}`;
+      if (v) {
+        if (list) return `https://www.youtube.com/embed/${v}?list=${list}`;
+        return `https://www.youtube.com/embed/${v}`;
+      }
+      if (list) return `https://www.youtube.com/embed/videoseries?list=${list}`;
+      return null;
+    } catch {
+      return null;
+    }
+  };
+  const embed = getEmbed(url);
+  if (!embed) return null;
+  const isPlaylist = embed.includes('videoseries') || embed.includes('list=');
+  return (
+    <div className="bg-cream neu-inset overflow-hidden rounded-[20px] p-2">
+      <div className="overflow-hidden rounded-[14px] bg-black">
+        <div className="aspect-video w-full">
+          <iframe
+            src={embed}
+            title={isPlaylist ? 'YouTube playlist preview' : 'YouTube video preview'}
+            className="h-full w-full"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+            loading="lazy"
+          />
+        </div>
+      </div>
+      <div className="flex items-center justify-between px-2 py-2.5">
+        <p className="text-ink-muted flex items-center gap-1.5 text-[0.78rem] font-medium">
+          <span className="bg-rose/10 text-rose grid h-6 w-6 place-items-center rounded-full">
+            <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="currentColor"><path d="M8 5.6c0-.9 1-1.5 1.8-1l8.1 5.1a1.2 1.2 0 0 1 0 2L9.8 17c-.8.5-1.8-.1-1.8-1V5.6Z" /></svg>
+          </span>
+          {isPlaylist ? 'Playlist — embedded preview' : 'Single video — embedded preview'}
+        </p>
+        <span className="text-ink-muted hidden text-[0.72rem] sm:inline">YouTube stays externally hosted</span>
+      </div>
+    </div>
+  );
+}
+
+export function ArchiveEmbed({ url }: { url: string }) {
+  const getEmbed = (u: string) => {
+    try {
+      const parsed = new URL(u);
+      const host = parsed.hostname.replace(/^www\./, '');
+      if (!(host === 'archive.org' || host.endsWith('.archive.org'))) return null;
+      const parts = parsed.pathname.split('/').filter(Boolean);
+      const idx = parts.indexOf('details');
+      if (idx !== -1 && parts[idx + 1]) return `https://archive.org/embed/${parts[idx + 1]}`;
+      if (parts[0] === 'embed') return u;
+      if (parts.length === 1) return `https://archive.org/embed/${parts[0]}`;
+      return null;
+    } catch {
+      return null;
+    }
+  };
+  const embed = getEmbed(url);
+  if (!embed) return null;
+  return (
+    <div className="bg-cream neu-inset overflow-hidden rounded-[20px] p-2">
+      <div className="overflow-hidden rounded-[14px] bg-[#1a1a1a]">
+        <div className="h-[420px] w-full">
+          <iframe src={embed} title="Archive.org book preview" className="h-full w-full" allowFullScreen loading="lazy" />
+        </div>
+      </div>
+      <div className="flex items-center justify-between px-2 py-2.5">
+        <p className="text-ink-muted flex items-center gap-1.5 text-[0.78rem] font-medium">
+          <span className="bg-olive/20 text-olive-deep grid h-6 w-6 place-items-center rounded-full">
+            <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.9"><path d="M4 19V6a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v13" /><path d="M14 19V6a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1Z" /></svg>
+          </span>
+          Archive.org — embedded reader
+        </p>
+        <span className="text-ink-muted hidden text-[0.72rem] sm:inline">Scan stays on Archive.org</span>
+      </div>
+    </div>
+  );
+}
+
+export function ExternalEmbed({ url, type }: { url: string; type: string }) {
+  if (!url.trim()) return null;
+  const lower = url.toLowerCase();
+  const isPdf = lower.endsWith('.pdf') || lower.includes('.pdf?');
+  const isGoogleBooks = url.includes('books.google');
+  if (isGoogleBooks) {
+    try {
+      const u = new URL(url);
+      const id = u.searchParams.get('id');
+      const embed = id ? `https://books.google.com/books?id=${id}&printsec=frontcover&hl=en` : null;
+      if (embed) {
+        return (
+          <div className="bg-cream neu-inset overflow-hidden rounded-[20px] p-2">
+            <div className="overflow-hidden rounded-[14px] bg-white">
+              <div className="h-[420px] w-full">
+                <iframe src={embed} title="Google Books preview" className="h-full w-full" loading="lazy" />
+              </div>
+            </div>
+            <p className="text-ink-muted px-2 py-2.5 text-[0.78rem]">Google Books — preview (availability depends on publisher)</p>
+          </div>
+        );
+      }
+    } catch {}
+  }
+  if (isPdf) {
+    return (
+      <div className="bg-cream neu-inset overflow-hidden rounded-[20px] p-2">
+        <div className="overflow-hidden rounded-[14px] bg-[#1e1e1e]">
+          <div className="h-[420px] w-full">
+            <iframe src={url} title="PDF preview" className="h-full w-full" loading="lazy" />
+          </div>
+        </div>
+        <p className="text-ink-muted px-2 py-2.5 text-[0.78rem]">PDF — direct preview. Hosted externally.</p>
+      </div>
+    );
+  }
+  // generic external
+  return (
+    <div className="bg-cream neu-inset rounded-[20px] p-2">
+      <div className="bg-sand rounded-[14px] p-5 sm:p-6">
+        <div className="flex items-start gap-4">
+          <span className="bg-cream neu-raised-sm grid h-11 w-11 shrink-0 place-items-center rounded-[14px] text-ink-muted">
+            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></svg>
+          </span>
+          <div className="min-w-0">
+            <p className="font-display text-ink text-[1rem] font-bold leading-tight">External document</p>
+            <p className="text-ink-muted mt-1 break-all text-[0.84rem]">{url}</p>
+            <p className="text-ink-muted mt-3 text-[0.78rem]">Type: <span className="text-ink font-medium">{type}</span> · ilmNet will link to this location and not re-host it.</p>
+            <a href={url} target="_blank" rel="noreferrer" className="bg-cream neu-raised-sm mt-4 inline-flex items-center rounded-full px-4 py-2 text-[0.82rem] font-semibold text-ink hover:text-rose">Open externally ↗</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function CoverPreview({ url, title }: { url: string; title?: string }) {
+  if (!url.trim()) return null;
+  return (
+    <div className="mt-3 flex gap-3 rounded-[18px] bg-sand/60 p-3">
+      <div className="h-[96px] w-[72px] shrink-0 overflow-hidden rounded-[10px] bg-sand-deep neu-inset">
+        <img src={url} alt={title ?? 'Cover preview'} className="h-full w-full object-cover" onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} />
+      </div>
+      <div className="min-w-0 py-1">
+        <p className="text-ink text-[0.84rem] font-semibold">Cover preview</p>
+        <p className="text-ink-muted mt-1 break-all text-[0.72rem]">{url}</p>
+        <p className="text-ink-muted mt-1 text-[0.72rem]">If the image fails, the public card will fall back to its generated cover.</p>
+      </div>
+    </div>
+  );
+}
+
+export function WorkflowStepper({ step, total = 9 }: { step: number; total?: number }) {
+  const labels = ['Type', 'Source', 'URL', 'Preview', 'Details', 'Scholar', 'Subjects', 'Review', 'Publish'];
+  return (
+    <div className="bg-sand neu-inset rounded-[24px] p-4 sm:p-5">
+      <div className="flex items-center justify-between">
+        <p className="text-ink-muted text-[0.72rem] font-semibold tracking-[0.18em] uppercase">Step {step} of {total}</p>
+        <p className="text-ink-muted text-[0.72rem]">{Math.round((step / total) * 100)}%</p>
+      </div>
+      <div className="bg-cream neu-inset mt-3 h-2 overflow-hidden rounded-full">
+        <div className="bg-rose h-full rounded-full transition-all duration-500" style={{ width: `${(step / total) * 100}%` }} />
+      </div>
+      <div className="mt-3 hidden gap-1.5 sm:flex">
+        {labels.map((l, i) => (
+          <span
+            key={l}
+            className={`flex-1 rounded-full px-2 py-1.5 text-center text-[0.68rem] font-semibold leading-none ${i + 1 === step ? 'bg-rose text-cream' : i + 1 < step ? 'bg-olive text-cream' : 'bg-cream text-ink-muted neu-raised-sm'}`}
+          >
+            {i + 1}. {l}
+          </span>
+        ))}
+      </div>
+      <div className="mt-3 flex gap-1.5 sm:hidden">
+        {Array.from({ length: total }).map((_, i) => (
+          <span key={i} className={`h-1.5 flex-1 rounded-full ${i + 1 === step ? 'bg-rose' : i + 1 < step ? 'bg-olive' : 'bg-cream neu-inset'}`} />
+        ))}
       </div>
     </div>
   );
