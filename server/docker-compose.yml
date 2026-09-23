@@ -1,34 +1,60 @@
+# ilmNet — production stack (PostgreSQL + Fastify API, optionally serving the built frontend)
+#
+#   docker compose up -d --build
+#
+# Required env (put these in server/.env next to this file, or export them):
+#   ADMIN_TOKEN        long random string; admin CMS + uploads require it in production
+#   CORS_ORIGIN        exact frontend origin(s), comma separated (no wildcards in production)
+#   POSTGRES_PASSWORD  database password (change the default below!)
+#
+# The API serves the build in ../dist when it exists (SERVE_FRONTEND=false to disable),
+# so with `npm run build` in the repo root a single container hosts the whole site.
+
 services:
   postgres:
     image: postgres:17-alpine
     container_name: ilmnet-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ilmnet
-      POSTGRES_USER: ilmnet
-      POSTGRES_PASSWORD: ilmnet_dev
+      POSTGRES_DB: ${POSTGRES_DB:-ilmnet}
+      POSTGRES_USER: ${POSTGRES_USER:-ilmnet}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ilmnet_dev}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ilmnet -d ilmnet"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ilmnet} -d ${POSTGRES_DB:-ilmnet}"]
       interval: 5s
       timeout: 5s
       retries: 10
 
-  # server is run locally via `npm run dev` for now.
-  # Uncomment to run via docker later:
-  # server:
-  #   build: .
-  #   ports:
-  #     - "3001:3001"
-  #   environment:
-  #     DATABASE_URL: postgresql://ilmnet:ilmnet_dev@postgres:5432/ilmnet?schema=public
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #   command: ["npm", "run", "dev"]
+  server:
+    build: .
+    container_name: ilmnet-server
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-ilmnet}:${POSTGRES_PASSWORD:-ilmnet_dev}@postgres:5432/${POSTGRES_DB:-ilmnet}?schema=public
+      PORT: "3001"
+      HOST: 0.0.0.0
+      NODE_ENV: production
+      # exact origins of the frontend(s) that may call this API from a browser
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173}
+      ADMIN_TOKEN: ${ADMIN_TOKEN:?ADMIN_TOKEN is required — generate one with: openssl rand -hex 32}
+      # persistent volume for custom thumbnails/covers (DB stores /uploads/<file>)
+      UPLOADS_DIR: /app/uploads
+      # serve the built frontend from this container when ../dist exists (mounted below)
+      SERVE_FRONTEND: "true"
+      FRONTEND_DIR: /app/frontend
+    ports:
+      - "3001:3001"
+    volumes:
+      - uploads_data:/app/uploads
+      - ../dist:/app/frontend:ro
 
 volumes:
   postgres_data:
+  uploads_data:

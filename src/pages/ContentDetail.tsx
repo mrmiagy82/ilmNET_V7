@@ -7,6 +7,7 @@ import AudioPlayer from '@/components/AudioPlayer';
 import { getDownloadUrl, getAudioStreamUrl } from '@/lib/series';
 import { resolveCover, resolveThumbnail, resolveCardMedia } from '@/lib/thumbnail';
 import AudioPlaceholder from '@/components/AudioPlaceholder';
+import MediaThumb from '@/components/MediaThumb';
 
 function Embed({ c }: { c: BackendContent }) {
   const audioSrc = c.type === 'audio' ? getAudioStreamUrl(c) : null;
@@ -162,14 +163,13 @@ function SeriesNav({ c }: { c: BackendContent }) {
       <div className="mt-4 grid gap-3">
         {siblings.map((s) => (
           <Link key={s.id} to={`/${s.type === 'book' || s.type === 'document' ? 'books' : 'lectures'}/${s.slug}`} className="bg-sand neu-inset flex gap-3 rounded-[16px] p-3 hover:opacity-80">
-            <div className="bg-cream relative h-16 w-24 shrink-0 overflow-hidden rounded-[10px]">
-              {(() => {
-                const media = resolveCardMedia(s);
-                if (media.src) return <img src={media.src} alt="" className="absolute inset-0 h-full w-full object-cover" loading="lazy" />;
-                if (media.kind === 'placeholder-audio') return <AudioPlaceholder className="absolute inset-0" />;
-                return <div className="absolute inset-0 bg-gradient-to-br from-olive/10 to-rose/10" />;
-              })()}
-            </div>
+            <MediaThumb
+              src={resolveCardMedia(s).src}
+              kind={resolveCardMedia(s).kind}
+              testId="series-nav-thumb"
+              className="bg-cream h-16 w-24 shrink-0 rounded-[10px]"
+              fallback={<div className="absolute inset-0 bg-gradient-to-br from-olive/10 to-rose/10" />}
+            />
             <div className="min-w-0">
               <p className="font-display text-ink line-clamp-1 text-[0.88rem] font-bold">{s.title}</p>
               <p className="text-ink-muted line-clamp-1 text-[0.72rem]">{s.scholars[0]?.scholar.name ?? ''} · {s.durationMin ? `${s.durationMin} min` : s.type}</p>
@@ -356,13 +356,21 @@ export default function ContentDetail({ expectedType }: { expectedType?: 'lectur
                   <h3 className="font-display text-ink text-[1.1rem] font-bold">{c.type === 'book' || c.type === 'document' ? 'Cover' : 'Artwork'}</h3>
                   {coverMedia.source === 'custom' && <span className="bg-olive/15 text-olive-deep rounded-full px-3 py-1 text-[0.68rem] font-bold">Custom upload</span>}
                 </div>
-                <div className="bg-sand neu-inset mt-4 overflow-hidden rounded-[18px] p-2">
-                  {coverMedia.src ? (
-                    <img src={coverMedia.src} alt="" className="max-h-[420px] w-full rounded-[14px] bg-sand object-contain" onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} />
-                  ) : (
-                    <AudioPlaceholder className="aspect-[16/10] w-full rounded-[14px]" />
-                  )}
-                </div>
+                <MediaThumb
+                  src={coverMedia.src}
+                  kind={coverMedia.kind}
+                  eager
+                  testId="detail-cover"
+                  className="bg-sand neu-inset mt-4 grid place-items-center rounded-[18px] p-2"
+                  imgClassName="object-contain"
+                  fallback={
+                    <div className="absolute inset-0 grid place-items-center p-2">
+                      <AudioPlaceholder className="aspect-[16/10] w-full rounded-[14px]" />
+                    </div>
+                  }
+                >
+                  <div className="h-[420px] w-full" aria-hidden="true" />
+                </MediaThumb>
               </div>
             );
           })()}

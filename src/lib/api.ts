@@ -3,7 +3,49 @@
 // In production set VITE_API_URL to the backend origin.
 
 const BASE = (import.meta as any).env?.VITE_API_URL ?? "";
-const ADMIN_TOKEN = (import.meta as any).env?.VITE_ADMIN_TOKEN ?? "";
+
+/**
+ * Admin token handling.
+ *
+ * A token must NEVER end up in a production bundle: `VITE_*` values are inlined at build
+ * time, so anything set there is readable by every visitor. We therefore only accept the
+ * build-time token in development, and otherwise use a token the operator pastes into the
+ * Admin CMS at runtime (kept in sessionStorage, cleared when the tab closes).
+ */
+const DEV_BUILD_TOKEN = (import.meta as any).env?.DEV ? ((import.meta as any).env?.VITE_ADMIN_TOKEN ?? "") : "";
+const TOKEN_STORAGE_KEY = "ilmnet.adminToken";
+
+export function getAdminToken(): string {
+  try {
+    const stored = sessionStorage.getItem(TOKEN_STORAGE_KEY);
+    if (stored) return stored;
+  } catch {
+    /* storage blocked (private mode) — fall back to the dev token */
+  }
+  return DEV_BUILD_TOKEN;
+}
+
+export function setAdminToken(token: string): void {
+  try {
+    const value = token.trim();
+    if (value) sessionStorage.setItem(TOKEN_STORAGE_KEY, value);
+    else sessionStorage.removeItem(TOKEN_STORAGE_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+export function clearAdminToken(): void {
+  try {
+    sessionStorage.removeItem(TOKEN_STORAGE_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+export function hasAdminToken(): boolean {
+  return Boolean(getAdminToken());
+}
 
 /**
  * Resolve a media URL for use in <img>/<audio>.
@@ -26,12 +68,16 @@ export function isCustomMediaUrl(url: string | null | undefined): boolean {
 }
 
 // ── helpers ──
+export type ApiError = Error & { status?: number; code?: string };
+
 async function apiFetch<T>(path: string, opts: RequestInit = {}): Promise<T> {
   const url = `${BASE}${path}`;
   const baseHeaders: Record<string, string> = {};
   if (opts.body) baseHeaders["Content-Type"] = "application/json";
-  if (ADMIN_TOKEN && path.startsWith("/api/admin")) {
-    baseHeaders["x-admin-token"] = ADMIN_TOKEN;
+  // Admin endpoints (reads of drafts + all writes) need the token
+  if (path.startsWith("/api/admin")) {
+    const token = getAdminToken();
+    if (token) baseHeaders["x-admin-token"] = token;
   }
   const res = await fetch(url, {
     headers: { ...baseHeaders, ...((opts.headers as Record<string, string>) ?? {}) },
@@ -40,7 +86,16 @@ async function apiFetch<T>(path: string, opts: RequestInit = {}): Promise<T> {
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
     const msg = (body as any)?.error?.message ?? (body as any)?.error?.details ?? res.statusText;
-    throw new Error(typeof msg === "string" ? msg : JSON.stringify(msg));
+    const err: ApiError = new Error(
+      res.status === 401
+        ? "Admin token ontbreekt of is ongeldig — voer het token in via Admin → Token."
+        : typeof msg === "string"
+          ? msg
+          : JSON.stringify(msg),
+    );
+    err.status = res.status;
+    err.code = (body as any)?.error?.code;
+    throw err;
   }
   return body as T;
 }
@@ -142,7 +197,8 @@ export async function uploadImage(file: File): Promise<{ url: string; filename: 
   const form = new FormData();
   form.append("file", file);
   const headers: Record<string, string> = {};
-  if (ADMIN_TOKEN) headers["x-admin-token"] = ADMIN_TOKEN;
+  const token = getAdminToken();
+  if (token) headers["x-admin-token"] = token;
   const res = await fetch(`${BASE}/api/admin/uploads`, { method: "POST", body: form, headers });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {

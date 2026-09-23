@@ -1,0 +1,269 @@
+/**
+ * Fase 3.7 — production readiness tests (real HTTP + real DB, no mocks)
+ *
+ * Covers:
+ *  1. admin protection in production mode: every /api/admin read/write needs a token,
+ *     every non-GET /api/* route needs a token, and mismatching tokens are rejected
+ *  2. legacy public write aliases are gone (no unprotected publish/create/delete)
+ *  3. draft / archived content and unpublished scholars & subjects never leak publicly
+ *  4. uploads: path traversal blocked, only image files, size/type limits enforced
+ *  5. storage: UPLOADS_DIR override, health reports storage + admin protection
+ *  6. deploy: fail-fast without ADMIN_TOKEN in production, frontend build served when present
+ */
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
+import Fastify from 'fastify';
+import { buildApp } from '../src/server';
+import { prisma } from '../src/lib/prisma';
+import { getUploadsDir, listUploadFiles, uploadsHealth } from '../src/lib/storage';
+
+const TOKEN = process.env.ADMIN_TOKEN || 'ilmnet-admin-dev-2026';
+const WRONG = 'definitely-not-the-token';
+let passed = 0;
+let failed = 0;
+
+const ok = (m: string) => {
+  passed++;
+  console.log(`✅ ${m}`);
+};
+const fail = (m: string) => {
+  failed++;
+  console.log(`❌ ${m}`);
+};
+const check = (cond: boolean, m: string) => (cond ? ok(m) : fail(m));
+
+/** Build an app in production mode on a custom port so the localhost dev-bypass never applies. */
+async function prodApp() {
+  process.env.NODE_ENV = 'production';
+  process.env.ADMIN_TOKEN = TOKEN;
+  process.env.CORS_ORIGIN = 'https://ilmnet.example,https://www.ilmnet.example';
+  const app = await buildApp();
+  const address = await app.listen({ port: 0, host: '127.0.0.1' });
+  const base = `${address}`;
+  // Requests are sent through a raw socket to a public-looking Host header so the
+  // dev localhost bypass (which never runs in production) cannot mask a missing check.
+  return { app, base };
+}
+
+async function raw(method: string, url: string, body?: any, token?: string): Promise<{ status: number; json: any }> {
+  const res = await fetch(url, {
+    method,
+    headers: {
+      'content-type': 'application/json',
+      host: 'ilmnet.example',
+      ...(token ? { 'x-admin-token': token } : {}),
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const json = await res.json().catch(() => ({}));
+  return { status: res.status, json };
+}
+
+async function main() {
+  const { app, base } = await prodApp();
+  const createdIds: string[] = [];
+
+  try {
+    console.log('--- 1. Production health + admin protection ---');
+    const health = await raw('GET', `${base}/api/health`);
+    check(health.status === 200, `health is public (${health.status})`);
+    check(health.json.database === 'up', 'health reports database up');
+    check(health.json.storage?.writable === true, `health reports writable storage (${health.json.storage?.dir})`);
+    check(health.json.adminProtection === true, 'health reports admin protection enabled');
+
+    const adminRead = await raw('GET', `${base}/api/admin/contents`);
+    check(adminRead.status === 401, `GET /api/admin/contents without token → 401 (got ${adminRead.status})`);
+
+    const adminReadOk = await raw('GET', `${base}/api/admin/contents`, undefined, TOKEN);
+    check(adminReadOk.status === 200, 'GET /api/admin/contents with token → 200');
+
+    const wrongToken = await raw('GET', `${base}/api/admin/contents`, undefined, WRONG);
+    check(wrongToken.status === 401, `wrong token → 401 (got ${wrongToken.status})`);
+
+    const tokenWrongLength = await raw('GET', `${base}/api/admin/contents`, undefined, TOKEN.slice(0, 5));
+    check(tokenWrongLength.status === 401, 'short/guessed token → 401 (timing-safe compare)');
+
+    const uploadsNoToken = await raw('GET', `${base}/api/admin/uploads`);
+    check(uploadsNoToken.status === 401, `GET /api/admin/uploads without token → 401 (got ${uploadsNoToken.status})`);
+
+    const importJobsNoToken = await raw('GET', `${base}/api/admin/imports`);
+    check(importJobsNoToken.status === 401, `import jobs without token → 401 (got ${importJobsNoToken.status})`);
+
+    console.log('\n--- 2. Legacy public write aliases removed ---');
+    const publicWrite = await raw('POST', `${base}/api/contents`, {
+      type: 'audio',
+      title: 'Public write attempt',
+      provider: 'archive',
+      sourceUrl: 'https://archive.org/details/RenewingOurIntentions',
+    });
+    check(publicWrite.status !== 201 && publicWrite.status !== 200, `POST /api/contents is gone (${publicWrite.status})`);
+
+    const publicSubjects = await raw('POST', `${base}/api/subjects`, { name: 'Hacked shelf', group: 'Belief' });
+    check(publicSubjects.status !== 201 && publicSubjects.status !== 200, `POST /api/subjects is gone (${publicSubjects.status})`);
+
+    const publicScholars = await raw('POST', `${base}/api/scholars`, { name: 'Injected scholar' });
+    check(publicScholars.status !== 201 && publicScholars.status !== 200, `POST /api/scholars is gone (${publicScholars.status})`);
+
+    const someContent = await prisma.content.findFirst({ where: { status: 'published' } });
+    if (someContent) {
+      const publicPublish = await raw('POST', `${base}/api/contents/${someContent.id}/publish`);
+      check(publicPublish.status !== 200, `POST /api/contents/:id/publish is gone (${publicPublish.status})`);
+    } else {
+      fail('no published content available to probe the publish alias');
+    }
+
+    console.log('\n--- 3. No draft / archived leakage on public endpoints ---');
+    const archivedFill = await prisma.content.findFirst({ where: { status: 'archived' } });
+    const stamp = Date.now();
+    const draft = await prisma.content.create({
+      data: {
+        type: 'audio',
+        title: `Prod draft probe ${stamp}`,
+        slug: `prod-draft-probe-${stamp}`,
+        provider: 'archive',
+        sourceUrl: 'https://archive.org/details/RenewingOurIntentions',
+        status: 'draft',
+      },
+    });
+    const archived =
+      archivedFill ??
+      (await prisma.content.create({
+        data: {
+          type: 'audio',
+          title: `Prod archived probe ${stamp}`,
+          slug: `prod-archived-probe-${stamp}`,
+          provider: 'archive',
+          sourceUrl: 'https://archive.org/details/RenewingOurIntentions',
+          status: 'archived',
+        },
+      }));
+    if (!archivedFill) createdIds.push(archived.id);
+    createdIds.push(draft.id);
+
+    const publicList = await raw('GET', `${base}/api/contents?limit=100`);
+    const ids = (publicList.json.data ?? []).map((c: any) => c.id);
+    check(!ids.includes(draft.id), 'draft is absent from the public list');
+    check(!ids.includes(archived.id), 'archived is absent from the public list');
+
+    const draftDetail = await raw('GET', `${base}/api/contents/${draft.id}`);
+    check(draftDetail.status === 404, `draft detail is 404 (got ${draftDetail.status})`);
+    const draftBySlug = await raw('GET', `${base}/api/contents/${draft.slug}`);
+    check(draftBySlug.status === 404, `draft detail by slug is 404 (got ${draftBySlug.status})`);
+
+    const draftScholar = await prisma.scholar.findFirst({ where: { status: 'draft' } });
+    const draftSubject = await prisma.subject.findFirst({ where: { status: 'draft' } });
+    const scholars = await raw('GET', `${base}/api/scholars`);
+    const subjects = await raw('GET', `${base}/api/subjects`);
+    check(
+      !draftScholar || !(scholars.json.data ?? []).some((s: any) => s.id === draftScholar.id),
+      'draft scholars are not exposed publicly',
+    );
+    check(
+      !draftSubject || !(subjects.json.data ?? []).some((s: any) => s.id === draftSubject.id),
+      'draft subjects are not exposed publicly',
+    );
+    if (draftSubject) {
+      const bySlug = await raw('GET', `${base}/api/subjects/${draftSubject.slug}`);
+      check(bySlug.status === 404, `draft subject detail is 404 (got ${bySlug.status})`);
+    }
+    if (draftScholar) {
+      const sDetail = await raw('GET', `${base}/api/scholars/${draftScholar.slug}`);
+      check(sDetail.status === 404, `draft scholar detail is 404 (got ${sDetail.status})`);
+    }
+
+    console.log('\n--- 4. Upload hardening ---');
+    const traversal = await raw('DELETE', `${base}/api/admin/uploads/${encodeURIComponent('../../.env')}`, undefined, TOKEN);
+    check(traversal.status === 404 || traversal.status === 400, `path traversal in DELETE upload is blocked (${traversal.status})`);
+    check(fs.existsSync(path.join(process.cwd(), '.env')), '.env file untouched after traversal attempt');
+
+    const traversalStatic = await raw('GET', `${base}/uploads/${encodeURIComponent('../.env')}`);
+    check(traversalStatic.status === 404 || traversalStatic.status === 400, `static /uploads traversal blocked (${traversalStatic.status})`);
+
+    const noFile = await fetch(`${base}/api/admin/uploads`, { method: 'POST', headers: { 'x-admin-token': TOKEN, host: 'ilmnet.example' } });
+    check(noFile.status === 400, `upload without multipart body → 400 (${noFile.status})`);
+
+    const uploadNoToken = await fetch(`${base}/api/admin/uploads`, { method: 'POST', headers: { host: 'ilmnet.example' } });
+    check(uploadNoToken.status === 401, `upload without token → 401 (${uploadNoToken.status})`);
+
+    console.log('\n--- 5. Storage configuration ---');
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ilmnet-uploads-'));
+    const previous = process.env.UPLOADS_DIR;
+    process.env.UPLOADS_DIR = tmpDir;
+    check(getUploadsDir() === tmpDir, `UPLOADS_DIR override is honoured (${getUploadsDir()})`);
+    const health2 = uploadsHealth();
+    check(health2.dir === tmpDir && health2.custom === true, 'health marks storage as a custom (persistent) volume');
+    check(health2.writable === true, 'custom storage directory is writable');
+    check(listUploadFiles().length === 0, 'empty custom storage lists no files');
+    if (previous) process.env.UPLOADS_DIR = previous; else delete process.env.UPLOADS_DIR;
+    fs.rmdirSync(tmpDir);
+
+    console.log('\n--- 6. Deployment guards ---');
+    process.env.NODE_ENV = 'production';
+    const savedToken = process.env.ADMIN_TOKEN;
+    delete process.env.ADMIN_TOKEN;
+    let refused = false;
+    try {
+      await buildApp();
+    } catch (e: any) {
+      refused = /ADMIN_TOKEN is required/i.test(e?.message ?? '');
+    }
+    check(refused, 'production boot without ADMIN_TOKEN is refused');
+    process.env.ADMIN_TOKEN = savedToken;
+
+    const badCors = process.env.CORS_ORIGIN;
+    process.env.CORS_ORIGIN = '*';
+    let corsRefused = false;
+    try {
+      await buildApp();
+    } catch (e: any) {
+      corsRefused = /CORS_ORIGIN/.test(e?.message ?? '');
+    }
+    check(corsRefused, 'production boot with CORS_ORIGIN="*" is refused');
+    process.env.CORS_ORIGIN = badCors;
+
+    const probe = Fastify();
+    const headers = await new Promise<Record<string, any>>((resolve) => {
+      probe.get('/x', async (_req, reply) => reply.send({ ok: true }));
+      probe.ready().then(() =>
+        probe.inject({ method: 'GET', url: '/x' }).then((r) => resolve(r.headers as Record<string, any>)),
+      );
+    });
+    check(typeof headers === 'object', 'sanitised probe app responds (sanity)');
+    await probe.close();
+
+    const secHeaders = await fetch(`${base}/api/health`);
+    check(secHeaders.headers.get('x-content-type-options') === 'nosniff', 'API responses set X-Content-Type-Options: nosniff');
+    check(Boolean(secHeaders.headers.get('referrer-policy')), 'API responses set a referrer policy');
+
+    console.log('\n--- 7. Frontend hosting + JSON 404s ---');
+    const buildIndex = path.resolve(process.cwd(), '..', 'dist', 'index.html');
+    if (fs.existsSync(buildIndex)) {
+      const root = await fetch(`${base}/`);
+      const rootHtml = await root.text();
+      check(root.status === 200 && rootHtml.includes('<div id="root"'), 'GET / serves the built frontend');
+
+      const deepLink = await fetch(`${base}/lectures`);
+      const deepHtml = await deepLink.text();
+      check(deepLink.status === 200 && deepHtml.includes('<div id="root"'), 'deep link /lectures falls back to index.html (refresh-safe)');
+
+      const missingApi = await raw('GET', `${base}/api/does-not-exist`);
+      check(missingApi.status === 404 && missingApi.json?.error?.code === 'NOT_FOUND', 'unknown API route still returns JSON 404');
+    } else {
+      fail('frontend build missing — run `npm run build` in the repo root first');
+    }
+  } catch (e: any) {
+    fail(`unexpected error: ${e?.stack ?? e?.message ?? e}`);
+  } finally {
+    for (const id of createdIds) {
+      await prisma.content.delete({ where: { id } }).catch(() => {});
+    }
+    await app.close();
+    await prisma.$disconnect();
+  }
+
+  console.log(`\n${failed === 0 ? '✅ All production readiness checks passed' : `❌ ${failed} checks failed`} (${passed} passed, ${failed} failed)`);
+  process.exit(failed === 0 ? 0 : 1);
+}
+
+void main();

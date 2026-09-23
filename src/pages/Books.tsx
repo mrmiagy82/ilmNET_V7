@@ -5,20 +5,15 @@ import { SearchBar, FilterChips, Tag, EmptyState, StatRow } from '../components/
 import { listPublishedContents, listPublicScholars, listPublicSubjects, type BackendContent, type BackendScholar, type BackendSubject } from '@/lib/api';
 import { groupByCollection, type SeriesGroup } from '@/lib/series';
 import { resolveCover } from '@/lib/thumbnail';
+import MediaThumb from '@/components/MediaThumb';
 
 function BookCover({ c }: { c: BackendContent }) {
   const media = resolveCover(c);
-  if (media.src) {
-    return (
-      <div className="bg-sand neu-inset relative grid aspect-[3/4] place-items-center rounded-[22px] overflow-hidden">
-        <img src={media.src} alt="" className="absolute inset-0 h-full w-full object-cover" loading="lazy" onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} />
-      </div>
-    );
-  }
   const subj = c.subjects[0]?.subject;
   const cover = subj?.accent === 'rose' ? 'from-rose/85 to-rose-deep' : subj?.accent === 'olive' ? 'from-olive to-olive-deep' : 'from-ink/80 to-ink';
-  return (
-    <div className="bg-sand neu-inset grid aspect-[3/4] place-items-center rounded-[22px]">
+  // generated spine, always behind the image so a broken upload still shows something useful
+  const spine = (
+    <div className="absolute inset-0 grid place-items-center">
       <div className={`relative h-[150px] w-[112px] overflow-hidden rounded-[8px] bg-gradient-to-br ${cover} shadow-[10px_14px_26px_rgba(60,45,30,0.28)]`}>
         <div className="absolute inset-y-0 left-0 w-2.5 bg-black/20" />
         <div className="absolute inset-y-0 left-2.5 w-1 bg-white/25" />
@@ -31,6 +26,15 @@ function BookCover({ c }: { c: BackendContent }) {
         </div>
       </div>
     </div>
+  );
+  return (
+    <MediaThumb
+      src={media.src}
+      kind={media.kind}
+      testId="book-cover"
+      className="bg-sand neu-inset aspect-[3/4] rounded-[22px]"
+      fallback={spine}
+    />
   );
 }
 
@@ -64,12 +68,12 @@ function CollectionCard({ s }: { s: SeriesGroup }) {
   const collectionCover = first ? resolveCover(first).src : s.coverUrl;
   return (
     <Link to={`/series/${encodeURIComponent(s.id)}`} className="bg-cream neu-raised group flex flex-col rounded-[30px] p-6 transition-transform duration-500 hover:-translate-y-1.5">
-      <div className="bg-sand neu-inset relative grid aspect-[3/4] place-items-center overflow-hidden rounded-[22px]">
-        {collectionCover ? (
-          <img src={collectionCover} alt="" className="absolute inset-0 h-full w-full object-cover" loading="lazy" onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} />
-        ) : (
-          <div className="bg-gradient-to-br from-olive/20 to-rose/20 absolute inset-0" />
-        )}
+      <MediaThumb
+        src={collectionCover}
+        testId="collection-cover"
+        className="bg-sand neu-inset aspect-[3/4] rounded-[22px]"
+        fallback={<div className="bg-gradient-to-br from-olive/20 to-rose/20 absolute inset-0" />}
+      >
         <div className="bg-cream/90 neu-raised-sm absolute left-3 top-3 flex items-center gap-2 rounded-full px-3 py-1.5">
           <span className="bg-olive h-2 w-2 rounded-full" />
           <span className="text-ink text-[0.68rem] font-bold tracking-[0.08em] uppercase">Collection · {s.count}</span>
@@ -79,7 +83,7 @@ function CollectionCard({ s }: { s: SeriesGroup }) {
           <span className="text-[0.78rem] font-semibold">{s.count} books</span>
           <span className="text-rose text-[0.78rem] font-bold">Open collection →</span>
         </div>
-      </div>
+      </MediaThumb>
       <div className="flex flex-1 flex-col px-1 pt-5">
         {subj && <Tag tone={subj.accent as any}>{subj.name}</Tag>}
         <h3 className="font-display text-ink mt-3 text-[1.18rem] leading-snug font-extrabold tracking-[-0.02em] line-clamp-2">

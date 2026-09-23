@@ -151,8 +151,8 @@ export default function Overview() {
         </div>
       </section>
 
-      <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
-        <section>
+      <div className="grid min-w-0 gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+        <section className="min-w-0">
           <p className="text-ink-muted text-[0.72rem] font-semibold tracking-[0.22em] uppercase">Recent activity · session only</p>
           <div className="bg-cream neu-raised mt-4 overflow-hidden rounded-[28px]">
             {activity.slice(0, 8).map((a, i) => (
@@ -172,7 +172,7 @@ export default function Overview() {
           </div>
         </section>
 
-        <section>
+        <section className="min-w-0">
           <p className="text-ink-muted text-[0.72rem] font-semibold tracking-[0.22em] uppercase">Waiting to publish</p>
           <div className="bg-sand neu-inset mt-4 rounded-[28px] p-4">
             {drafts.length === 0 ? (

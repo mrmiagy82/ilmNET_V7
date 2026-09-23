@@ -4,7 +4,7 @@ import PageHeader from '../components/PageHeader';
 import { Tag } from '../components/ui';
 import { listPublishedContents, type BackendContent } from '@/lib/api';
 import { resolveThumbnail, resolveCover } from '@/lib/thumbnail';
-import AudioPlaceholder from '@/components/AudioPlaceholder';
+import MediaThumb from '@/components/MediaThumb';
 import { formatDuration } from '../data';
 
 function EpisodeRow({ c, idx }: { c: BackendContent; idx: number }) {
@@ -14,17 +14,16 @@ function EpisodeRow({ c, idx }: { c: BackendContent; idx: number }) {
   const isVideo = c.type === 'video' || c.type === 'lecture';
   return (
     <Link to={`/${c.type === 'book' || c.type === 'document' ? 'books' : 'lectures'}/${c.slug}`} className="bg-cream neu-raised group flex gap-4 rounded-[22px] p-4 transition-transform hover:-translate-y-1">
-      <div className="bg-sand neu-inset relative aspect-[16/10] w-32 shrink-0 overflow-hidden rounded-[14px] sm:w-40">
-        {thumb ? (
-          <img src={thumb} alt="" className="absolute inset-0 h-full w-full object-cover" loading="lazy" onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} />
-        ) : media.kind === 'placeholder-audio' ? (
-          <AudioPlaceholder className="absolute inset-0" />
-        ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-olive/10 to-rose/10" />
-        )}
+      <MediaThumb
+        src={thumb}
+        kind={media.kind}
+        testId="episode-thumb"
+        className="bg-sand neu-inset aspect-[16/10] w-32 shrink-0 rounded-[14px] sm:w-40"
+        fallback={<div className="absolute inset-0 bg-gradient-to-br from-olive/10 to-rose/10" />}
+      >
         <span className="bg-cream/90 text-ink absolute left-2 top-2 rounded-full px-2 py-1 text-[0.62rem] font-bold">{String(idx + 1).padStart(2, '0')}</span>
         <span className="bg-rose text-cream absolute bottom-2 right-2 rounded-full px-2 py-1 text-[0.62rem] font-semibold">{isVideo ? 'Video' : c.type === 'audio' ? 'Audio' : 'Book'}</span>
-      </div>
+      </MediaThumb>
       <div className="min-w-0 flex-1">
         <h3 className="font-display text-ink line-clamp-2 text-[0.98rem] font-bold leading-tight">{c.title}</h3>
         <p className="text-rose mt-1 text-[0.78rem] font-semibold line-clamp-1">{c.scholars[0]?.scholar.name ?? ''}</p>

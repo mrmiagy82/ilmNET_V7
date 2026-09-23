@@ -6,7 +6,7 @@ import { formatCount, formatDuration } from '../data';
 import { listPublishedContents, listPublicScholars, listPublicSubjects, type BackendContent, type BackendScholar, type BackendSubject } from '@/lib/api';
 import { groupByCollection, type SeriesGroup } from '@/lib/series';
 import { resolveThumbnail } from '@/lib/thumbnail';
-import AudioPlaceholder from '@/components/AudioPlaceholder';
+import MediaThumb from '@/components/MediaThumb';
 
 function PlayGlyph({ className = '' }: { className?: string }) {
   return (
@@ -25,27 +25,30 @@ function LectureCard({ c }: { c: BackendContent }) {
   const thumb = media.src;
   return (
     <Link to={`/lectures/${c.slug}`} className="bg-cream neu-raised group flex flex-col rounded-[30px] p-6 transition-transform duration-500 hover:-translate-y-1.5">
-      <div className="bg-sand neu-inset relative flex aspect-[16/10] items-center justify-center overflow-hidden rounded-[22px]">
-        {thumb ? (
-          <img src={thumb} alt="" className="absolute inset-0 h-full w-full object-cover" loading="lazy" onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} />
-        ) : media.kind === 'placeholder-audio' ? (
-          <AudioPlaceholder className="absolute inset-0" />
-        ) : (
+      <MediaThumb
+        src={thumb}
+        kind={media.kind}
+        testId="lecture-card-thumb"
+        className="bg-sand neu-inset aspect-[16/10] rounded-[22px]"
+        fallback={
           <div className="absolute inset-x-0 bottom-0 flex h-12 items-end gap-[3px] px-5 pb-3 opacity-40">
             {Array.from({ length: 28 }).map((_, i) => (
               <span key={i} style={{ height: `${12 + ((i * 13) % 60)}%` }} className={i % 3 === 0 ? 'bg-rose/50 flex-1 rounded-full' : 'bg-olive/40 flex-1 rounded-full'} />
             ))}
           </div>
-        )}
-        <button className="bg-cream neu-raised-sm text-rose group-hover:scale-[1.06] relative grid h-16 w-16 place-items-center rounded-full transition-transform" tabIndex={-1} aria-hidden="true">
-          <PlayGlyph className="h-7 w-7" />
-        </button>
+        }
+      >
+        <div className="absolute inset-0 grid place-items-center">
+          <span className="bg-cream neu-raised-sm text-rose group-hover:scale-[1.06] grid h-16 w-16 place-items-center rounded-full transition-transform">
+            <PlayGlyph className="h-7 w-7" />
+          </span>
+        </div>
         <span className="bg-cream/90 text-ink neu-raised-sm absolute right-3 top-3 rounded-full px-3 py-1.5 text-[0.72rem] font-semibold">
           {format}
         </span>
         {c.provider === 'youtube' && <span className="bg-rose/90 text-cream absolute left-3 top-3 rounded-full px-2.5 py-1 text-[0.62rem] font-bold">YouTube</span>}
         {c.provider === 'archive' && <span className="bg-olive/90 text-white absolute left-3 top-3 rounded-full px-2.5 py-1 text-[0.62rem] font-bold">Archive</span>}
-      </div>
+      </MediaThumb>
 
       <div className="flex flex-1 flex-col px-1 pt-5">
         <div className="flex items-center gap-2 flex-wrap">
@@ -73,21 +76,19 @@ function LectureCard({ c }: { c: BackendContent }) {
 }
 
 function SeriesCard({ s }: { s: SeriesGroup }) {
-  const isAudioSeries = s.items.every((it) => it.type === 'audio');
   const thumb = s.items[0] ? resolveThumbnail(s.items[0]).src : s.thumbnailUrl;
   const subtitle = s.scholars[0]?.name ?? s.items[0]?.scholars[0]?.scholar.name ?? '';
   const subj = s.subjects[0];
   const isPlaylist = s.type === 'playlist';
   return (
     <Link to={`/series/${encodeURIComponent(s.id)}`} className="bg-cream neu-raised group flex flex-col rounded-[30px] p-6 transition-transform duration-500 hover:-translate-y-1.5">
-      <div className="bg-sand neu-inset relative flex aspect-[16/10] items-center justify-center overflow-hidden rounded-[22px]">
-        {thumb ? (
-          <img src={thumb} alt="" className="absolute inset-0 h-full w-full object-cover" loading="lazy" onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} />
-        ) : isAudioSeries ? (
-          <AudioPlaceholder className="absolute inset-0" />
-        ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-olive/20 to-rose/20" />
-        )}
+      <MediaThumb
+        src={thumb}
+        kind={s.items[0] ? resolveThumbnail(s.items[0]).kind : 'placeholder-generic'}
+        testId="series-card-thumb"
+        className="bg-sand neu-inset aspect-[16/10] rounded-[22px]"
+        fallback={<div className="absolute inset-0 bg-gradient-to-br from-olive/20 to-rose/20" />}
+      >
         <div className="bg-cream/90 neu-raised-sm absolute left-3 top-3 flex items-center gap-2 rounded-full px-3 py-1.5">
           <span className={`h-2 w-2 rounded-full ${isPlaylist ? 'bg-rose' : 'bg-olive'}`} />
           <span className="text-ink text-[0.68rem] font-bold tracking-[0.08em] uppercase">{isPlaylist ? 'Playlist' : s.type === 'collection' ? 'Collection' : 'Series'} · {s.count}</span>
@@ -99,7 +100,7 @@ function SeriesCard({ s }: { s: SeriesGroup }) {
           <span className="text-[0.78rem] font-semibold">{s.count} episodes</span>
           <span className="text-rose text-[0.78rem] font-bold">Open series →</span>
         </div>
-      </div>
+      </MediaThumb>
       <div className="flex flex-1 flex-col px-1 pt-5">
         <div className="flex items-center gap-2 flex-wrap">
           {subj && <Tag tone={subj.accent as any}>{subj.name}</Tag>}

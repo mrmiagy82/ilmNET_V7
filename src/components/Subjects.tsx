@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom';
+
 const subjects = [
   { label: "Qur'ān & Tafsīr", size: 'lg', tone: 'rose' },
   { label: 'Ḥadīth', size: 'md', tone: 'plain' },
@@ -45,13 +47,13 @@ export default function Subjects() {
               Subjects are the front door. Choose a discipline and ilmNet gathers every lecture, book and
               series that belongs to it — in a sensible order.
             </p>
-            <a
-              href="#/subjects"
+            <Link
+              to="/subjects"
               className="text-rose mt-8 inline-flex items-center gap-2 text-[0.98rem] font-semibold transition-all hover:gap-3"
             >
               See all subjects
               <span aria-hidden="true">→</span>
-            </a>
+            </Link>
           </div>
 
           <div className="flex flex-wrap gap-3 sm:gap-4">

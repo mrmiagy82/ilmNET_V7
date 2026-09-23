@@ -1,3 +1,6 @@
+import fs from 'fs';
+import path from 'path';
+import crypto from 'crypto';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
@@ -10,60 +13,132 @@ import { contentRoutes } from './routes/content';
 import { scholarRoutes } from './routes/scholar';
 import { subjectRoutes } from './routes/subject';
 import { importRoutes } from './routes/import';
-import { uploadRoutes, UPLOADS_DIR } from './routes/uploads';
+import { uploadRoutes } from './routes/uploads';
+import { auditUploadReferences, ensureUploadsDir, getUploadsDir, isUploadsDirWritable, MAX_UPLOAD_BYTES } from './lib/storage';
 
 dotenv.config();
 
 const PORT = parseInt(process.env.PORT || '3001', 10);
 const HOST = process.env.HOST || '0.0.0.0';
-const CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:5173';
+/**
+ * Evaluated at call time (not at import) so a process can be started with
+ * NODE_ENV=production and so tests can exercise production behaviour.
+ */
+const isProduction = () => process.env.NODE_ENV === 'production';
+const adminToken = () => process.env.ADMIN_TOKEN?.trim() || '';
+
+/** Comma separated list of allowed browser origins. Dev defaults to the vite dev server. */
+function corsOrigins(): string[] {
+  const raw = process.env.CORS_ORIGIN?.trim() || 'http://localhost:5173';
+  return raw.split(',').map((s) => s.trim()).filter(Boolean);
+}
+
+/** Constant-time token comparison so the admin token cannot be probed byte by byte. */
+function tokenMatches(provided: string): boolean {
+  if (!provided) return false;
+  const expected = adminToken();
+  const a = Buffer.from(provided);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
+}
+
+/** Location + availability of the built frontend (single-file vite build). */
+function frontendBuild() {
+  const dir = path.resolve(process.env.FRONTEND_DIR?.trim() || path.join(__dirname, '..', '..', 'dist'));
+  const index = path.join(dir, 'index.html');
+  return { dir, index, available: fs.existsSync(index) };
+}
 
 export async function buildApp() {
+  // ── Production guard rails: never boot a public deployment without admin protection ──
+  if (isProduction() && !adminToken()) {
+    throw new Error(
+      'ADMIN_TOKEN is required when NODE_ENV=production. The admin CMS (writes, draft listings, uploads) must never be exposed unprotected.',
+    );
+  }
+  if (corsOrigins().includes('*')) {
+    if (isProduction()) throw new Error('CORS_ORIGIN="*" is not allowed in production — list the exact frontend origins.');
+    // eslint-disable-next-line no-console
+    console.warn('[ilmNet] CORS_ORIGIN="*" — fine for local tooling, never use this in production.');
+  }
+
   const app = Fastify({
     logger: {
-      level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
+      level: isProduction() ? 'info' : 'debug',
+      // never log request bodies (they can contain admin payloads) and redact auth headers
+      redact: ['req.headers["x-admin-token"]', 'req.headers.authorization', 'req.headers["x-admin-secret"]'],
     },
+    bodyLimit: 1 * 1024 * 1024, // 1 MB JSON payloads; uploads go through multipart
+    trustProxy: true,
   });
 
   await app.register(cors, {
-    origin: CORS_ORIGIN.split(',').map((s) => s.trim()),
+    origin: corsOrigins(),
     credentials: true,
+    methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
   });
 
   await app.register(sensible);
 
-  // Custom admin uploads (thumbnails / covers) — multipart + static serving
-  await app.register(multipart, { limits: { fileSize: 5 * 1024 * 1024 } });
-  await app.register(fastifyStatic, {
-    root: UPLOADS_DIR,
-    prefix: '/uploads/',
-    decorateReply: false,
+  // ── Security headers (no framing rules: the site is embedded in previews/iframes) ──
+  app.addHook('onSend', async (_req, reply, payload) => {
+    reply.header('x-content-type-options', 'nosniff');
+    reply.header('referrer-policy', 'strict-origin-when-cross-origin');
+    reply.header('x-permitted-cross-domain-policies', 'none');
+    return payload;
   });
 
-  // Minimal admin write protection: if ADMIN_TOKEN is set, require x-admin-token for POST/PATCH/DELETE on /api/admin/*
-  const ADMIN_TOKEN = process.env.ADMIN_TOKEN?.trim() || '';
-  if (ADMIN_TOKEN) {
+  // ── Admin protection ──
+  // Every write under /api/* and every request under /api/admin/* (including reads of
+  // drafts, import jobs and uploads) requires the admin token when ADMIN_TOKEN is set.
+  if (adminToken()) {
     app.addHook('onRequest', async (req, reply) => {
-      const url = req.url;
-      const method = req.method;
-      const isAdminWrite = url.startsWith('/api/admin/') && ['POST', 'PATCH', 'PUT', 'DELETE'].includes(method);
-      if (!isAdminWrite) return;
-      // In development allow localhost without token for tests and local vite proxy
-      if (process.env.NODE_ENV !== 'production') {
-        // Check if request is from localhost (dev) — allow but log
+      const url = req.url.split('?')[0];
+      const method = req.method.toUpperCase();
+      const isWrite = ['POST', 'PATCH', 'PUT', 'DELETE'].includes(method);
+      const isAdminPath = url.startsWith('/api/admin/') || url === '/api/admin';
+      if (!isWrite && !isAdminPath) return;
+      if (!url.startsWith('/api/')) return;
+
+      // Local development convenience: same-machine requests (vite proxy, curl, tests)
+      if (!isProduction() && process.env.ADMIN_ALLOW_LOCALHOST !== 'false') {
         const ip = (req.ip || '').toString();
         const isLocal = ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1' || req.headers.host?.includes('localhost');
-        // Still require token for non-local in dev, but allow local to ease testing
-        // For explicit token check, allow local without token
         if (isLocal) return;
       }
-      const token = (req.headers['x-admin-token'] as string) || (req.headers['x-admin-secret'] as string) || '';
+
+      const headerToken = (req.headers['x-admin-token'] as string) || (req.headers['x-admin-secret'] as string) || '';
       const auth = (req.headers['authorization'] as string) || '';
       const bearer = auth.startsWith('Bearer ') ? auth.slice(7) : '';
-      const provided = token || bearer;
-      if (provided !== ADMIN_TOKEN) {
+      if (!tokenMatches(headerToken || bearer)) {
         return reply.code(401).send({ error: { code: 'UNAUTHORIZED', message: 'Missing or invalid admin token' } });
       }
+    });
+  }
+
+  // ── Static uploads (custom thumbnails/covers) ──
+  ensureUploadsDir();
+  await app.register(multipart, { limits: { fileSize: MAX_UPLOAD_BYTES } });
+  await app.register(fastifyStatic, {
+    root: getUploadsDir(),
+    prefix: '/uploads/',
+    decorateReply: false,
+    index: false,
+    maxAge: isProduction() ? '7d' : 0,
+  });
+
+  // ── Optional frontend hosting: serve the built single-file SPA from Fastify ──
+  // Set SERVE_FRONTEND=false to host the frontend separately (then set VITE_API_URL).
+  const { dir: frontendDir, index: indexFile, available: buildExists } = frontendBuild();
+  const serveFrontend = process.env.SERVE_FRONTEND !== 'false' && buildExists;
+  if (serveFrontend) {
+    await app.register(fastifyStatic, {
+      root: frontendDir,
+      prefix: '/',
+      decorateReply: false,
+      index: 'index.html', // GET / serves the built app; deep links fall through to the SPA fallback
+      wildcard: true,
     });
   }
 
@@ -73,6 +148,9 @@ export async function buildApp() {
       return reply.code(400).send({
         error: { code: 'VALIDATION_ERROR', message: error.message, details: (error as any).validation },
       });
+    }
+    if (error?.statusCode && error.statusCode >= 400 && error.statusCode < 500) {
+      return reply.code(error.statusCode).send({ error: { code: error.code || 'BAD_REQUEST', message: error.message } });
     }
     app.log.error(error);
     return reply.code(500).send({ error: { code: 'INTERNAL_ERROR', message: 'Internal Server Error' } });
@@ -85,8 +163,12 @@ export async function buildApp() {
   await app.register(importRoutes);
   await app.register(uploadRoutes);
 
-  // 404
+  // 404 — JSON for the API, index.html for browser routes (hash router + deep links)
   app.setNotFoundHandler((req, reply) => {
+    const url = req.url.split('?')[0];
+    if (serveFrontend && req.method === 'GET' && !url.startsWith('/api/') && !url.startsWith('/uploads/')) {
+      return reply.type('text/html').send(fs.readFileSync(indexFile, 'utf8'));
+    }
     reply.code(404).send({ error: { code: 'NOT_FOUND', message: `Route ${req.method} ${req.url} not found` } });
   });
 
@@ -99,9 +181,31 @@ if (require.main === module) {
     try {
       await prisma.$connect();
       app.log.info('Database connected');
+
+      if (!isUploadsDirWritable()) {
+        app.log.error(`Uploads directory is not writable: ${getUploadsDir()} — custom thumbnails/cover uploads will fail.`);
+      } else {
+        const audit = await auditUploadReferences(prisma as any);
+        app.log.info(
+          `Upload storage ready at ${getUploadsDir()} (mode: ${process.env.UPLOADS_DIR ? 'UPLOADS_DIR' : 'default'}) — ` +
+            `${audit.referenced} referenced file(s), ${audit.orphan} unused on disk.`,
+        );
+        if (audit.missing.length) {
+          app.log.warn(
+            `Missing upload file(s) referenced by the database: ${audit.missing.slice(0, 5).join(', ')}` +
+              `${audit.missing.length > 5 ? ` (+${audit.missing.length - 5} more)` : ''} — mount the uploads volume or re-upload.`,
+          );
+        }
+      }
+
       await app.listen({ port: PORT, host: HOST });
-      app.log.info(`Server listening on http://${HOST}:${PORT}`);
-      app.log.info(`Health: http://${HOST}:${PORT}/api/health`);
+      app.log.info(`Server listening on http://${HOST}:${PORT} [${isProduction() ? 'production' : 'development'}]`);
+      app.log.info(`CORS origins: ${corsOrigins().join(', ')}`);
+      app.log.info(`Admin token protection: ${adminToken() ? 'enabled' : 'DISABLED (development only)'}`);
+      const build = frontendBuild();
+      app.log.info(
+        `Serving frontend build: ${build.available && process.env.SERVE_FRONTEND !== 'false' ? build.dir : 'no (API only — set VITE_API_URL on the frontend host)'}`,
+      );
     } catch (err) {
       app.log.error(err);
       process.exit(1);

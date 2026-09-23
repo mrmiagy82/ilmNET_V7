@@ -217,7 +217,7 @@ export async function contentRoutes(app: FastifyInstance) {
   });
 
   // — Create (admin) —
-  for (const base of ['/api/contents', '/api/v1/contents', '/api/admin/contents']) {
+  for (const base of ['/api/admin/contents']) {
     app.post(base, async (req, reply) => {
       const parsed = createContentSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -305,7 +305,7 @@ export async function contentRoutes(app: FastifyInstance) {
   }
 
   // — Update (admin) —
-  for (const base of ['/api/contents/:id', '/api/v1/contents/:id', '/api/admin/contents/:id']) {
+  for (const base of ['/api/admin/contents/:id']) {
     app.patch(base, async (req, reply) => {
       const { id } = req.params as { id: string };
       const parsed = updateContentSchema.safeParse(req.body);
@@ -398,7 +398,7 @@ export async function contentRoutes(app: FastifyInstance) {
   }
 
   // — Delete / Archive —
-  for (const base of ['/api/contents/:id', '/api/v1/contents/:id', '/api/admin/contents/:id']) {
+  for (const base of ['/api/admin/contents/:id']) {
     app.delete(base, async (req, reply) => {
       const { id } = req.params as { id: string };
       const { hard } = req.query as { hard?: string };
@@ -453,35 +453,6 @@ export async function contentRoutes(app: FastifyInstance) {
     const existing = await prisma.content.findFirst({ where: { OR: [{ id }, { slug: id }] } });
     if (!existing) return reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'Content not found' } });
     if (existing.status !== 'published') return { data: existing };
-    const updated = await prisma.content.update({
-      where: { id: existing.id },
-      data: { status: 'draft' },
-      include: { scholars: { include: { scholar: true } }, subjects: { include: { subject: true } } },
-    });
-    return { data: updated };
-  });
-
-  // Also support /api/contents/:id/publish with same logic (admin alias)
-  app.post('/api/contents/:id/publish', async (req, reply) => {
-    const { id } = req.params as { id: string };
-    const existing = await prisma.content.findFirst({ where: { OR: [{ id }, { slug: id }] } });
-    if (!existing) return reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'Content not found' } });
-    const scholarCount = await prisma.contentScholar.count({ where: { contentId: existing.id } });
-    const subjectCount = await prisma.contentSubject.count({ where: { contentId: existing.id } });
-    if (scholarCount === 0 || subjectCount === 0) {
-      return reply.code(400).send({ error: { code: 'VALIDATION_ERROR', message: 'Scholar and subject required' } });
-    }
-    const updated = await prisma.content.update({
-      where: { id: existing.id },
-      data: { status: 'published', publishedAt: new Date() },
-      include: { scholars: { include: { scholar: true } }, subjects: { include: { subject: true } } },
-    });
-    return { data: updated };
-  });
-  app.post('/api/contents/:id/unpublish', async (req, reply) => {
-    const { id } = req.params as { id: string };
-    const existing = await prisma.content.findFirst({ where: { OR: [{ id }, { slug: id }] } });
-    if (!existing) return reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'Content not found' } });
     const updated = await prisma.content.update({
       where: { id: existing.id },
       data: { status: 'draft' },

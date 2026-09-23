@@ -66,14 +66,14 @@ async function main() {
   // ── live data ────────────────────────────────────────────────────────────────
   const published = (await api('/api/contents?limit=100&type=audio,lecture,video')).data;
   const imported = published.filter((c) => !/^E2E /i.test(c.title) && !c.externalIdentifier?.startsWith('e2e-'));
-  const realAudio =
-    imported.find((c) => c.provider === 'archive' && c.type === 'audio' && c.externalIdentifier) ??
-    published.find((c) => c.provider === 'archive' && c.type === 'audio' && c.externalIdentifier);
-  const blackThumbAudio = imported.find((c) => c.type === 'audio' && (c.thumbnailUrl ?? '').includes('archive.org/services/img'));
+  // A track needs a file-level identifier (item--file) before the app can build a direct MP3 URL.
+  const playable = (c) => c.provider === 'archive' && c.type === 'audio' && c.externalIdentifier?.includes('--');
+  const realAudio = imported.find(playable) ?? published.find(playable);
+  let blackThumbAudio = imported.find((c) => c.type === 'audio' && (c.thumbnailUrl ?? '').includes('archive.org/services/img'));
+  if (blackThumbAudio) console.log(`Archive-black-thumbnail audio: ${blackThumbAudio.slug}`);
+  else console.log('note: no content currently carries an archive.org/services/img thumbnail — a real fixture will be created');
   if (!realAudio) throw new Error('no published archive audio found to test playback');
   console.log(`Real archive audio: ${realAudio.slug} (${realAudio.sourceUrl})`);
-  if (blackThumbAudio) console.log(`Archive-black-thumbnail audio: ${blackThumbAudio.slug}`);
-  else console.log('note: no content currently carries an archive.org/services/img thumbnail');
 
   // ── custom thumbnail fixture (real upload through the real API) ──────────────
   const scholar = (await api('/api/admin/scholars')).data[0];
@@ -141,6 +141,26 @@ async function main() {
 
     // ═══ 2. Fallback thumbnail = ilmNet placeholder, no black Archive image ═══
     console.log('\n--- 2. Default audio thumbnail (fallback) ---');
+    if (!blackThumbAudio) {
+      // real fixture: a record whose provider thumbnail is the black Archive.org services image
+      const stamp = Date.now();
+      const fixture = await api('/api/admin/contents', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          type: 'audio',
+          title: `E2E archive black thumbnail ${stamp}`,
+          provider: 'archive',
+          sourceUrl: 'https://archive.org/details/RenewingOurIntentions',
+          externalIdentifier: `e2e-blackthumb-${stamp}`,
+          status: 'published',
+          thumbnailUrl: 'https://archive.org/services/img/RenewingOurIntentions',
+        }),
+      });
+      createdContentIds.push(fixture.id);
+      blackThumbAudio = fixture;
+      console.log(`Created archive-black-thumbnail fixture: ${fixture.slug}`);
+    }
     if (blackThumbAudio) {
       await page.goto(`${SITE}/#/books`, { waitUntil: 'domcontentloaded' }); // warm navigation
       await page.goto(`${SITE}/#/lectures/${blackThumbAudio.slug}`, { waitUntil: 'domcontentloaded' });

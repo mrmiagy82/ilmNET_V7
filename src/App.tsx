@@ -1,4 +1,4 @@
-import { HashRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Layout from './components/Layout';
 import Landing from './pages/Landing';
 import Lectures from './pages/Lectures';
@@ -26,10 +26,10 @@ import SubjectDetail from './pages/SubjectDetail';
 
 export default function App() {
   return (
-    <HashRouter>
-      <AdminProvider>
-        <Routes>
-          <Route path="admin" element={<AdminLayout />}>
+    <BrowserRouter>
+      {/* The admin store is bound to the /admin routes only: public pages must never call admin endpoints. */}
+              <Routes>
+          <Route path="admin" element={<AdminProvider><AdminLayout /></AdminProvider>}>
             <Route index element={<Overview />} />
             <Route path="new" element={<ContentWizard />} />
             <Route path="archive-import" element={<ArchiveImportPage />} />
@@ -60,7 +60,6 @@ export default function App() {
             <Route path="*" element={<Landing />} />
           </Route>
         </Routes>
-      </AdminProvider>
-    </HashRouter>
+    </BrowserRouter>
   );
 }

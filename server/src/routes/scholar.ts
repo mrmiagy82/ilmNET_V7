@@ -4,29 +4,47 @@ import { createScholarSchema, updateScholarSchema } from '../lib/validation';
 import { toSlug, uniqueSlug } from '../utils/slug';
 
 export async function scholarRoutes(app: FastifyInstance) {
-  for (const base of ['/api/scholars', '/api/v1/scholars', '/api/admin/scholars']) {
+  // Public reads expose published scholars only; the admin grid gets every status.
+  for (const base of ['/api/scholars', '/api/v1/scholars']) {
     app.get(base, async () => {
       const scholars = await prisma.scholar.findMany({
+        where: { status: 'published' },
         orderBy: { name: 'asc' },
         include: { specialty: true },
       });
       return { data: scholars };
     });
   }
+  app.get('/api/admin/scholars', async () => {
+    const scholars = await prisma.scholar.findMany({
+      orderBy: { name: 'asc' },
+      include: { specialty: true },
+    });
+    return { data: scholars };
+  });
 
-  for (const base of ['/api/scholars/:id', '/api/v1/scholars/:id', '/api/admin/scholars/:id']) {
+  for (const base of ['/api/scholars/:id', '/api/v1/scholars/:id']) {
     app.get(base, async (req, reply) => {
       const { id } = req.params as { id: string };
       const scholar = await prisma.scholar.findFirst({
-        where: { OR: [{ id }, { slug: id }] },
+        where: { status: 'published', OR: [{ id }, { slug: id }] },
         include: { specialty: true, contents: { include: { content: true } } },
       });
       if (!scholar) return reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'Scholar not found' } });
       return { data: scholar };
     });
   }
+  app.get('/api/admin/scholars/:id', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const scholar = await prisma.scholar.findFirst({
+      where: { OR: [{ id }, { slug: id }] },
+      include: { specialty: true, contents: { include: { content: true } } },
+    });
+    if (!scholar) return reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'Scholar not found' } });
+    return { data: scholar };
+  });
 
-  for (const base of ['/api/scholars', '/api/v1/scholars', '/api/admin/scholars']) {
+  for (const base of ['/api/admin/scholars']) {
     app.post(base, async (req, reply) => {
       const parsed = createScholarSchema.safeParse(req.body);
       if (!parsed.success) return reply.code(400).send({ error: { code: 'VALIDATION_ERROR', details: parsed.error.flatten() } });
@@ -67,7 +85,7 @@ export async function scholarRoutes(app: FastifyInstance) {
     });
   }
 
-  for (const base of ['/api/scholars/:id', '/api/v1/scholars/:id', '/api/admin/scholars/:id']) {
+  for (const base of ['/api/admin/scholars/:id']) {
     app.patch(base, async (req, reply) => {
       const { id } = req.params as { id: string };
       const parsed = updateScholarSchema.safeParse(req.body);

@@ -5,26 +5,25 @@ import { Tag } from '../components/ui';
 import { listPublishedContents, listPublicSubjects, getPublicSubject, type BackendContent, type BackendSubject } from '@/lib/api';
 import { groupByCollection, type SeriesGroup } from '@/lib/series';
 import { resolveCardMedia } from '@/lib/thumbnail';
-import AudioPlaceholder from '@/components/AudioPlaceholder';
+import MediaThumb from '@/components/MediaThumb';
 
 function SeriesCard({ s }: { s: SeriesGroup }) {
   const media = s.items[0] ? resolveCardMedia(s.items[0]) : { src: null, kind: 'placeholder-generic' as const };
   const thumb = media.src;
   return (
     <Link to={`/series/${encodeURIComponent(s.id)}`} className="bg-cream neu-raised group flex flex-col rounded-[30px] p-6 transition-transform hover:-translate-y-1.5">
-      <div className="bg-sand neu-inset relative aspect-[16/10] overflow-hidden rounded-[22px]">
-        {thumb ? (
-          <img src={thumb} alt="" className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
-        ) : media.kind === 'placeholder-audio' ? (
-          <AudioPlaceholder className="absolute inset-0" />
-        ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-olive/15 to-rose/15" />
-        )}
+      <MediaThumb
+        src={thumb}
+        kind={media.kind}
+        testId="subject-series-thumb"
+        className="bg-sand neu-inset aspect-[16/10] rounded-[22px]"
+        fallback={<div className="absolute inset-0 bg-gradient-to-br from-olive/15 to-rose/15" />}
+      >
         <span className="bg-cream/90 text-ink absolute left-3 top-3 rounded-full px-3 py-1.5 text-[0.68rem] font-bold">Series · {s.count}</span>
         <span className="bg-cream neu-raised-sm absolute bottom-3 left-3 right-3 flex items-center justify-between rounded-[12px] px-3 py-2 text-[0.76rem] font-semibold">
           <span>{s.count} parts</span><span className="text-rose">Open →</span>
         </span>
-      </div>
+      </MediaThumb>
       <h3 className="font-display text-ink mt-4 line-clamp-2 text-[1.1rem] font-extrabold">{s.title}</h3>
       <p className="text-ink-muted mt-2 line-clamp-2 text-[0.82rem]">{s.description ?? `${s.count} items`}</p>
     </Link>
@@ -37,16 +36,15 @@ function ContentCard({ c }: { c: BackendContent }) {
   const thumb = media.src;
   return (
     <Link to={`/${isBook ? 'books' : 'lectures'}/${c.slug}`} className="bg-cream neu-raised group flex flex-col rounded-[30px] p-6 hover:-translate-y-1.5 transition-transform">
-      <div className={`bg-sand neu-inset relative overflow-hidden rounded-[22px] ${isBook ? 'aspect-[3/4]' : 'aspect-[16/10]'}`}>
-        {thumb ? (
-          <img src={thumb} alt="" className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
-        ) : media.kind === 'placeholder-audio' ? (
-          <AudioPlaceholder className="absolute inset-0" />
-        ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-sand to-cream" />
-        )}
+      <MediaThumb
+        src={thumb}
+        kind={media.kind}
+        testId="subject-content-thumb"
+        className={`bg-sand neu-inset rounded-[22px] ${isBook ? 'aspect-[3/4]' : 'aspect-[16/10]'}`}
+        fallback={<div className="absolute inset-0 bg-gradient-to-br from-sand to-cream" />}
+      >
         <span className="bg-cream/90 absolute right-3 top-3 rounded-full px-2.5 py-1 text-[0.62rem] font-semibold">{isBook ? 'Book' : c.type === 'audio' ? 'Audio' : 'Video'}</span>
-      </div>
+      </MediaThumb>
       <h3 className="font-display text-ink mt-4 line-clamp-2 text-[1.05rem] font-bold">{c.title}</h3>
       <p className="text-ink-muted mt-2 line-clamp-2 text-[0.82rem]">{c.description?.slice(0, 80) ?? ''}</p>
     </Link>

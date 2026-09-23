@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { Mark, Wordmark } from '../components/Brand';
 import { useAdmin } from './store';
+import { hasAdminToken } from '@/lib/api';
+import AdminTokenPanel from './AdminTokenPanel';
 import { Toast } from './ui';
 
 const nav = [
@@ -42,8 +44,9 @@ function NavItems({ onClick }: { onClick?: () => void }) {
 
 export default function AdminLayout() {
   const [open, setOpen] = useState(false);
+  const [tokenSet, setTokenSet] = useState(() => hasAdminToken());
   const { pathname } = useLocation();
-  const { notice, clearNotice } = useAdmin();
+  const { notice, clearNotice, refresh } = useAdmin();
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'auto' });
@@ -106,11 +109,12 @@ export default function AdminLayout() {
           </div>
 
           <div className="mt-auto px-2 pt-8">
-            <Link to="/" className="text-ink-muted hover:text-rose text-[0.86rem] font-semibold transition-colors">
+            <AdminTokenPanel hasToken={tokenSet} onChanged={() => { setTokenSet(hasAdminToken()); void refresh(); }} />
+            <Link to="/" className="text-ink-muted hover:text-rose mt-4 block text-[0.86rem] font-semibold transition-colors">
               View library →
             </Link>
             <p className="text-ink-muted/80 mt-3 text-[0.75rem] leading-relaxed">
-              Prototype UI — no login, no database yet. Everything stays in this session.
+              Connected to the PostgreSQL library. Writes require the admin token in production.
             </p>
             <p className="text-ink-muted/60 mt-2 text-[0.7rem]">Public site remains free & requires no login.</p>
           </div>
@@ -127,6 +131,7 @@ export default function AdminLayout() {
               </span>
             </Link>
             <div className="flex items-center gap-2">
+              <AdminTokenPanel hasToken={tokenSet} onChanged={() => { setTokenSet(hasAdminToken()); void refresh(); }} />
               <Link to="/admin/archive-import" className="bg-olive text-cream grid h-10 w-10 place-items-center rounded-[14px] shadow-[6px_8px_16px_rgba(140,150,100,0.28)]">
                 <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 19V6a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v13" /><path d="M14 19V6a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1Z" /></svg>
               </Link>

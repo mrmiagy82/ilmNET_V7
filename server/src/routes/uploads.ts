@@ -2,39 +2,47 @@ import fs from 'fs';
 import path from 'path';
 import type { FastifyInstance } from 'fastify';
 import { pipeline } from 'stream/promises';
+import {
+  ALLOWED_IMAGE_MIME,
+  MAX_UPLOAD_BYTES,
+  ensureUploadsDir,
+  getUploadsDir,
+  listUploadFiles,
+} from '../lib/storage';
 
-export const UPLOADS_DIR = path.resolve(__dirname, '..', '..', 'uploads');
-
-const ALLOWED_MIME: Record<string, string> = {
-  'image/jpeg': '.jpg',
-  'image/png': '.png',
-  'image/webp': '.webp',
-  'image/gif': '.gif',
-  'image/avif': '.avif',
-};
-
-const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
-
-function ensureDir() {
-  if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-}
+// Kept for backwards compatibility with existing imports (tests, docs).
+export const UPLOADS_DIR = getUploadsDir();
 
 /**
  * Admin media uploads — used by the Admin CMS to attach a custom thumbnail / cover
  * to a Content record. The returned URL is stored in Content.thumbnailUrl / Content.coverUrl
  * and always takes priority over provider thumbnails on the public site.
+ *
+ * All endpoints live under /api/admin/uploads and are protected by the admin token hook.
  */
 export async function uploadRoutes(app: FastifyInstance) {
-  ensureDir();
+  ensureUploadsDir();
 
   app.post('/api/admin/uploads', async (req, reply) => {
-    const file = await (req as any).file({ limits: { fileSize: MAX_BYTES } });
+    // Reject everything that is not a multipart upload with a clear 400 (not the plugin's 406)
+    if (!(req as any).isMultipart || !(req as any).isMultipart()) {
+      return reply.code(400).send({
+        error: { code: 'NO_FILE', message: 'Expected multipart/form-data with an image in the "file" field.' },
+      });
+    }
+
+    let file: any;
+    try {
+      file = await (req as any).file({ limits: { fileSize: MAX_UPLOAD_BYTES } });
+    } catch (e: any) {
+      return reply.code(400).send({ error: { code: 'BAD_UPLOAD', message: e?.message || 'Could not read the uploaded file.' } });
+    }
 
     if (!file) {
       return reply.code(400).send({ error: { code: 'NO_FILE', message: 'No file uploaded — send multipart/form-data with field "file".' } });
     }
 
-    const ext = ALLOWED_MIME[file.mimetype];
+    const ext = ALLOWED_IMAGE_MIME[file.mimetype];
     if (!ext) {
       return reply.code(415).send({
         error: { code: 'UNSUPPORTED_TYPE', message: `Unsupported image type ${file.mimetype}. Allowed: jpg, png, webp, gif, avif.` },
@@ -47,7 +55,7 @@ export async function uploadRoutes(app: FastifyInstance) {
       .replace(/[^a-zA-Z0-9._-]+/g, '-')
       .slice(0, 60);
     const filename = `${base}-${stamp}${rand}${ext}`;
-    const dest = path.join(UPLOADS_DIR, filename);
+    const dest = path.join(ensureUploadsDir(), filename);
 
     try {
       await pipeline(file.file, fs.createWriteStream(dest));
@@ -81,9 +89,11 @@ export async function uploadRoutes(app: FastifyInstance) {
 
   app.delete('/api/admin/uploads/:filename', async (req, reply) => {
     const { filename } = req.params as { filename: string };
+    const dir = ensureUploadsDir();
     const safe = path.basename(filename);
-    const target = path.join(UPLOADS_DIR, safe);
-    if (!target.startsWith(UPLOADS_DIR) || !fs.existsSync(target)) {
+    const target = path.join(dir, safe);
+    // defence in depth: never leave the uploads directory, only delete image files
+    if (path.dirname(target) !== dir || !fs.existsSync(target) || !fs.statSync(target).isFile()) {
       return reply.code(404).send({ error: { code: 'NOT_FOUND', message: `Upload ${safe} not found` } });
     }
     fs.unlinkSync(target);
@@ -91,15 +101,6 @@ export async function uploadRoutes(app: FastifyInstance) {
   });
 
   app.get('/api/admin/uploads', async () => {
-    ensureDir();
-    const files = fs
-      .readdirSync(UPLOADS_DIR)
-      .filter((f) => !f.startsWith('.') && /\.(jpe?g|png|webp|gif|avif)$/i.test(f))
-      .map((f) => {
-        const stat = fs.statSync(path.join(UPLOADS_DIR, f));
-        return { filename: f, url: `/uploads/${f}`, bytes: stat.size, modifiedAt: stat.mtime.toISOString() };
-      })
-      .sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt));
-    return { data: files };
+    return { data: listUploadFiles() };
   });
 }

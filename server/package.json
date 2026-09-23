@@ -15,7 +15,9 @@
     "test": "tsx test/audit.test.ts",
     "test:watch": "tsx --watch test/audit.test.ts",
     "test:uploads": "tsx test/uploads.test.ts",
-    "test:all": "tsx test/audit.test.ts && tsx test/uploads.test.ts && tsx test/youtube.test.ts"
+    "test:all": "tsx test/audit.test.ts && tsx test/uploads.test.ts && tsx test/production.test.ts && tsx test/youtube.test.ts",
+    "test:production": "tsx test/production.test.ts",
+    "test:imports": "tsx test/regression-imports.test.ts"
   },
   "dependencies": {
     "@fastify/cors": "^11.0.1",
