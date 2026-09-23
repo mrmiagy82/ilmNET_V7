@@ -5,6 +5,8 @@ import { Tag } from '../components/ui';
 import { getPublishedContent, listPublishedContents, type BackendContent } from '@/lib/api';
 import AudioPlayer from '@/components/AudioPlayer';
 import { getDownloadUrl, getAudioStreamUrl } from '@/lib/series';
+import { resolveCover, resolveThumbnail, resolveCardMedia } from '@/lib/thumbnail';
+import AudioPlaceholder from '@/components/AudioPlaceholder';
 
 function Embed({ c }: { c: BackendContent }) {
   const audioSrc = c.type === 'audio' ? getAudioStreamUrl(c) : null;
@@ -161,11 +163,12 @@ function SeriesNav({ c }: { c: BackendContent }) {
         {siblings.map((s) => (
           <Link key={s.id} to={`/${s.type === 'book' || s.type === 'document' ? 'books' : 'lectures'}/${s.slug}`} className="bg-sand neu-inset flex gap-3 rounded-[16px] p-3 hover:opacity-80">
             <div className="bg-cream relative h-16 w-24 shrink-0 overflow-hidden rounded-[10px]">
-              {(s.thumbnailUrl || s.coverUrl) ? (
-                <img src={(s.thumbnailUrl || s.coverUrl)!} alt="" className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
-              ) : (
-                <div className="absolute inset-0 bg-gradient-to-br from-olive/10 to-rose/10" />
-              )}
+              {(() => {
+                const media = resolveCardMedia(s);
+                if (media.src) return <img src={media.src} alt="" className="absolute inset-0 h-full w-full object-cover" loading="lazy" />;
+                if (media.kind === 'placeholder-audio') return <AudioPlaceholder className="absolute inset-0" />;
+                return <div className="absolute inset-0 bg-gradient-to-br from-olive/10 to-rose/10" />;
+              })()}
             </div>
             <div className="min-w-0">
               <p className="font-display text-ink line-clamp-1 text-[0.88rem] font-bold">{s.title}</p>
@@ -343,14 +346,26 @@ export default function ContentDetail({ expectedType }: { expectedType?: 'lectur
 
           <SeriesNav c={c} />
 
-          {(c.thumbnailUrl || c.coverUrl) && (
-            <div className="bg-cream neu-raised rounded-[28px] p-6 sm:p-8">
-              <h3 className="font-display text-ink text-[1.1rem] font-bold">Cover</h3>
-              <div className="bg-sand neu-inset mt-4 rounded-[18px] p-2">
-                <img src={(c.coverUrl ?? c.thumbnailUrl)!} alt="" className="max-h-[420px] w-full rounded-[14px] object-contain bg-sand" onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} />
+          {(() => {
+            const coverMedia = c.type === 'book' || c.type === 'document' ? resolveCover(c) : resolveThumbnail(c);
+            const audioFallback = c.type === 'audio' && !coverMedia.src;
+            if (!coverMedia.src && !audioFallback) return null;
+            return (
+              <div className="bg-cream neu-raised rounded-[28px] p-6 sm:p-8">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-display text-ink text-[1.1rem] font-bold">{c.type === 'book' || c.type === 'document' ? 'Cover' : 'Artwork'}</h3>
+                  {coverMedia.source === 'custom' && <span className="bg-olive/15 text-olive-deep rounded-full px-3 py-1 text-[0.68rem] font-bold">Custom upload</span>}
+                </div>
+                <div className="bg-sand neu-inset mt-4 overflow-hidden rounded-[18px] p-2">
+                  {coverMedia.src ? (
+                    <img src={coverMedia.src} alt="" className="max-h-[420px] w-full rounded-[14px] bg-sand object-contain" onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} />
+                  ) : (
+                    <AudioPlaceholder className="aspect-[16/10] w-full rounded-[14px]" />
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
       </section>
     </>

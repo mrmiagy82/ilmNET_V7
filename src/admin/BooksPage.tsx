@@ -1,3 +1,4 @@
+import { assetUrl } from '@/lib/api';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { SearchBar, FilterChips } from '../components/ui';
@@ -117,7 +118,7 @@ export default function BooksPage() {
                 <article key={b.id} className="bg-cream neu-raised rounded-[24px] p-5">
                   <div className="flex gap-3">
                     {b.coverUrl ? (
-                      <img src={b.coverUrl} alt="" className="h-[86px] w-[62px] shrink-0 rounded-[8px] object-cover bg-sand" />
+                      <img src={assetUrl(b.coverUrl)!} alt="" className="h-[86px] w-[62px] shrink-0 rounded-[8px] object-cover bg-sand" />
                     ) : (
                       <span className="bg-sand grid h-[86px] w-[62px] shrink-0 place-items-center rounded-[8px] text-[0.62rem] font-bold text-ink-muted">{b.format.slice(0,4).toUpperCase()}</span>
                     )}
@@ -173,7 +174,7 @@ export default function BooksPage() {
                         <td className={tdCls}>
                           <div className="flex gap-3">
                             {b.coverUrl ? (
-                              <img src={b.coverUrl} alt="" className="h-12 w-9 shrink-0 rounded-[6px] object-cover bg-sand" onError={(e) => ((e.target as HTMLImageElement).style.display='none')} />
+                              <img src={assetUrl(b.coverUrl)!} alt="" className="h-12 w-9 shrink-0 rounded-[6px] object-cover bg-sand" onError={(e) => ((e.target as HTMLImageElement).style.display='none')} />
                             ) : (
                               <span className="bg-sand grid h-12 w-9 shrink-0 place-items-center rounded-[6px] text-[0.58rem] font-bold text-ink-muted">{b.format.slice(0,3).toUpperCase()}</span>
                             )}

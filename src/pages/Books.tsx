@@ -4,12 +4,14 @@ import PageHeader from '../components/PageHeader';
 import { SearchBar, FilterChips, Tag, EmptyState, StatRow } from '../components/ui';
 import { listPublishedContents, listPublicScholars, listPublicSubjects, type BackendContent, type BackendScholar, type BackendSubject } from '@/lib/api';
 import { groupByCollection, type SeriesGroup } from '@/lib/series';
+import { resolveCover } from '@/lib/thumbnail';
 
 function BookCover({ c }: { c: BackendContent }) {
-  if (c.coverUrl) {
+  const media = resolveCover(c);
+  if (media.src) {
     return (
-      <div className="bg-sand neu-inset grid aspect-[3/4] place-items-center rounded-[22px] overflow-hidden">
-        <img src={c.coverUrl} alt="" className="h-full w-full object-cover" loading="lazy" onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} />
+      <div className="bg-sand neu-inset relative grid aspect-[3/4] place-items-center rounded-[22px] overflow-hidden">
+        <img src={media.src} alt="" className="absolute inset-0 h-full w-full object-cover" loading="lazy" onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} />
       </div>
     );
   }
@@ -58,11 +60,13 @@ function BookCard({ c }: { c: BackendContent }) {
 
 function CollectionCard({ s }: { s: SeriesGroup }) {
   const subj = s.subjects[0];
+  const first = s.items[0];
+  const collectionCover = first ? resolveCover(first).src : s.coverUrl;
   return (
     <Link to={`/series/${encodeURIComponent(s.id)}`} className="bg-cream neu-raised group flex flex-col rounded-[30px] p-6 transition-transform duration-500 hover:-translate-y-1.5">
       <div className="bg-sand neu-inset relative grid aspect-[3/4] place-items-center overflow-hidden rounded-[22px]">
-        {s.coverUrl ? (
-          <img src={s.coverUrl} alt="" className="absolute inset-0 h-full w-full object-cover" loading="lazy" onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} />
+        {collectionCover ? (
+          <img src={collectionCover} alt="" className="absolute inset-0 h-full w-full object-cover" loading="lazy" onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} />
         ) : (
           <div className="bg-gradient-to-br from-olive/20 to-rose/20 absolute inset-0" />
         )}

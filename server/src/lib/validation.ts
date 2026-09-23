@@ -12,14 +12,22 @@ export function normalizeProvider(p: string): string {
   return p;
 }
 
+// Media URLs may be: absolute http(s), our own uploaded /uploads/<file>, or an inline data: image
+export const mediaUrlSchema = z
+  .string()
+  .max(300000)
+  .refine((v) => /^(https?:\/\/|\/uploads\/|data:image\/)/.test(v.trim()), {
+    message: 'Must be an absolute http(s) URL, an /uploads/<file> path or a data:image URI',
+  });
+
 export const createContentSchema = z.object({
   type: contentTypeEnum,
   title: z.string().min(3).max(300),
   description: z.string().max(5000).optional().nullable(),
   status: contentStatusEnum.optional().default('draft'),
   language: z.string().max(50).optional().nullable(),
-  thumbnailUrl: z.string().url().optional().nullable().or(z.literal('')),
-  coverUrl: z.string().url().optional().nullable().or(z.literal('')),
+  thumbnailUrl: mediaUrlSchema.optional().nullable().or(z.literal('')),
+  coverUrl: mediaUrlSchema.optional().nullable().or(z.literal('')),
   series: z.string().max(200).optional().nullable(),
   provider: providerInputEnum,
   sourceUrl: z.string().url(),

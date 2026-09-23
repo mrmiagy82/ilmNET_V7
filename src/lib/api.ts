@@ -5,6 +5,26 @@
 const BASE = (import.meta as any).env?.VITE_API_URL ?? "";
 const ADMIN_TOKEN = (import.meta as any).env?.VITE_ADMIN_TOKEN ?? "";
 
+/**
+ * Resolve a media URL for use in <img>/<audio>.
+ * Custom admin uploads are stored as "/uploads/<file>" (served by the backend, proxied in dev).
+ * Absolute URLs and data: URIs are returned untouched.
+ */
+export function assetUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  const u = url.trim();
+  if (!u) return null;
+  if (/^(https?:|data:|blob:)/i.test(u)) return u;
+  if (u.startsWith("/")) return `${BASE}${u}`;
+  return u;
+}
+
+export function isCustomMediaUrl(url: string | null | undefined): boolean {
+  if (!url) return false;
+  const u = url.trim();
+  return u.startsWith("/uploads/") || u.startsWith("data:image/");
+}
+
 // ── helpers ──
 async function apiFetch<T>(path: string, opts: RequestInit = {}): Promise<T> {
   const url = `${BASE}${path}`;
@@ -115,6 +135,29 @@ export function publishContent(id: string) {
 }
 export function unpublishContent(id: string) {
   return apiFetch<Single<BackendContent>>(`/api/admin/contents/${encodeURIComponent(id)}/unpublish`, { method: "POST" });
+}
+
+// ── Admin media uploads (custom thumbnails/covers) ──
+export async function uploadImage(file: File): Promise<{ url: string; filename: string; bytes: number; mime: string }> {
+  const form = new FormData();
+  form.append("file", file);
+  const headers: Record<string, string> = {};
+  if (ADMIN_TOKEN) headers["x-admin-token"] = ADMIN_TOKEN;
+  const res = await fetch(`${BASE}/api/admin/uploads`, { method: "POST", body: form, headers });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const msg = (body as any)?.error?.message ?? res.statusText;
+    throw new Error(typeof msg === "string" ? msg : JSON.stringify(msg));
+  }
+  return (body as any).data;
+}
+
+export function listUploadedImages() {
+  return apiFetch<{ data: { filename: string; url: string; bytes: number; modifiedAt: string }[] }>(`/api/admin/uploads`);
+}
+
+export function deleteUploadedImage(filename: string) {
+  return apiFetch<{ data: { deleted: string } }>(`/api/admin/uploads/${encodeURIComponent(filename)}`, { method: "DELETE" });
 }
 
 // ── Scholars ──

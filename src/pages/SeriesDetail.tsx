@@ -3,16 +3,22 @@ import { Link, useParams } from 'react-router-dom';
 import PageHeader from '../components/PageHeader';
 import { Tag } from '../components/ui';
 import { listPublishedContents, type BackendContent } from '@/lib/api';
+import { resolveThumbnail, resolveCover } from '@/lib/thumbnail';
+import AudioPlaceholder from '@/components/AudioPlaceholder';
 import { formatDuration } from '../data';
 
 function EpisodeRow({ c, idx }: { c: BackendContent; idx: number }) {
-  const thumb = c.thumbnailUrl || c.coverUrl;
+  const isBook = c.type === 'book' || c.type === 'document';
+  const media = isBook ? resolveCover(c) : resolveThumbnail(c);
+  const thumb = media.src;
   const isVideo = c.type === 'video' || c.type === 'lecture';
   return (
     <Link to={`/${c.type === 'book' || c.type === 'document' ? 'books' : 'lectures'}/${c.slug}`} className="bg-cream neu-raised group flex gap-4 rounded-[22px] p-4 transition-transform hover:-translate-y-1">
       <div className="bg-sand neu-inset relative aspect-[16/10] w-32 shrink-0 overflow-hidden rounded-[14px] sm:w-40">
         {thumb ? (
           <img src={thumb} alt="" className="absolute inset-0 h-full w-full object-cover" loading="lazy" onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} />
+        ) : media.kind === 'placeholder-audio' ? (
+          <AudioPlaceholder className="absolute inset-0" />
         ) : (
           <div className="absolute inset-0 bg-gradient-to-br from-olive/10 to-rose/10" />
         )}

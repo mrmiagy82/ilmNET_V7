@@ -1,3 +1,4 @@
+import { assetUrl } from '@/lib/api';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { SearchBar, FilterChips } from '../components/ui';
@@ -141,7 +142,7 @@ export default function LecturesPage() {
                       <p className="text-ink-muted mt-1 text-[0.82rem]">{scholarNames(l)}</p>
                       {l.thumbnailUrl && (
                         <div className="mt-3 h-[88px] w-full overflow-hidden rounded-[12px] bg-sand">
-                          <img src={l.thumbnailUrl} alt="" className="h-full w-full object-cover" />
+                          <img src={assetUrl(l.thumbnailUrl)!} alt="" className="h-full w-full object-cover" />
                         </div>
                       )}
                     </div>
@@ -191,7 +192,7 @@ export default function LecturesPage() {
                         <td className={tdCls}>
                           <div className="flex gap-3">
                             {l.thumbnailUrl ? (
-                              <img src={l.thumbnailUrl} alt="" className="h-10 w-16 shrink-0 rounded-[8px] object-cover bg-sand" onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} />
+                              <img src={assetUrl(l.thumbnailUrl)!} alt="" className="h-10 w-16 shrink-0 rounded-[8px] object-cover bg-sand" onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} />
                             ) : (
                               <span className="bg-sand grid h-10 w-16 shrink-0 place-items-center rounded-[8px] text-ink-muted text-[0.62rem] font-semibold">{prov === 'archive' ? 'ARCHIVE' : sType === 'youtube-playlist' ? 'PLAYLIST' : 'VIDEO'}</span>
                             )}

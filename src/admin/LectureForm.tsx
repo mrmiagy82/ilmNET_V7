@@ -20,10 +20,10 @@ import {
   type SourceProvider,
 } from './data';
 import { useAdmin } from './store';
+import MediaField from './MediaField';
 import {
   ArchiveEmbed,
   ChipToggle,
-  CoverPreview,
   ErrorBanner,
   Field,
   GhostButton,
@@ -128,6 +128,19 @@ export default function LectureForm() {
   const archiveEmbedOk = isArchiveProvider ? Boolean(getArchiveEmbedUrl(archiveUrl)) : false;
   const urlOk = isArchiveProvider ? isArchiveUrl(archiveUrl) : isYoutubeUrl(form.youtubeUrl);
   const isPlaylist = form.sourceType === 'youtube-playlist' || (form.sourceType === undefined && isYoutubePlaylistUrl(form.youtubeUrl));
+
+  // Provider thumbnail that the public site would use when no custom image is set
+  const providerThumb = useMemo(() => {
+    if (!isArchiveProvider && ytEmbedUrl && !ytEmbedUrl.includes('videoseries')) {
+      const m = ytEmbedUrl.match(/\/embed\/([^?]+)/);
+      return m ? `https://img.youtube.com/vi/${m[1]}/hqdefault.jpg` : null;
+    }
+    if (isArchiveProvider) {
+      const id = archiveUrl.match(/archive\.org\/(?:details|embed)\/([^/?#]+)/)?.[1];
+      return id ? `https://archive.org/services/img/${id}` : null;
+    }
+    return null;
+  }, [isArchiveProvider, ytEmbedUrl, archiveUrl]);
 
   const save = (status: PublishStatus) => {
     const scholarsChosen = form.scholarIds && form.scholarIds.length > 0 ? form.scholarIds : form.scholarId ? [form.scholarId] : [];
@@ -349,13 +362,14 @@ export default function LectureForm() {
               placeholder="What this series covers, in plain language."
             />
           </Field>
-          <Field label="Thumbnail / cover URL" hint="Optional. Auto-falls back to provider thumbnail when empty.">
-            <TextInput value={form.thumbnailUrl ?? ''} onChange={(e) => set('thumbnailUrl', e.target.value)} placeholder="https://…/cover.jpg" inputMode="url" />
-            <CoverPreview url={form.thumbnailUrl ?? ''} title={form.title || 'Lecture'} />
-            {!form.thumbnailUrl?.trim() && !isArchiveProvider && ytEmbedUrl && !ytEmbedUrl.includes('videoseries') && (
-              <p className="text-ink-muted mt-2 text-[0.72rem]">Auto thumbnail: <span className="font-mono break-all text-[0.7rem]">{(() => { const m = ytEmbedUrl.match(/\/embed\/([^?]+)/); return m ? `https://img.youtube.com/vi/${m[1]}/hqdefault.jpg` : ''; })()}</span></p>
-            )}
-          </Field>
+          <MediaField
+            value={form.thumbnailUrl ?? ''}
+            onChange={(url) => set('thumbnailUrl', url)}
+            title={form.title || 'Lecture'}
+            label="Thumbnail / cover image"
+            providerUrl={providerThumb}
+            testId="lecture-thumbnail"
+          />
         </section>
 
         <section className="bg-cream neu-raised space-y-6 rounded-[28px] p-6 sm:p-8">

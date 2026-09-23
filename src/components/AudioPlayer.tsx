@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 type Props = {
   src: string | null;
@@ -7,6 +7,9 @@ type Props = {
   provider?: string;
   sourceUrl?: string;
 };
+
+const BAR_COUNT = 24;
+const IDLE_BARS = [14, 26, 38, 22, 44, 30, 52, 36, 24, 42, 18, 32, 46, 26, 16, 34, 22, 40, 28, 18, 30, 44, 20, 36];
 
 function formatTime(sec: number) {
   if (!isFinite(sec) || sec <= 0) return '0:00';
@@ -28,13 +31,27 @@ function PlayIcon({ playing }: { playing: boolean }) {
   );
 }
 
+/**
+ * ilmNet audio player — neumorphic styling, Web Audio API AnalyserNode waveform
+ * that moves with the real audio signal during playback.
+ */
 export default function AudioPlayer({ src, title, embedFallback, provider, sourceUrl }: Props) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const ctxRef = useRef<AudioContext | null>(null);
+  const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const dataRef = useRef<Uint8Array | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const lastSignalRef = useRef<number>(0);
+
   const [playing, setPlaying] = useState(false);
+  const [live, setLive] = useState(false); // true while the analyser is actually receiving signal
   const [current, setCurrent] = useState(0);
   const [duration, setDuration] = useState(0);
   const [progress, setProgress] = useState(0);
+  const [levels, setLevels] = useState<number[]>(IDLE_BARS);
 
+  // ── progress / duration events ──
   useEffect(() => {
     const a = audioRef.current;
     if (!a) return;
@@ -43,20 +60,107 @@ export default function AudioPlayer({ src, title, embedFallback, provider, sourc
       setDuration(a.duration || 0);
       setProgress(a.duration ? (a.currentTime / a.duration) * 100 : 0);
     };
-    const onLoaded = () => {
-      setDuration(a.duration || 0);
+    const onLoaded = () => setDuration(a.duration || 0);
+    const onEnded = () => {
+      setPlaying(false);
+      setLive(false);
     };
-    const onEnded = () => setPlaying(false);
     a.addEventListener('timeupdate', onTime);
     a.addEventListener('loadedmetadata', onLoaded);
+    a.addEventListener('durationchange', onLoaded);
     a.addEventListener('ended', onEnded);
     return () => {
       a.removeEventListener('timeupdate', onTime);
       a.removeEventListener('loadedmetadata', onLoaded);
+      a.removeEventListener('durationchange', onLoaded);
       a.removeEventListener('ended', onEnded);
     };
   }, [src]);
 
+  /**
+   * Create the AudioContext + MediaElementSource + AnalyserNode exactly once per audio element.
+   * (A MediaElementSourceNode can only be created once per media element, so we never rebuild it.)
+   * Must be triggered from a user gesture so the context is allowed to run.
+   */
+  const ensureAnalyser = useCallback(() => {
+    const a = audioRef.current;
+    if (!a) return null;
+    if (analyserRef.current) return analyserRef.current;
+    try {
+      const Ctx = (window as any).AudioContext || (window as any).webkitAudioContext;
+      if (!Ctx) return null;
+      const ctx: AudioContext = ctxRef.current ?? new Ctx();
+      ctxRef.current = ctx;
+      const source = sourceRef.current ?? ctx.createMediaElementSource(a);
+      sourceRef.current = source;
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 64; // 32 bins → 24 bars
+      analyser.smoothingTimeConstant = 0.78;
+      analyser.minDecibels = -85;
+      source.connect(analyser);
+      analyser.connect(ctx.destination);
+      analyserRef.current = analyser;
+      dataRef.current = new Uint8Array(new ArrayBuffer(analyser.frequencyBinCount));
+      return analyser;
+    } catch (e) {
+      console.warn('[AudioPlayer] Web Audio analyser unavailable — waveform stays static.', e);
+      return null;
+    }
+  }, []);
+
+  // ── realtime waveform loop ──
+  useEffect(() => {
+    if (!playing || !src) {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+      setLevels(IDLE_BARS);
+      setLive(false);
+      return;
+    }
+
+    ensureAnalyser();
+    const ctx = ctxRef.current;
+    if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {});
+
+    const tick = () => {
+      const an = analyserRef.current;
+      const data = dataRef.current;
+      if (an && data) {
+        (an as any).getByteFrequencyData(data);
+        const step = data.length / BAR_COUNT;
+        const next: number[] = [];
+        let peak = 0;
+        for (let i = 0; i < BAR_COUNT; i++) {
+          const start = Math.floor(i * step);
+          const end = Math.max(start + 1, Math.floor((i + 1) * step));
+          let sum = 0;
+          for (let j = start; j < end && j < data.length; j++) {
+            sum += data[j];
+            if (data[j] > peak) peak = data[j];
+          }
+          const avg = sum / (end - start); // 0–255
+          next.push(Math.round(10 + (avg / 255) * 46)); // 10–56 px
+        }
+        setLevels(next);
+        // "live" only when we really receive signal from the audio
+        if (peak > 4) {
+          lastSignalRef.current = Date.now();
+          setLive(true);
+        } else if (Date.now() - lastSignalRef.current > 1200) {
+          setLive(false);
+        }
+      }
+      rafRef.current = requestAnimationFrame(tick);
+    };
+
+    rafRef.current = requestAnimationFrame(tick);
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    };
+  }, [playing, src, ensureAnalyser]);
+
+  // ── play / pause ──
   useEffect(() => {
     const a = audioRef.current;
     if (!a) return;
@@ -64,7 +168,29 @@ export default function AudioPlayer({ src, title, embedFallback, provider, sourc
     else a.pause();
   }, [playing]);
 
-  const toggle = () => setPlaying((p) => !p);
+  // ── cleanup ──
+  useEffect(() => {
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      try {
+        sourceRef.current?.disconnect();
+        analyserRef.current?.disconnect();
+        ctxRef.current?.close();
+      } catch {}
+      ctxRef.current = null;
+      analyserRef.current = null;
+      dataRef.current = null;
+      sourceRef.current = null;
+    };
+  }, []);
+
+  const toggle = () => {
+    // Warm up the analyser on the user gesture so playback starts with a live waveform
+    ensureAnalyser();
+    const ctx = ctxRef.current;
+    if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {});
+    setPlaying((p) => !p);
+  };
 
   const onSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
     const v = Number(e.target.value);
@@ -76,11 +202,7 @@ export default function AudioPlayer({ src, title, embedFallback, provider, sourc
     setCurrent(newTime);
   };
 
-  // Waveform bars — static for now, animated when playing
-  const bars = [14, 26, 38, 22, 44, 30, 52, 36, 24, 42, 18, 32, 46, 26, 16, 34, 22, 40, 28, 18, 30, 44, 20, 36];
-
   if (!src) {
-    // Fallback to embed if no direct stream
     if (embedFallback) {
       return (
         <div className="bg-sand neu-inset rounded-[24px] overflow-hidden p-2">
@@ -129,20 +251,29 @@ export default function AudioPlayer({ src, title, embedFallback, provider, sourc
           <p className="text-ink-muted text-[0.68rem] font-semibold tracking-[0.18em] uppercase">Now playing</p>
           <p className="font-display text-ink truncate text-[1.05rem] font-bold tracking-tight">{title}</p>
         </div>
+        <span
+          className={`hidden shrink-0 items-center gap-2 rounded-full px-3 py-1.5 text-[0.7rem] font-medium sm:flex ${live ? 'bg-rose/12 text-rose' : 'bg-sand text-ink-soft'}`}
+          title={live ? 'Waveform reageert op het echte audiosignaal' : 'Waveform start zodra de audio speelt'}
+          data-testid="waveform-status"
+        >
+          <span className={`h-1.5 w-1.5 rounded-full ${live ? 'bg-rose animate-pulse' : 'bg-ink-muted/40'}`} />
+          {live ? 'Live waveform' : 'Waveform'}
+        </span>
         <span className="bg-sand text-ink-soft hidden rounded-full px-3 py-1.5 text-[0.7rem] font-medium sm:block">
           {provider === 'archive' ? 'Archive.org' : provider}
         </span>
       </div>
 
-      {/* Waveform */}
-      <div className="mt-7 flex h-16 items-end gap-[3px]">
-        {bars.map((h, i) => {
-          const active = (i / bars.length) * 100 < progress;
+      {/* Waveform — heights come from the AnalyserNode while playing */}
+      <div className="mt-7 flex h-16 items-end gap-[3px]" data-testid="waveform" aria-hidden="true">
+        {levels.map((h, i) => {
+          const isActive = (i / levels.length) * 100 < progress;
           return (
             <span
               key={i}
-              style={{ height: `${h + 12}px` }}
-              className={`flex-1 rounded-full transition-colors duration-200 ${active ? 'bg-rose/85' : 'bg-olive/30'}`}
+              data-testid="waveform-bar"
+              style={{ height: `${h}px` }}
+              className={`flex-1 rounded-full ${isActive ? 'bg-rose/85' : 'bg-olive/30'} ${playing ? 'transition-[height] duration-75 ease-out' : 'transition-colors duration-200'}`}
             />
           );
         })}
@@ -154,6 +285,7 @@ export default function AudioPlayer({ src, title, embedFallback, provider, sourc
           onClick={toggle}
           className="bg-sand neu-raised-sm text-rose grid h-14 w-14 shrink-0 place-items-center rounded-full transition-transform hover:scale-[1.04] active:scale-95"
           aria-label={playing ? 'Pause' : 'Play'}
+          data-testid="audio-toggle"
         >
           <PlayIcon playing={playing} />
         </button>
@@ -167,6 +299,7 @@ export default function AudioPlayer({ src, title, embedFallback, provider, sourc
             onChange={onSeek}
             className="bg-sand neu-inset-sm h-2.5 w-full appearance-none rounded-full accent-rose"
             style={{ accentColor: '#cc3a63' }}
+            aria-label="Seek"
           />
           <div className="text-ink-muted mt-2 flex justify-between text-[0.72rem] font-medium">
             <span>{formatTime(current)}</span>
@@ -175,10 +308,12 @@ export default function AudioPlayer({ src, title, embedFallback, provider, sourc
         </div>
       </div>
 
-      {/* Hidden audio element */}
-      <audio ref={audioRef} src={src} preload="metadata" className="hidden" />
+      {/* CORS-enabled element so the Web Audio API can read the real signal */}
+      <audio ref={audioRef} src={src} crossOrigin="anonymous" preload="metadata" className="hidden" data-testid="audio-element" />
 
-      <p className="text-ink-muted mt-4 text-[0.7rem]">Rechtstreekse stream {provider === 'archive' ? 'via Archive.org' : ''} — als dit niet laadt, gebruik de embed fallback.</p>
+      <p className="text-ink-muted mt-4 text-[0.7rem]">
+        Rechtstreekse stream {provider === 'archive' ? 'via Archive.org' : ''} — waveform beweegt realtime met het audiosignaal (Web Audio API).
+      </p>
     </div>
   );
 }

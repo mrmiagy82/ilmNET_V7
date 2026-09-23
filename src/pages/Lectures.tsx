@@ -5,6 +5,8 @@ import { SearchBar, FilterChips, Tag, EmptyState, StatRow } from '../components/
 import { formatCount, formatDuration } from '../data';
 import { listPublishedContents, listPublicScholars, listPublicSubjects, type BackendContent, type BackendScholar, type BackendSubject } from '@/lib/api';
 import { groupByCollection, type SeriesGroup } from '@/lib/series';
+import { resolveThumbnail } from '@/lib/thumbnail';
+import AudioPlaceholder from '@/components/AudioPlaceholder';
 
 function PlayGlyph({ className = '' }: { className?: string }) {
   return (
@@ -19,12 +21,15 @@ function LectureCard({ c }: { c: BackendContent }) {
   const scholarName = c.scholars[0]?.scholar?.name ?? 'Unknown scholar';
   const isVideo = c.type === 'video' || c.type === 'lecture';
   const format: 'Audio' | 'Video' = c.type === 'audio' ? 'Audio' : 'Video';
-  const thumb = c.thumbnailUrl;
+  const media = resolveThumbnail(c);
+  const thumb = media.src;
   return (
     <Link to={`/lectures/${c.slug}`} className="bg-cream neu-raised group flex flex-col rounded-[30px] p-6 transition-transform duration-500 hover:-translate-y-1.5">
       <div className="bg-sand neu-inset relative flex aspect-[16/10] items-center justify-center overflow-hidden rounded-[22px]">
         {thumb ? (
           <img src={thumb} alt="" className="absolute inset-0 h-full w-full object-cover" loading="lazy" onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} />
+        ) : media.kind === 'placeholder-audio' ? (
+          <AudioPlaceholder className="absolute inset-0" />
         ) : (
           <div className="absolute inset-x-0 bottom-0 flex h-12 items-end gap-[3px] px-5 pb-3 opacity-40">
             {Array.from({ length: 28 }).map((_, i) => (
@@ -68,7 +73,8 @@ function LectureCard({ c }: { c: BackendContent }) {
 }
 
 function SeriesCard({ s }: { s: SeriesGroup }) {
-  const thumb = s.thumbnailUrl;
+  const isAudioSeries = s.items.every((it) => it.type === 'audio');
+  const thumb = s.items[0] ? resolveThumbnail(s.items[0]).src : s.thumbnailUrl;
   const subtitle = s.scholars[0]?.name ?? s.items[0]?.scholars[0]?.scholar.name ?? '';
   const subj = s.subjects[0];
   const isPlaylist = s.type === 'playlist';
@@ -77,6 +83,8 @@ function SeriesCard({ s }: { s: SeriesGroup }) {
       <div className="bg-sand neu-inset relative flex aspect-[16/10] items-center justify-center overflow-hidden rounded-[22px]">
         {thumb ? (
           <img src={thumb} alt="" className="absolute inset-0 h-full w-full object-cover" loading="lazy" onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} />
+        ) : isAudioSeries ? (
+          <AudioPlaceholder className="absolute inset-0" />
         ) : (
           <div className="absolute inset-0 bg-gradient-to-br from-olive/20 to-rose/20" />
         )}

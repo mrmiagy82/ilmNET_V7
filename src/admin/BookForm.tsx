@@ -15,10 +15,10 @@ import {
   type PublishStatus,
 } from './data';
 import { useAdmin } from './store';
+import MediaField from './MediaField';
 import {
   ArchiveEmbed,
   ChipToggle,
-  CoverPreview,
   ErrorBanner,
   ExternalEmbed,
   Field,
@@ -303,10 +303,16 @@ export default function BookForm() {
               placeholder="What this edition is, and who it is for."
             />
           </Field>
-          <Field label="Cover image URL" hint="Optional — overrides generated book spine.">
-            <TextInput value={form.coverUrl ?? ''} onChange={(e) => set('coverUrl', e.target.value)} placeholder="https://…/cover.jpg" inputMode="url" />
-            <CoverPreview url={form.coverUrl ?? ''} title={form.title || 'Book'} />
-          </Field>
+          <MediaField
+            value={form.coverUrl ?? ''}
+            onChange={(url: string) => set('coverUrl', url)}
+            title={form.title || 'Book'}
+            label="Cover image"
+            shape="cover"
+            hint="Optional — a custom upload overrides the provider cover and the generated book spine."
+            providerUrl={null}
+            testId="book-cover"
+          />
         </section>
 
         <section className="bg-cream neu-raised space-y-6 rounded-[28px] p-6 sm:p-8">

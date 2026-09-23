@@ -1,6 +1,8 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import multipart from '@fastify/multipart';
 import sensible from '@fastify/sensible';
+import fastifyStatic from '@fastify/static';
 import dotenv from 'dotenv';
 import { prisma } from './lib/prisma';
 import { healthRoutes } from './routes/health';
@@ -8,6 +10,7 @@ import { contentRoutes } from './routes/content';
 import { scholarRoutes } from './routes/scholar';
 import { subjectRoutes } from './routes/subject';
 import { importRoutes } from './routes/import';
+import { uploadRoutes, UPLOADS_DIR } from './routes/uploads';
 
 dotenv.config();
 
@@ -28,6 +31,14 @@ export async function buildApp() {
   });
 
   await app.register(sensible);
+
+  // Custom admin uploads (thumbnails / covers) — multipart + static serving
+  await app.register(multipart, { limits: { fileSize: 5 * 1024 * 1024 } });
+  await app.register(fastifyStatic, {
+    root: UPLOADS_DIR,
+    prefix: '/uploads/',
+    decorateReply: false,
+  });
 
   // Minimal admin write protection: if ADMIN_TOKEN is set, require x-admin-token for POST/PATCH/DELETE on /api/admin/*
   const ADMIN_TOKEN = process.env.ADMIN_TOKEN?.trim() || '';
@@ -72,6 +83,7 @@ export async function buildApp() {
   await app.register(scholarRoutes);
   await app.register(subjectRoutes);
   await app.register(importRoutes);
+  await app.register(uploadRoutes);
 
   // 404
   app.setNotFoundHandler((req, reply) => {

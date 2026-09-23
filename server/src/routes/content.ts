@@ -360,6 +360,11 @@ export async function contentRoutes(app: FastifyInstance) {
         if (built) data.embedUrl = built;
       }
 
+      // Empty strings from the admin forms mean "clear this field" — store NULL, not ''
+      if (data.thumbnailUrl === '') data.thumbnailUrl = null;
+      if (data.coverUrl === '') data.coverUrl = null;
+      if (data.embedUrl === '') data.embedUrl = null;
+
       const { scholarIds, subjectIds, ...rest } = data;
 
       const updated = await prisma.$transaction(async (tx) => {

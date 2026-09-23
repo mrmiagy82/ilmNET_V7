@@ -10,3 +10,7 @@ server/.env
 opencode-1.18.31-termux.tar.gz
 .DS_Store
 .vite/
+
+# Runtime media uploads (stored on the server, referenced from the DB as /uploads/<file>)
+server/uploads/*
+!server/uploads/.gitkeep

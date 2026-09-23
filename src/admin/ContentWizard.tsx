@@ -23,10 +23,10 @@ import {
   type PublishStatus,
 } from './data';
 import { useAdmin } from './store';
+import MediaField from './MediaField';
 import {
   ArchiveEmbed,
   ChipToggle,
-  CoverPreview,
   ErrorBanner,
   ExternalEmbed,
   Field,
@@ -447,19 +447,28 @@ export default function ContentWizard() {
               {/* thumbnail / cover quick fields here as optional too */}
               {kind === 'lecture' && (
                 <div className="mt-6 rounded-[20px] bg-cream neu-raised-sm p-5">
-                  <Field label="Thumbnail / cover URL — optional" hint="Shown on lecture cards. Defaults to YouTube thumbnail if left blank.">
-                    <TextInput value={thumbnailUrl} onChange={(e) => setThumbnailUrl(e.target.value)} placeholder="https://…/thumbnail.jpg" inputMode="url" />
-                    <CoverPreview url={thumbnailUrl || (getYoutubeEmbedUrl(url)?.includes('videoseries') ? '' : (() => { try { const e = getYoutubeEmbedUrl(url); const m = e?.match(/\/embed\/([^?]+)/); return m && m[1] !== 'videoseries' ? `https://img.youtube.com/vi/${m[1]}/hqdefault.jpg` : ''; } catch { return ''; } })())} title={title || 'Lecture'} />
-                  </Field>
-                  <p className="text-ink-muted mt-2 text-[0.72rem]">Tip: leave blank to auto-use <span className="font-mono text-ink">img.youtube.com/vi/…</span> for single videos.</p>
+                  <MediaField
+                    value={thumbnailUrl}
+                    onChange={setThumbnailUrl}
+                    title={title || 'Lecture'}
+                    label="Thumbnail / cover image — optional"
+                    hint="Upload a custom image (always wins), paste a URL, or leave empty to use the provider thumbnail."
+                    providerUrl={(() => { try { const e = getYoutubeEmbedUrl(url); const m = e?.match(/\/embed\/([^?]+)/); return m && m[1] !== 'videoseries' ? `https://img.youtube.com/vi/${m[1]}/hqdefault.jpg` : null; } catch { return null; } })()}
+                    testId="wizard-thumbnail"
+                  />
                 </div>
               )}
               {kind === 'book' && (
                 <div className="mt-6 rounded-[20px] bg-cream neu-raised-sm p-5">
-                  <Field label="Cover image URL — optional" hint="Override cover. Leave blank to use generated book spine.">
-                    <TextInput value={coverUrl} onChange={(e) => setCoverUrl(e.target.value)} placeholder="https://…/cover.jpg" inputMode="url" />
-                    <CoverPreview url={coverUrl} title={title || 'Book'} />
-                  </Field>
+                  <MediaField
+                    value={coverUrl}
+                    onChange={setCoverUrl}
+                    title={title || 'Book'}
+                    label="Cover image — optional"
+                    shape="cover"
+                    hint="Upload a custom cover (always wins) or leave empty to use the provider cover / generated spine."
+                    testId="wizard-cover"
+                  />
                   {bookSource === 'external' && getBookEmbedUrl(url, bookSource as any) === null && (
                     <p className="text-ink-muted mt-3 text-[0.72rem]">External links show a link card (no iframe) — the public “Read” button will open the source in a new tab.</p>
                   )}
@@ -487,10 +496,13 @@ export default function ContentWizard() {
                   <Field label="Short description" hint="One or two sentences for the public card and search.">
                     <TextArea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="A slow reading of the Opening, with vocabulary, context and the classical commentaries." />
                   </Field>
-                  <Field label="Thumbnail / cover URL">
-                    <TextInput value={thumbnailUrl} onChange={(e) => setThumbnailUrl(e.target.value)} placeholder="https://…/thumbnail.jpg" inputMode="url" />
-                    <CoverPreview url={thumbnailUrl} title={title} />
-                  </Field>
+                  <MediaField
+                    value={thumbnailUrl}
+                    onChange={setThumbnailUrl}
+                    title={title || 'Lecture'}
+                    label="Thumbnail / cover image"
+                    testId="wizard-thumbnail-step"
+                  />
                 </div>
 
                 <div className="bg-cream neu-raised rounded-[28px] p-6 sm:p-8 space-y-5">
@@ -543,10 +555,14 @@ export default function ContentWizard() {
                   <Field label="Short description" hint="For the public book card.">
                     <TextArea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="A line-by-line commentary for the modern reader." />
                   </Field>
-                  <Field label="Cover image URL">
-                    <TextInput value={coverUrl} onChange={(e) => setCoverUrl(e.target.value)} placeholder="https://…/cover.jpg" inputMode="url" />
-                    <CoverPreview url={coverUrl} title={title} />
-                  </Field>
+                  <MediaField
+                    value={coverUrl}
+                    onChange={setCoverUrl}
+                    title={title || 'Book'}
+                    label="Cover image"
+                    shape="cover"
+                    testId="wizard-cover-step"
+                  />
                 </div>
 
                 <div className="bg-cream neu-raised rounded-[28px] p-6 sm:p-8 space-y-5">
