@@ -3,11 +3,12 @@ import { Link, useSearchParams } from 'react-router-dom';
 import PageHeader from '../components/PageHeader';
 import { SearchBar, FilterChips, Tag, EmptyState, StatRow } from '../components/ui';
 import { listPublishedContents, listPublicScholars, listPublicSubjects, type BackendContent, type BackendScholar, type BackendSubject } from '@/lib/api';
+import { groupByCollection, type SeriesGroup } from '@/lib/series';
 
 function BookCover({ c }: { c: BackendContent }) {
   if (c.coverUrl) {
     return (
-      <div className="bg-sand neu-inset grid h-48 place-items-center rounded-[22px] overflow-hidden">
+      <div className="bg-sand neu-inset grid aspect-[3/4] place-items-center rounded-[22px] overflow-hidden">
         <img src={c.coverUrl} alt="" className="h-full w-full object-cover" loading="lazy" onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} />
       </div>
     );
@@ -15,7 +16,7 @@ function BookCover({ c }: { c: BackendContent }) {
   const subj = c.subjects[0]?.subject;
   const cover = subj?.accent === 'rose' ? 'from-rose/85 to-rose-deep' : subj?.accent === 'olive' ? 'from-olive to-olive-deep' : 'from-ink/80 to-ink';
   return (
-    <div className="bg-sand neu-inset grid h-48 place-items-center rounded-[22px]">
+    <div className="bg-sand neu-inset grid aspect-[3/4] place-items-center rounded-[22px]">
       <div className={`relative h-[150px] w-[112px] overflow-hidden rounded-[8px] bg-gradient-to-br ${cover} shadow-[10px_14px_26px_rgba(60,45,30,0.28)]`}>
         <div className="absolute inset-y-0 left-0 w-2.5 bg-black/20" />
         <div className="absolute inset-y-0 left-2.5 w-1 bg-white/25" />
@@ -55,10 +56,45 @@ function BookCard({ c }: { c: BackendContent }) {
   );
 }
 
+function CollectionCard({ s }: { s: SeriesGroup }) {
+  const subj = s.subjects[0];
+  return (
+    <Link to={`/series/${encodeURIComponent(s.id)}`} className="bg-cream neu-raised group flex flex-col rounded-[30px] p-6 transition-transform duration-500 hover:-translate-y-1.5">
+      <div className="bg-sand neu-inset relative grid aspect-[3/4] place-items-center overflow-hidden rounded-[22px]">
+        {s.coverUrl ? (
+          <img src={s.coverUrl} alt="" className="absolute inset-0 h-full w-full object-cover" loading="lazy" onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} />
+        ) : (
+          <div className="bg-gradient-to-br from-olive/20 to-rose/20 absolute inset-0" />
+        )}
+        <div className="bg-cream/90 neu-raised-sm absolute left-3 top-3 flex items-center gap-2 rounded-full px-3 py-1.5">
+          <span className="bg-olive h-2 w-2 rounded-full" />
+          <span className="text-ink text-[0.68rem] font-bold tracking-[0.08em] uppercase">Collection · {s.count}</span>
+        </div>
+        <span className="bg-olive/90 text-white absolute right-3 top-3 rounded-full px-2.5 py-1 text-[0.62rem] font-bold">Archive</span>
+        <div className="bg-cream neu-raised-sm text-ink absolute bottom-3 left-3 right-3 flex items-center justify-between rounded-[14px] px-4 py-3">
+          <span className="text-[0.78rem] font-semibold">{s.count} books</span>
+          <span className="text-rose text-[0.78rem] font-bold">Open collection →</span>
+        </div>
+      </div>
+      <div className="flex flex-1 flex-col px-1 pt-5">
+        {subj && <Tag tone={subj.accent as any}>{subj.name}</Tag>}
+        <h3 className="font-display text-ink mt-3 text-[1.18rem] leading-snug font-extrabold tracking-[-0.02em] line-clamp-2">
+          {s.title}
+        </h3>
+        <p className="text-ink-soft mt-3 text-[0.88rem] line-clamp-3">{s.description ?? `${s.count} books — open to see all.`}</p>
+        <div className="border-line/70 mt-5 flex items-center justify-between border-t pt-4 text-[0.8rem]">
+          <span className="text-ink-soft font-medium">{s.scholars[0]?.name ?? 'Collection'}</span>
+          <span className="text-ink-muted">{s.provider}</span>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
 function SkeletonCard() {
   return (
     <article className="bg-cream neu-raised flex flex-col rounded-[30px] p-6 animate-pulse">
-      <div className="bg-sand neu-inset h-48 rounded-[22px]" />
+      <div className="bg-sand neu-inset aspect-[3/4] rounded-[22px]" />
       <div className="mt-5 space-y-3">
         <div className="bg-sand h-4 w-24 rounded-full" />
         <div className="bg-sand h-6 w-full rounded-full" />
@@ -74,7 +110,7 @@ export default function Books() {
   const urlQ = searchParams.get('q') ?? '';
   const urlScholar = searchParams.get('scholar') ?? 'all';
   const urlSubject = searchParams.get('subject') ?? 'all';
-  const urlType = searchParams.get('type') ?? 'all'; // 'all' | 'book' | 'document'
+  const urlType = searchParams.get('type') ?? 'all';
 
   const [inputQ, setInputQ] = useState(urlQ);
   useEffect(() => setInputQ(urlQ), [urlQ]);
@@ -168,6 +204,7 @@ export default function Books() {
   }
 
   const hasActiveFilters = urlQ || urlScholar !== 'all' || urlSubject !== 'all' || typeFilter !== 'all';
+  const { series, standalone } = useMemo(() => groupByCollection(contents), [contents]);
 
   function clearAll() {
     setInputQ('');
@@ -180,7 +217,7 @@ export default function Books() {
         eyebrow="Read & Reflect"
         title="Books"
         intro="Classical texts and contemporary works — search by title, subject or scholar. Filters are shareable via the URL."
-        meta={<StatRow items={[{ value: loading ? '—' : `${contents.length}`, label: 'Results' }, { value: loading ? '—' : `${subjects.length}`, label: 'Subjects' }, { value: 'Free', label: 'To read' }]} />}
+        meta={<StatRow items={[{ value: loading ? '—' : `${series.length + standalone.length}`, label: 'Items' }, { value: loading ? '—' : `${series.length}`, label: 'Collections' }, { value: 'Free', label: 'To read' }]} />}
       />
 
       <section className="px-5 pb-24 sm:px-6 lg:pb-32">
@@ -233,15 +270,33 @@ export default function Books() {
           ) : (
             <>
               <p className="text-ink-muted mt-8 text-[0.86rem] font-medium">
-                {contents.length} {contents.length === 1 ? 'book' : 'books'} found
+                {contents.length} books found · {series.length} collections, {standalone.length} singles
               </p>
-              {contents.length ? (
-                <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                  {contents.map((c) => (
-                    <BookCard key={c.id} c={c} />
-                  ))}
-                </div>
-              ) : (
+
+              {series.length > 0 && (
+                <>
+                  <h2 className="font-display text-ink mt-8 text-[1.35rem] font-extrabold tracking-[-0.02em]">Collections</h2>
+                  <p className="text-ink-muted mt-1 text-[0.82rem]">Een collectie bundelt alle titels — open de collectie om boeken te zien.</p>
+                  <div className="mt-4 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                    {series.map((s) => (
+                      <CollectionCard key={s.id} s={s} />
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {standalone.length > 0 && (
+                <>
+                  <h2 className="font-display text-ink mt-10 text-[1.35rem] font-extrabold tracking-[-0.02em]">{series.length ? 'Single books' : 'Books'}</h2>
+                  <div className="mt-4 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                    {standalone.map((c) => (
+                      <BookCard key={c.id} c={c} />
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {contents.length === 0 && (
                 <div className="mt-10">
                   <EmptyState title="No books match" body="Try a different search term, scholar, subject or edition. Your filters are shareable via the URL." />
                   <div className="mt-6 flex justify-center">

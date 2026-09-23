@@ -32,7 +32,7 @@ function SubjectTile({ s, lectureCount, bookCount }: { s: BackendSubject; lectur
             <p className="text-ink-muted mt-1.5 text-[0.72rem] font-medium uppercase tracking-[0.08em]">Books</p>
           </div>
         </div>
-        <Link to="/lectures" className="text-rose inline-flex items-center gap-1.5 text-[0.86rem] font-semibold transition-all group-hover:gap-2.5">
+        <Link to={`/subjects/${s.slug}`} className="text-rose inline-flex items-center gap-1.5 text-[0.86rem] font-semibold transition-all group-hover:gap-2.5">
           Explore <span aria-hidden="true">→</span>
         </Link>
       </div>

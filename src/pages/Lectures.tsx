@@ -4,6 +4,7 @@ import PageHeader from '../components/PageHeader';
 import { SearchBar, FilterChips, Tag, EmptyState, StatRow } from '../components/ui';
 import { formatCount, formatDuration } from '../data';
 import { listPublishedContents, listPublicScholars, listPublicSubjects, type BackendContent, type BackendScholar, type BackendSubject } from '@/lib/api';
+import { groupByCollection, type SeriesGroup } from '@/lib/series';
 
 function PlayGlyph({ className = '' }: { className?: string }) {
   return (
@@ -21,7 +22,7 @@ function LectureCard({ c }: { c: BackendContent }) {
   const thumb = c.thumbnailUrl;
   return (
     <Link to={`/lectures/${c.slug}`} className="bg-cream neu-raised group flex flex-col rounded-[30px] p-6 transition-transform duration-500 hover:-translate-y-1.5">
-      <div className="bg-sand neu-inset relative flex h-40 items-center justify-center overflow-hidden rounded-[22px]">
+      <div className="bg-sand neu-inset relative flex aspect-[16/10] items-center justify-center overflow-hidden rounded-[22px]">
         {thumb ? (
           <img src={thumb} alt="" className="absolute inset-0 h-full w-full object-cover" loading="lazy" onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} />
         ) : (
@@ -66,10 +67,56 @@ function LectureCard({ c }: { c: BackendContent }) {
   );
 }
 
+function SeriesCard({ s }: { s: SeriesGroup }) {
+  const thumb = s.thumbnailUrl;
+  const subtitle = s.scholars[0]?.name ?? s.items[0]?.scholars[0]?.scholar.name ?? '';
+  const subj = s.subjects[0];
+  const isPlaylist = s.type === 'playlist';
+  return (
+    <Link to={`/series/${encodeURIComponent(s.id)}`} className="bg-cream neu-raised group flex flex-col rounded-[30px] p-6 transition-transform duration-500 hover:-translate-y-1.5">
+      <div className="bg-sand neu-inset relative flex aspect-[16/10] items-center justify-center overflow-hidden rounded-[22px]">
+        {thumb ? (
+          <img src={thumb} alt="" className="absolute inset-0 h-full w-full object-cover" loading="lazy" onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} />
+        ) : (
+          <div className="absolute inset-0 bg-gradient-to-br from-olive/20 to-rose/20" />
+        )}
+        <div className="bg-cream/90 neu-raised-sm absolute left-3 top-3 flex items-center gap-2 rounded-full px-3 py-1.5">
+          <span className={`h-2 w-2 rounded-full ${isPlaylist ? 'bg-rose' : 'bg-olive'}`} />
+          <span className="text-ink text-[0.68rem] font-bold tracking-[0.08em] uppercase">{isPlaylist ? 'Playlist' : s.type === 'collection' ? 'Collection' : 'Series'} · {s.count}</span>
+        </div>
+        <span className="bg-cream/90 text-ink neu-raised-sm absolute right-3 top-3 rounded-full px-3 py-1.5 text-[0.68rem] font-semibold">
+          {s.provider === 'youtube' ? 'YouTube' : s.provider === 'archive' ? 'Archive' : s.provider}
+        </span>
+        <div className="bg-cream neu-raised-sm text-ink absolute bottom-3 left-3 right-3 flex items-center justify-between rounded-[14px] px-4 py-3">
+          <span className="text-[0.78rem] font-semibold">{s.count} episodes</span>
+          <span className="text-rose text-[0.78rem] font-bold">Open series →</span>
+        </div>
+      </div>
+      <div className="flex flex-1 flex-col px-1 pt-5">
+        <div className="flex items-center gap-2 flex-wrap">
+          {subj && <Tag tone={subj.accent as any}>{subj.name}</Tag>}
+          <Tag tone={isPlaylist ? 'rose' : 'olive'}>{isPlaylist ? 'YouTube Series' : 'Archive Collection'}</Tag>
+        </div>
+        <h3 className="font-display text-ink mt-3 text-[1.22rem] leading-snug font-extrabold tracking-[-0.02em] line-clamp-2">
+          {s.title}
+        </h3>
+        {subtitle && <span className="text-rose mt-2 text-[0.9rem] font-semibold line-clamp-1">{subtitle}</span>}
+        <p className="text-ink-muted mt-3 text-[0.84rem] line-clamp-2">
+          {s.description ?? `${s.count} items — open to see all episodes.`}
+        </p>
+        <div className="border-line/70 mt-5 flex items-center justify-between border-t pt-4 text-[0.8rem]">
+          <span className="text-ink-soft font-medium">{s.scholars.length ? `${s.scholars.length} scholars` : `${s.count} parts`}</span>
+          <span className="text-ink-muted">{s.provider === 'youtube' ? 'YouTube' : 'Archive'}</span>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
 function SkeletonCard() {
   return (
     <article className="bg-cream neu-raised flex flex-col rounded-[30px] p-6 animate-pulse">
-      <div className="bg-sand neu-inset h-40 rounded-[22px]" />
+      <div className="bg-sand neu-inset aspect-[16/10] rounded-[22px]" />
       <div className="mt-5 space-y-3">
         <div className="bg-sand h-4 w-24 rounded-full" />
         <div className="bg-sand h-6 w-full rounded-full" />
@@ -87,11 +134,9 @@ export default function Lectures() {
   const urlSubject = searchParams.get('subject') ?? 'all';
   const urlFormat = (searchParams.get('type') ?? 'all') as string;
 
-  // local input for debounced search
   const [inputQ, setInputQ] = useState(urlQ);
   useEffect(() => setInputQ(urlQ), [urlQ]);
 
-  // debounce q -> URL
   useEffect(() => {
     const t = setTimeout(() => {
       if (inputQ !== urlQ) {
@@ -104,8 +149,6 @@ export default function Lectures() {
     return () => clearTimeout(t);
   }, [inputQ]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // derive format state from URL type param
-  // URL type for lectures: 'all' | 'audio' | 'video'  (video maps to lecture,video)
   const format: 'all' | 'Audio' | 'Video' = useMemo(() => {
     if (urlFormat === 'audio') return 'Audio';
     if (urlFormat === 'video' || urlFormat === 'lecture,video' || urlFormat === 'lecture') return 'Video';
@@ -118,11 +161,9 @@ export default function Lectures() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // map slug -> id helpers for display but backend now accepts slug directly
   const scholarBySlug = useMemo(() => new Map(scholars.map(s => [s.slug, s])), [scholars]);
   const subjectBySlug = useMemo(() => new Map(subjects.map(s => [s.slug, s])), [subjects]);
 
-  // fetch scholars/subjects once
   useEffect(() => {
     let cancelled = false;
     Promise.all([
@@ -136,7 +177,6 @@ export default function Lectures() {
     return () => { cancelled = true; };
   }, []);
 
-  // fetch contents server-side whenever URL filters change
   useEffect(() => {
     let cancelled = false;
     async function load() {
@@ -148,12 +188,11 @@ export default function Lectures() {
         const subject = searchParams.get('subject') ?? undefined;
         const typeParam = searchParams.get('type') ?? undefined;
 
-        // map type param: if absent -> base lecture types; if 'video' -> lecture,video
         let typeForApi: string | undefined;
         if (!typeParam || typeParam === 'all') typeForApi = 'lecture,video,audio';
         else if (typeParam === 'Video' || typeParam === 'video') typeForApi = 'lecture,video';
         else if (typeParam === 'Audio' || typeParam === 'audio') typeForApi = 'audio';
-        else typeForApi = typeParam; // allow raw like 'lecture,video'
+        else typeForApi = typeParam;
 
         const params: Record<string, string | number | undefined> = {
           limit: 100,
@@ -186,6 +225,7 @@ export default function Lectures() {
   }
 
   const hasActiveFilters = urlQ || urlScholar !== 'all' || urlSubject !== 'all' || format !== 'all';
+  const { series, standalone } = useMemo(() => groupByCollection(contents), [contents]);
   const totalListens = contents.length * 120;
 
   function clearAll() {
@@ -202,9 +242,9 @@ export default function Lectures() {
         meta={
           <StatRow
             items={[
-              { value: loading ? '—' : `${contents.length}`, label: 'Results' },
+              { value: loading ? '—' : `${series.length + standalone.length}`, label: 'Items' },
+              { value: loading ? '—' : `${series.length}`, label: 'Series' },
               { value: loading ? '—' : formatCount(totalListens), label: 'Listens' },
-              { value: 'Free', label: 'Always' },
             ]}
           />
         }
@@ -266,16 +306,33 @@ export default function Lectures() {
           ) : (
             <>
               <p className="text-ink-muted mt-8 text-[0.86rem] font-medium">
-                {contents.length} {contents.length === 1 ? 'lecture' : 'lectures'} found
+                {contents.length} lectures found · {series.length} series, {standalone.length} singles
               </p>
 
-              {contents.length ? (
-                <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                  {contents.map((c) => (
-                    <LectureCard key={c.id} c={c} />
-                  ))}
-                </div>
-              ) : (
+              {series.length > 0 && (
+                <>
+                  <h2 className="font-display text-ink mt-8 text-[1.35rem] font-extrabold tracking-[-0.02em]">Series & Playlists</h2>
+                  <p className="text-ink-muted mt-1 text-[0.82rem]">Een serie bundelt alle afleveringen — open de serie om episodes te zien.</p>
+                  <div className="mt-4 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                    {series.map((s) => (
+                      <SeriesCard key={s.id} s={s} />
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {standalone.length > 0 && (
+                <>
+                  <h2 className="font-display text-ink mt-10 text-[1.35rem] font-extrabold tracking-[-0.02em]">{series.length ? 'Single lectures' : 'Lectures'}</h2>
+                  <div className="mt-4 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                    {standalone.map((c) => (
+                      <LectureCard key={c.id} c={c} />
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {contents.length === 0 && (
                 <div className="mt-10">
                   <EmptyState title="No lectures match" body="Try a different search term, scholar, subject or format. Your filters are shareable via the URL." />
                   <div className="mt-6 flex justify-center">

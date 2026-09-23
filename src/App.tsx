@@ -21,6 +21,8 @@ import ArchiveImportPage from './admin/ArchiveImportPage';
 import YouTubeImportPage from './admin/YouTubeImportPage';
 import LectureDetail from './pages/LectureDetail';
 import BookDetail from './pages/BookDetail';
+import SeriesDetail from './pages/SeriesDetail';
+import SubjectDetail from './pages/SubjectDetail';
 
 export default function App() {
   return (
@@ -51,8 +53,10 @@ export default function App() {
             <Route path="lectures/:id" element={<LectureDetail />} />
             <Route path="books" element={<Books />} />
             <Route path="books/:id" element={<BookDetail />} />
+            <Route path="series/:id" element={<SeriesDetail />} />
             <Route path="scholars" element={<Scholars />} />
             <Route path="subjects" element={<Subjects />} />
+            <Route path="subjects/:id" element={<SubjectDetail />} />
             <Route path="*" element={<Landing />} />
           </Route>
         </Routes>

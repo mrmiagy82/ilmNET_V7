@@ -2,16 +2,30 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import PageHeader from '../components/PageHeader';
 import { Tag } from '../components/ui';
-import { getPublishedContent, type BackendContent } from '@/lib/api';
+import { getPublishedContent, listPublishedContents, type BackendContent } from '@/lib/api';
+import AudioPlayer from '@/components/AudioPlayer';
+import { getDownloadUrl, getAudioStreamUrl } from '@/lib/series';
 
 function Embed({ c }: { c: BackendContent }) {
-  if (!c.embedUrl) {
+  const audioSrc = c.type === 'audio' ? getAudioStreamUrl(c) : null;
+  const downloadUrl = getDownloadUrl(c);
+
+  // Audio: use custom player
+  if (c.type === 'audio') {
     return (
-      <div className="bg-sand neu-inset rounded-[24px] p-8 text-center">
-        <p className="text-ink-muted text-[0.9rem]">No embed available — open original:</p>
-        <a href={c.sourceUrl} target="_blank" rel="noreferrer" className="text-rose mt-3 inline-block font-semibold break-all">
-          {c.sourceUrl}
-        </a>
+      <div className="space-y-4">
+        <AudioPlayer src={audioSrc} title={c.title} embedFallback={c.embedUrl} provider={c.provider} sourceUrl={c.sourceUrl} />
+        {downloadUrl && (
+          <div className="flex justify-center">
+            <a href={downloadUrl} target="_blank" rel="noreferrer" className="bg-cream neu-raised-sm text-ink hover:text-rose inline-flex items-center gap-2 rounded-full px-6 py-3 text-[0.86rem] font-semibold">
+              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 5v14M5 12l7 7 7-7" /></svg>
+              Download audio
+            </a>
+          </div>
+        )}
+        {!downloadUrl && c.provider === 'archive' && (
+          <p className="text-ink-muted text-center text-[0.72rem]">Download via <a href={c.sourceUrl} target="_blank" rel="noreferrer" className="text-rose font-semibold">Archive.org</a></p>
+        )}
       </div>
     );
   }
@@ -20,17 +34,62 @@ function Embed({ c }: { c: BackendContent }) {
   if (c.provider === 'pdf') {
     return (
       <div className="bg-sand neu-inset rounded-[24px] overflow-hidden">
-        <iframe src={c.embedUrl} title={c.title} className="h-[720px] w-full bg-white" />
-        <div className="p-4 text-center">
+        <iframe src={c.embedUrl ?? c.sourceUrl} title={c.title} className="h-[720px] w-full bg-white" />
+        <div className="p-4 flex flex-wrap items-center justify-between gap-3">
           <a href={c.sourceUrl} target="_blank" rel="noreferrer" className="text-rose text-[0.88rem] font-semibold">
             Open PDF → {c.sourceUrl}
           </a>
+          {downloadUrl && (
+            <a href={downloadUrl} target="_blank" rel="noreferrer" className="bg-cream neu-raised-sm text-ink rounded-full px-5 py-2.5 text-[0.82rem] font-semibold">Download PDF</a>
+          )}
         </div>
       </div>
     );
   }
 
-  // Default iframe for youtube, archive, google_books, external with embed
+  // Book/document with archive PDF — show iframe + download
+  if ((c.type === 'book' || c.type === 'document') && c.provider === 'archive') {
+    return (
+      <div className="bg-sand neu-inset rounded-[24px] overflow-hidden">
+        {c.embedUrl ? (
+          <div className="relative aspect-[3/4] w-full overflow-hidden bg-white sm:aspect-[16/10]">
+            <iframe src={c.embedUrl} title={c.title} className="absolute inset-0 h-full w-full bg-white" allowFullScreen />
+          </div>
+        ) : (
+          <div className="p-8 text-center text-ink-muted">No embed available</div>
+        )}
+        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+          <span className="text-ink-muted text-[0.72rem] font-medium">Archive.org · {c.type} · {c.provider}</span>
+          <div className="flex gap-2">
+            {downloadUrl ? (
+              <a href={downloadUrl} target="_blank" rel="noreferrer" className="bg-cream neu-raised-sm text-ink rounded-full px-5 py-2.5 text-[0.82rem] font-semibold">Download PDF</a>
+            ) : (
+              <a href={c.sourceUrl} target="_blank" rel="noreferrer" className="bg-cream neu-raised-sm text-ink rounded-full px-5 py-2.5 text-[0.82rem] font-semibold">Open on Archive.org</a>
+            )}
+            <a href={c.sourceUrl} target="_blank" rel="noreferrer" className="text-ink-soft hover:text-rose text-[0.78rem] font-semibold px-3 py-2.5">Open original ↗</a>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Default iframe for youtube, archive video, google_books, external with embed
+  if (!c.embedUrl) {
+    return (
+      <div className="bg-sand neu-inset rounded-[24px] p-8 text-center">
+        <p className="text-ink-muted text-[0.9rem]">No embed available — open original:</p>
+        <a href={c.sourceUrl} target="_blank" rel="noreferrer" className="text-rose mt-3 inline-block font-semibold break-all">
+          {c.sourceUrl}
+        </a>
+        {downloadUrl && (
+          <div className="mt-4">
+            <a href={downloadUrl} target="_blank" rel="noreferrer" className="bg-cream neu-raised-sm text-ink rounded-full px-5 py-2.5 text-[0.82rem] font-semibold">Download</a>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="bg-sand neu-inset rounded-[24px] overflow-hidden p-2">
       <div className="relative aspect-video w-full overflow-hidden rounded-[18px] bg-black">
@@ -46,9 +105,75 @@ function Embed({ c }: { c: BackendContent }) {
         <span className="text-ink-muted text-[0.72rem] font-medium">
           {c.provider === 'youtube' ? 'YouTube' : c.provider === 'archive' ? 'Archive.org' : c.provider === 'google_books' ? 'Google Books' : c.provider} · {c.type}
         </span>
-        <a href={c.sourceUrl} target="_blank" rel="noreferrer" className="text-ink-soft hover:text-rose text-[0.78rem] font-semibold">
-          Open original ↗
-        </a>
+        <div className="flex gap-2">
+          {downloadUrl && (
+            <a href={downloadUrl} target="_blank" rel="noreferrer" className="bg-cream neu-raised-sm text-ink rounded-full px-4 py-1.5 text-[0.72rem] font-semibold">Download</a>
+          )}
+          <a href={c.sourceUrl} target="_blank" rel="noreferrer" className="text-ink-soft hover:text-rose text-[0.78rem] font-semibold">
+            Open original ↗
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SeriesNav({ c }: { c: BackendContent }) {
+  const [siblings, setSiblings] = useState<BackendContent[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!c.collectionIdentifier) return;
+    let cancelled = false;
+    setLoading(true);
+    listPublishedContents({ limit: 100, q: c.collectionIdentifier })
+      .then((res) => {
+        if (cancelled) return;
+        let filtered = (res.data as BackendContent[]).filter((x) => x.collectionIdentifier === c.collectionIdentifier && x.id !== c.id);
+        if (filtered.length === 0) {
+          // fallback fetch all
+          return listPublishedContents({ limit: 100 }).then((all) => {
+            if (cancelled) return;
+            filtered = (all.data as BackendContent[]).filter((x) => x.collectionIdentifier === c.collectionIdentifier && x.id !== c.id);
+            filtered.sort((a, b) => a.title.localeCompare(b.title));
+            setSiblings(filtered.slice(0, 6));
+          });
+        } else {
+          filtered.sort((a, b) => a.title.localeCompare(b.title));
+          setSiblings(filtered.slice(0, 6));
+        }
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [c.collectionIdentifier, c.id]);
+
+  if (!c.collectionIdentifier || (!loading && siblings.length === 0)) return null;
+
+  return (
+    <div className="bg-cream neu-raised rounded-[28px] p-6 sm:p-8">
+      <div className="flex items-center justify-between">
+        <h3 className="font-display text-ink text-[1.1rem] font-bold">More in this series</h3>
+        <Link to={`/series/${encodeURIComponent(c.collectionIdentifier!)}`} className="text-rose text-[0.82rem] font-semibold">View all →</Link>
+      </div>
+      <p className="text-ink-muted mt-1 text-[0.78rem]">{c.collectionTitle || c.collectionIdentifier} · {siblings.length + 1} parts</p>
+      <div className="mt-4 grid gap-3">
+        {siblings.map((s) => (
+          <Link key={s.id} to={`/${s.type === 'book' || s.type === 'document' ? 'books' : 'lectures'}/${s.slug}`} className="bg-sand neu-inset flex gap-3 rounded-[16px] p-3 hover:opacity-80">
+            <div className="bg-cream relative h-16 w-24 shrink-0 overflow-hidden rounded-[10px]">
+              {(s.thumbnailUrl || s.coverUrl) ? (
+                <img src={(s.thumbnailUrl || s.coverUrl)!} alt="" className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
+              ) : (
+                <div className="absolute inset-0 bg-gradient-to-br from-olive/10 to-rose/10" />
+              )}
+            </div>
+            <div className="min-w-0">
+              <p className="font-display text-ink line-clamp-1 text-[0.88rem] font-bold">{s.title}</p>
+              <p className="text-ink-muted line-clamp-1 text-[0.72rem]">{s.scholars[0]?.scholar.name ?? ''} · {s.durationMin ? `${s.durationMin} min` : s.type}</p>
+            </div>
+          </Link>
+        ))}
+        {loading && <p className="text-ink-muted text-[0.78rem]">Loading series…</p>}
       </div>
     </div>
   );
@@ -66,14 +191,6 @@ export default function ContentDetail({ expectedType }: { expectedType?: 'lectur
     setError(null);
     getPublishedContent(id)
       .then((res) => {
-        // If expectedType is lecture, ensure it's lecture/video/audio, else book/document
-        // We still show if type mismatches but with a note? The requirement says correct type is shown, so we enforce but not block.
-        if (expectedType === 'lecture' && !['lecture', 'video', 'audio'].includes(res.data.type)) {
-          // For lecture detail, if content is book type, we still show but it's okay – the card linked correctly from lectures page only shows lecture types, so this shouldn't happen.
-        }
-        if (expectedType === 'book' && !['book', 'document'].includes(res.data.type)) {
-          // similar
-        }
         setContent(res.data);
       })
       .catch((e: any) => setError(e.message || 'Failed to load'))
@@ -125,6 +242,7 @@ export default function ContentDetail({ expectedType }: { expectedType?: 'lectur
   const c = content;
   const scholars = c.scholars.map((s) => s.scholar);
   const subjects = c.subjects.map((s) => s.subject);
+  const downloadUrl = getDownloadUrl(c);
 
   return (
     <>
@@ -147,6 +265,11 @@ export default function ContentDetail({ expectedType }: { expectedType?: 'lectur
               <p className="text-ink-soft text-[0.88rem]">
                 By {scholars.map((s) => s.name).join(', ')} {c.series ? `· ${c.series}` : ''} {c.collectionTitle ? `· ${c.collectionTitle}` : ''}
               </p>
+            )}
+            {c.collectionIdentifier && (
+              <Link to={`/series/${encodeURIComponent(c.collectionIdentifier)}`} className="text-rose inline-flex items-center gap-1 text-[0.82rem] font-semibold hover:gap-1.5 transition-all">
+                View series: {c.collectionTitle || c.collectionIdentifier} →
+              </Link>
             )}
           </div>
         }
@@ -173,7 +296,7 @@ export default function ContentDetail({ expectedType }: { expectedType?: 'lectur
                 <p className="text-ink-muted text-[0.68rem] font-semibold tracking-[0.14em] uppercase">Subjects</p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {subjects.length ? subjects.map((s) => (
-                    <span key={s.id} className="bg-cream neu-raised-sm rounded-full px-3 py-1.5 text-[0.82rem] font-semibold">{s.name}</span>
+                    <Link key={s.id} to={`/lectures?subject=${s.slug}`} className="bg-cream neu-raised-sm rounded-full px-3 py-1.5 text-[0.82rem] font-semibold hover:text-rose">{s.name}</Link>
                   )) : <span className="text-ink-muted text-[0.82rem]">—</span>}
                 </div>
               </div>
@@ -205,13 +328,27 @@ export default function ContentDetail({ expectedType }: { expectedType?: 'lectur
               <Link to="/" className="bg-cream neu-raised-sm text-ink rounded-full px-6 py-3 text-[0.9rem] font-semibold">
                 Home
               </Link>
+              {downloadUrl && (
+                <a href={downloadUrl} target="_blank" rel="noreferrer" className="bg-olive text-white rounded-full px-6 py-3 text-[0.9rem] font-semibold">
+                  Download
+                </a>
+              )}
+              {!downloadUrl && c.provider === 'archive' && (
+                <a href={c.sourceUrl} target="_blank" rel="noreferrer" className="bg-sand text-ink rounded-full px-6 py-3 text-[0.9rem] font-semibold">
+                  Open on Archive.org
+                </a>
+              )}
             </div>
           </div>
+
+          <SeriesNav c={c} />
 
           {(c.thumbnailUrl || c.coverUrl) && (
             <div className="bg-cream neu-raised rounded-[28px] p-6 sm:p-8">
               <h3 className="font-display text-ink text-[1.1rem] font-bold">Cover</h3>
-              <img src={(c.coverUrl ?? c.thumbnailUrl)!} alt="" className="mt-4 max-h-[420px] w-full rounded-[18px] object-contain bg-sand" onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} />
+              <div className="bg-sand neu-inset mt-4 rounded-[18px] p-2">
+                <img src={(c.coverUrl ?? c.thumbnailUrl)!} alt="" className="max-h-[420px] w-full rounded-[14px] object-contain bg-sand" onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} />
+              </div>
             </div>
           )}
         </div>
