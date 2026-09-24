@@ -251,7 +251,7 @@ export default function BookForm() {
                     : form.sourceType === 'google-books'
                       ? 'https://books.google.com/books?id=…'
                       : form.sourceType === 'pdf'
-                        ? 'https://example.com/books/title.pdf'
+                        ? 'https://…/document.pdf'
                         : 'https://…'
                 }
                 inputMode="url"
@@ -263,11 +263,6 @@ export default function BookForm() {
                 </div>
               )}
             </Field>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <button type="button" onClick={() => onUrlChange('https://archive.org/details/ilmnet-removal-of-doubts')} className="bg-cream neu-raised-sm rounded-full px-3 py-1.5 text-[0.78rem] font-medium">Archive.org</button>
-              <button type="button" onClick={() => onUrlChange('https://books.google.com/books?id=quduri_mukhtasar_example')} className="bg-cream neu-raised-sm rounded-full px-3 py-1.5 text-[0.78rem] font-medium">Google Books</button>
-              <button type="button" onClick={() => onUrlChange('https://example.com/books/al-adhkar.pdf')} className="bg-cream neu-raised-sm rounded-full px-3 py-1.5 text-[0.78rem] font-medium">PDF</button>
-            </div>
           </div>
         </section>
 

@@ -67,4 +67,5 @@ for (const c of contRes.data) {
 - Refactor `store.tsx` om `contents: BackendContent[]` direct te bewaren naast `lectures/books` (geen splits, alleen view-filter).
 - Update `LectureForm`/`BookForm` om `pages`/`durationMin` als nullable inputs te tonen (placeholder “—” i.p.v. 120/30).
 - Vervang `mockFetchArchiveCollection` in `data.ts` door echte backend zodra demo niet meer nodig; behoud alleen `parseArchiveIdentifier` helpers.
+  - **Status (Fase 3.9): uitgevoerd.** De mock-generator en de demo-fallback zijn uit `src/admin/data.ts` en `ArchiveImportPage.tsx` verwijderd; de echte backend (`/api/admin/imports/preview|confirm`) is de enige route. Zie docs/FASE3_9_CODEBASE_REVIEW.md.
 

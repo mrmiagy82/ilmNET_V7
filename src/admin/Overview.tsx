@@ -155,6 +155,11 @@ export default function Overview() {
         <section className="min-w-0">
           <p className="text-ink-muted text-[0.72rem] font-semibold tracking-[0.22em] uppercase">Recent activity · session only</p>
           <div className="bg-cream neu-raised mt-4 overflow-hidden rounded-[28px]">
+            {activity.length === 0 && (
+              <p className="text-ink-muted px-5 py-8 text-center text-[0.92rem]">
+                No changes in this session yet — saved edits appear here.
+              </p>
+            )}
             {activity.slice(0, 8).map((a, i) => (
               <div
                 key={a.id}

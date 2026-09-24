@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  mockFetchArchiveCollection,
   type ArchiveCollectionResult,
   type ArchiveContentType,
   type ArchiveDetectedItem,
@@ -45,7 +44,6 @@ export default function ArchiveImportPage() {
   const { scholars, subjects, flash, refresh } = useAdmin();
 
   const [url, setUrl] = useState('https://archive.org/details/commute');
-  const [desiredCount] = useState<number>(24);
   const [result, setResult] = useState<ArchiveCollectionResult | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<ArchiveImportDraft[]>([]);
@@ -115,44 +113,6 @@ export default function ArchiveImportPage() {
       setProviderNote(null);
     } catch (e: any) {
       const msg = e.message || String(e);
-      // ── MOCK/DEMO BOUNDARY ──────────────────────────────────────────────
-      // Mock data lives ONLY for intentional demo URLs (ilmnet-*, demo-*, single-manuscript, mock=1).
-      // A real Archive.org failure (404, network) for a production identifier MUST NOT silently
-      // fall back to mock — that would hide the error and create false DEMO records.
-      // We therefore gate mock strictly on the URL, not on the error message.
-      const isMockDemoUrl = url.includes('ilmnet-') || url.includes('demo-') || url.includes('single-manuscript') || url.includes('mock=1');
-      if (isMockDemoUrl) {
-        try {
-          const mock = mockFetchArchiveCollection(url.trim(), desiredCount);
-          setResult(mock);
-          setJobId(null);
-          setPage(1);
-          const initial: ArchiveImportDraft[] = mock.items.map((it) => ({
-            detected: it,
-            selected: true,
-            customTitle: it.title,
-            customDescription: it.description ?? '',
-            contentType: defaultContentTypeForKind(it.kind),
-            scholarIds: [],
-            subjectIds: it.subjectHint ? (() => {
-              const hint = it.subjectHint.toLowerCase();
-              const m = subjects.find((s) => s.name.toLowerCase().includes(hint) || s.id.toLowerCase() === hint);
-              return m ? [m.id] : [];
-            })() : [],
-            language: it.language ?? 'English',
-            series: '',
-            category: it.kind === 'book' || it.kind === 'document' ? 'Classical' : '',
-            status: 'draft' as const,
-          }));
-          for (const d of initial) {
-            const match = scholars.find((s) => d.detected.creator && s.name.toLowerCase().includes(d.detected.creator.split(' ').slice(-1)[0]!.toLowerCase()));
-            if (match) d.scholarIds = [match.id];
-          }
-          setDrafts(initial);
-          setProviderNote(`DEMO MOCK — Live Archive.org fetch failed (“${msg.slice(0, 120)}”) — showing local demo data (jobId null, NOT persisted). Use a real Archive.org ID like “commute” for a live import.`);
-          return;
-        } catch {}
-      }
       setProviderNote(`Archive.org fetch failed: ${msg}`);
     } finally {
       setLoading(false);
@@ -250,14 +210,8 @@ export default function ArchiveImportPage() {
           // all duplicates — still navigate or stay to show message
         }
       } else {
-        // Fallback mock path (demo): do local import without backend (keep old behavior for demo jobs)
-        // This branch is for when preview was mock (jobId null). We fallback to local behavior by not calling backend,
-        // but we still want to show a message that this was a demo import.
-        setProviderNote('Demo mock import — no backend job. For real imports, use a live Archive.org identifier like “commute”.');
-        // For demo we still allow navigation; real data already in mock would need local insertion, but we skip.
-        // To keep UI feeling complete, just flash and navigate
-        flash(`Demo: ${selected.length} items would be imported (mock). Use a real Archive.org ID for DB import.`);
-        navigate('/admin');
+        // No backend job (the preview never reached the server): never pretend an import happened.
+        setProviderNote('Nothing to import — re-analyse the URL so the server can create a job for it.');
       }
     } catch (e: any) {
       setProviderNote(`Import failed: ${e.message || String(e)}`);
@@ -289,7 +243,6 @@ export default function ArchiveImportPage() {
               <button type="button" onClick={() => setUrl('https://archive.org/details/commute')} className="bg-cream neu-raised-sm rounded-full px-3 py-1.5 text-[0.78rem] font-medium">Live demo: commute (video)</button>
               <button type="button" onClick={() => setUrl('https://archive.org/details/etree')} className="bg-cream neu-raised-sm rounded-full px-3 py-1.5 text-[0.78rem] font-medium">Live: etree collection</button>
               <button type="button" onClick={() => setUrl('https://archive.org/details/prelinger')} className="bg-cream neu-raised-sm rounded-full px-3 py-1.5 text-[0.78rem] font-medium">Live: prelinger (movies)</button>
-              <button type="button" onClick={() => setUrl('https://archive.org/details/ilmnet-collection-demo')} className="bg-cream neu-raised-sm rounded-full px-3 py-1.5 text-[0.78rem] font-medium">Demo mock: ilmnet-collection</button>
             </div>
             {providerNote && <p className={`mt-3 text-[0.82rem] font-medium ${providerNote.includes('failed') || providerNote.includes('Duplicates') ? 'text-rose' : 'text-olive-deep'}`}>{providerNote}</p>}
             {loading && <p className="text-ink-muted mt-3 text-[0.82rem]">Fetching Archive.org metadata — single items are fast, collections may take several seconds (up to 100 items, concurrency limited)…</p>}
@@ -299,7 +252,7 @@ export default function ArchiveImportPage() {
               <span className="font-semibold text-ink">Live Archive.org</span> — metadata, files, and for collections advancedsearch → per-item enrichment with bounded concurrency (5) and 7s timeout per request. Missing metadata on one item won't abort the whole collection.
             </div>
             <PrimaryButton onClick={handleDetect} disabled={loading}>{loading ? 'Analysing…' : 'Analyse & detect items'}</PrimaryButton>
-            <p className="text-ink-muted text-[0.72rem] leading-relaxed">Backend calls <span className="font-mono text-[0.7rem]">/metadata/…</span> &amp; <span className="font-mono text-[0.7rem]">advancedsearch</span> server-side (no CORS). Demo mock ONLY for URLs containing <span className="font-mono">ilmnet- / demo- / mock=1</span>; real failures never auto-fallback.</p>
+            <p className="text-ink-muted text-[0.72rem] leading-relaxed">Backend calls <span className="font-mono text-[0.7rem]">/metadata/…</span> &amp; <span className="font-mono text-[0.7rem]">advancedsearch</span> server-side (no CORS). A failed fetch is reported as an error — it never falls back to invented demo items.</p>
             {jobId && <p className="text-ink-muted text-[0.68rem] font-mono break-all">jobId: {jobId}</p>}
           </div>
         </div>

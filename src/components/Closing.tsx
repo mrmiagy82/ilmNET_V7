@@ -14,8 +14,8 @@ const steps = [
   },
   {
     n: '03',
-    title: 'Keep your place',
-    body: 'Your progress stays with you across talks and books — return exactly where you stopped.',
+    title: 'Pick up any thread',
+    body: 'Every lecture, book and series has its own stable link, so you can return straight to the item you were on.',
   },
 ];
 

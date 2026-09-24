@@ -9,7 +9,7 @@ const shelves = [
   {
     kicker: '02 — Read',
     title: 'Books & treatises',
-    body: 'Classical texts and contemporary works, with clean reading, saved progress and chapter navigation.',
+    body: 'Classical texts and contemporary works, embedded from Archive.org or Google Books with a direct link to the source.',
     meta: ['Translations', 'Commentary', 'Primers'],
     accent: 'olive' as const,
   },

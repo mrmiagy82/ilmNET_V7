@@ -385,23 +385,7 @@ export default function ContentWizard() {
                 </div>
               </Field>
 
-              {/* quick fill examples */}
-              <div className="mt-6 flex flex-wrap gap-2">
-                <span className="text-ink-muted text-[0.72rem] font-semibold tracking-[0.1em] uppercase">Try example:</span>
-                {kind === 'lecture' ? (
-                  <>
-                    <button type="button" onClick={() => setUrl('https://www.youtube.com/watch?v=dQw4w9WgXcQ')} className="bg-cream neu-raised-sm rounded-full px-3 py-1.5 text-[0.78rem] font-medium">Video example</button>
-                    <button type="button" onClick={() => setUrl('https://www.youtube.com/playlist?list=PLQ5aNFhB5PJ6p9F0Y8jX8x8x8x8x8x8x8x8x')} className="bg-cream neu-raised-sm rounded-full px-3 py-1.5 text-[0.78rem] font-medium">Playlist example</button>
-                  </>
-                ) : (
-                  <>
-                    <button type="button" onClick={() => setUrl('https://archive.org/details/ilmnet-removal-of-doubts')} className="bg-cream neu-raised-sm rounded-full px-3 py-1.5 text-[0.78rem] font-medium">Archive.org</button>
-                    <button type="button" onClick={() => setUrl('https://books.google.com/books?id=quduri_mukhtasar_example')} className="bg-cream neu-raised-sm rounded-full px-3 py-1.5 text-[0.78rem] font-medium">Google Books</button>
-                    <button type="button" onClick={() => setUrl('https://example.com/books/al-adhkar.pdf')} className="bg-cream neu-raised-sm rounded-full px-3 py-1.5 text-[0.78rem] font-medium">PDF</button>
-                  </>
-                )}
-              </div>
-            </div>
+                          </div>
           </section>
         )}
 
@@ -638,7 +622,7 @@ export default function ContentWizard() {
                   );
                 })}
               </div>
-              <p className="text-ink-muted mt-4 text-[0.78rem]"><Link to="/admin/scholars/new" target="_blank" className="text-rose font-semibold">＋ Add a new scholar</Link> in another tab if needed, then return.</p>
+              <p className="text-ink-muted mt-4 text-[0.78rem]"><Link to="/admin/scholars/new" target="_blank" rel="noopener noreferrer" className="text-rose font-semibold">＋ Add a new scholar</Link> in another tab if needed, then return.</p>
             </div>
 
             {scholarIds.length === 0 && <p className="text-rose mt-4 text-[0.82rem] font-medium">Required — attach at least one scholar.</p>}
@@ -666,7 +650,7 @@ export default function ContentWizard() {
               {subjectIds.length === 0 && <span className="text-rose text-[0.82rem] font-medium">Pick at least one subject.</span>}
             </div>
             <p className="text-ink-muted mt-4 text-[0.78rem]">
-              <Link to="/admin/subjects/new" target="_blank" className="text-rose font-semibold">＋ Add a new subject</Link> if the right shelf does not exist.
+              <Link to="/admin/subjects/new" target="_blank" rel="noopener noreferrer" className="text-rose font-semibold">＋ Add a new subject</Link> if the right shelf does not exist.
             </p>
           </section>
         )}

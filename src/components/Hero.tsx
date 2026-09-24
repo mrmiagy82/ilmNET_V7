@@ -19,7 +19,7 @@ function LectureSurface() {
           <span className="font-display text-olive-deep text-sm font-extrabold">04</span>
         </div>
         <div className="min-w-0">
-          <p className="text-ink-muted text-[0.7rem] font-semibold tracking-[0.18em] uppercase">Now playing</p>
+          <p className="text-ink-muted text-[0.7rem] font-semibold tracking-[0.18em] uppercase">Player preview</p>
           <p className="font-display text-ink truncate text-[1.05rem] font-bold tracking-tight">
             Uṣūl al-Fiqh · The Sources
           </p>

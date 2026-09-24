@@ -114,6 +114,8 @@ Uitgevoerd 2026-09-23 10:24 UTC, allemaal ✅:
 - `prisma migrate status` — *Database schema is up to date!* (2 migrations, na drift-fix `20260923211200_add_provider_externalIdentifier_unique`)
 - `server npx tsc --noEmit` ✅ (na fix `api.ts` header)
 - `frontend npx tsc --noEmit` ✅ (na verwijderen `seedBooks/seedLectures/seedScholars/seedSubjects` imports in `store.tsx`; alleen `seedActivity` blijft)
+
+> **Fase 3.9:** `seedActivity`, `seedLectures`, `seedBooks`, `seedScholars`, `seedSubjects` én `mockFetchArchiveCollection` zijn inmiddels volledig uit de code verwijderd; de activiteitenfeed start leeg en mislukte schrijfacties worden teruggedraaid. Zie docs/FASE3_9_CODEBASE_REVIEW.md.
 - `vite build` ✅ — 142 modules, `dist/index.html 592.66 kB │ gzip 151.38 kB` (voorheen 611.68 kB gzip 155.68 kB), singlefile inline
 - `tsx test/audit.test.ts` ✅ — duration parsing, duplicate DB constraint, metadata size, ImportJob states, generic Content (audio/video/document/book/lecture) — *All audit tests passed*
 - `tsx test/youtube.test.ts` ✅ — 14+ cases: URL parsing (single/shorts/embed), playlist, single preview live (dQw4w9WgXcQ duration 3:33), playlist preview live (100 items), invalid handling, confirm lifecycle single/playlist multi/duplicate/partial/draft-published/scholar-subject/duration-embed/collection — *All YouTube audit tests passed*

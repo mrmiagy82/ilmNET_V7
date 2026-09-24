@@ -1,6 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
-  seedActivity,
   todayStamp,
   uid,
   type Activity,
@@ -75,7 +74,8 @@ export function AdminProvider({ children }: { children: ReactNode }) {
   const [books, setBooks] = useState<AdminBook[]>([]);
   const [scholars, setScholars] = useState<AdminScholar[]>([]);
   const [subjects, setSubjects] = useState<AdminSubject[]>([]);
-  const [activity, setActivity] = useState<Activity[]>(seedActivity);
+  // Activity reflects real actions in this session only — never seeded with demo entries.
+  const [activity, setActivity] = useState<Activity[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
   const [apiOnline, setApiOnline] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -130,6 +130,11 @@ export function AdminProvider({ children }: { children: ReactNode }) {
 
   // wrappers removed — direct API calls handle fallback per action
 
+  const offline = (what: string) =>
+    flash(`${what} failed — the backend is unreachable. Nothing was written to the database.`);
+  const failure = (what: string, e: any) =>
+    flash(`${what} failed — ${e?.message ?? 'API error'}. Nothing was written to the database.`);
+
   const value = useMemo<AdminStore>(
     () => ({
       lectures,
@@ -144,8 +149,9 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       flash,
       refresh,
       upsertLecture: (item, verb) => {
-        // optimistic local first
         const isNew = !lectures.find((x) => x.id === item.id);
+        if (!apiOnline) return offline('Saving');
+        const before = lectures;
         const doLocal = () => {
           setLectures((prev) => {
             const i = prev.findIndex((x) => x.id === item.id);
@@ -155,60 +161,66 @@ export function AdminProvider({ children }: { children: ReactNode }) {
             return next;
           });
           push(log(verb, 'lecture', item.title));
-          flash(verb === 'Added' ? 'Lecture saved.' : 'Lecture updated.');
         };
-        if (apiOnline) {
-          (async () => {
-            try {
-              const payload = api.adminLectureToPayload(item);
-              if (isNew) {
-                await api.createContent(payload);
-                push(log('Added', 'lecture', item.title));
-                flash('Lecture saved to database.');
-              } else {
-                await api.patchContent(item.id, { ...payload, title: item.title });
-                push(log('Updated', 'lecture', item.title));
-                flash('Lecture updated in database.');
-              }
-              await refresh();
-            } catch (e: any) {
-              doLocal();
-              flash(e.message ?? 'API error — saved locally.');
+        doLocal(); // optimistic — reverted below if the write fails
+        (async () => {
+          try {
+            const payload = api.adminLectureToPayload(item);
+            if (isNew) {
+              await api.createContent(payload);
+              flash('Lecture saved to database.');
+            } else {
+              await api.patchContent(item.id, { ...payload, title: item.title });
+              flash('Lecture updated in database.');
             }
-          })();
-          // optimistic also?
-          doLocal();
-        } else {
-          doLocal();
-        }
+            await refresh();
+          } catch (e: any) {
+            setLectures(before);
+            failure(isNew ? 'Saving' : 'Updating', e);
+          }
+        })();
       },
       deleteLecture: (id) => {
+        if (!apiOnline) return offline('Deleting');
         const item = lectures.find((x) => x.id === id);
+        const before = lectures;
         setLectures((prev) => prev.filter((x) => x.id !== id));
         if (item) push(log('Removed', 'lecture', item.title));
         flash('Lecture removed.');
-        if (apiOnline) {
-          api.deleteContent(id, true).then(() => refresh()).catch(() => {});
-        }
+        api
+          .deleteContent(id, true)
+          .then(() => refresh())
+          .catch((e: any) => {
+            setLectures(before);
+            failure('Deleting', e);
+          });
       },
       setLectureStatus: (id, status) => {
+        if (!apiOnline) return offline('Publishing');
         const item = lectures.find((x) => x.id === id);
+        const before = lectures;
         setLectures((prev) => prev.map((x) => (x.id === id ? { ...x, status, updatedAt: todayStamp() } : x)));
         if (item) {
           push(log(status === 'published' ? 'Published' : 'Unpublished', 'lecture', item.title));
           flash(status === 'published' ? 'Lecture published.' : 'Lecture unpublished.');
         }
-        if (apiOnline) {
-          const fn = status === 'published' ? api.publishContent : api.unpublishContent;
-          fn(id).then(() => refresh()).catch(async () => {
-            // fallback via patch
-            await api.patchContent(id, { status }).catch(() => {});
-            await refresh();
+        const fn = status === 'published' ? api.publishContent : api.unpublishContent;
+        fn(id)
+          .then(() => refresh())
+          .catch(async () => {
+            try {
+              await api.patchContent(id, { status });
+              await refresh();
+            } catch (e: any) {
+              setLectures(before);
+              failure('Changing the status', e);
+            }
           });
-        }
       },
       upsertBook: (item, verb) => {
         const isNew = !books.find((x) => x.id === item.id);
+        if (!apiOnline) return offline('Saving');
+        const before = books;
         const doLocal = () => {
           setBooks((prev) => {
             const i = prev.findIndex((x) => x.id === item.id);
@@ -218,56 +230,66 @@ export function AdminProvider({ children }: { children: ReactNode }) {
             return next;
           });
           push(log(verb, 'book', item.title));
-          flash(verb === 'Added' ? 'Book saved.' : 'Book updated.');
         };
-        if (apiOnline) {
-          (async () => {
-            try {
-              const payload = api.adminBookToPayload(item);
-              if (isNew) {
-                await api.createContent(payload);
-                push(log('Added', 'book', item.title));
-                flash('Book saved to database.');
-              } else {
-                await api.patchContent(item.id, { ...payload, title: item.title });
-                push(log('Updated', 'book', item.title));
-                flash('Book updated in database.');
-              }
-              await refresh();
-            } catch (e: any) {
-              doLocal();
-              flash(e.message ?? 'API error — saved locally.');
+        doLocal();
+        (async () => {
+          try {
+            const payload = api.adminBookToPayload(item);
+            if (isNew) {
+              await api.createContent(payload);
+              flash('Book saved to database.');
+            } else {
+              await api.patchContent(item.id, { ...payload, title: item.title });
+              flash('Book updated in database.');
             }
-          })();
-          doLocal();
-        } else {
-          doLocal();
-        }
+            await refresh();
+          } catch (e: any) {
+            setBooks(before);
+            failure(isNew ? 'Saving' : 'Updating', e);
+          }
+        })();
       },
       deleteBook: (id) => {
+        if (!apiOnline) return offline('Deleting');
         const item = books.find((x) => x.id === id);
+        const before = books;
         setBooks((prev) => prev.filter((x) => x.id !== id));
         if (item) push(log('Removed', 'book', item.title));
         flash('Book removed.');
-        if (apiOnline) api.deleteContent(id, true).then(() => refresh()).catch(() => {});
+        api
+          .deleteContent(id, true)
+          .then(() => refresh())
+          .catch((e: any) => {
+            setBooks(before);
+            failure('Deleting', e);
+          });
       },
       setBookStatus: (id, status) => {
+        if (!apiOnline) return offline('Publishing');
         const item = books.find((x) => x.id === id);
+        const before = books;
         setBooks((prev) => prev.map((x) => (x.id === id ? { ...x, status, updatedAt: todayStamp() } : x)));
         if (item) {
           push(log(status === 'published' ? 'Published' : 'Unpublished', 'book', item.title));
           flash(status === 'published' ? 'Book published.' : 'Book unpublished.');
         }
-        if (apiOnline) {
-          const fn = status === 'published' ? api.publishContent : api.unpublishContent;
-          fn(id).then(() => refresh()).catch(async () => {
-            await api.patchContent(id, { status }).catch(() => {});
-            await refresh();
+        const fn = status === 'published' ? api.publishContent : api.unpublishContent;
+        fn(id)
+          .then(() => refresh())
+          .catch(async () => {
+            try {
+              await api.patchContent(id, { status });
+              await refresh();
+            } catch (e: any) {
+              setBooks(before);
+              failure('Changing the status', e);
+            }
           });
-        }
       },
       upsertScholar: (item, verb) => {
         const isNew = !scholars.find((x) => x.id === item.id);
+        if (!apiOnline) return offline('Saving');
+        const before = scholars;
         const doLocal = () => {
           setScholars((prev) => {
             const i = prev.findIndex((x) => x.id === item.id);
@@ -277,48 +299,62 @@ export function AdminProvider({ children }: { children: ReactNode }) {
             return next;
           });
           push(log(verb, 'scholar', item.name));
-          flash(verb === 'Added' ? 'Scholar saved.' : 'Scholar updated.');
         };
-        if (apiOnline) {
-          (async () => {
-            try {
-              if (isNew) {
-                await api.createScholar({ name: item.name, bio: item.bio, accent: item.accent, specialtyId: item.specialtyId || null });
-                flash('Scholar saved to database.');
-              } else {
-                await api.patchScholar(item.id, { name: item.name, bio: item.bio, accent: item.accent, specialtyId: item.specialtyId || null });
-                flash('Scholar updated in database.');
-              }
-              push(log(verb, 'scholar', item.name));
-              await refresh();
-            } catch (e: any) {
-              doLocal();
-              flash(e.message ?? 'API error');
+        if (!isNew) doLocal();
+        (async () => {
+          try {
+            const payload = { name: item.name, bio: item.bio, accent: item.accent, specialtyId: item.specialtyId || null };
+            if (isNew) {
+              await api.createScholar(payload);
+              flash('Scholar saved to database.');
+            } else {
+              await api.patchScholar(item.id, payload);
+              flash('Scholar updated in database.');
             }
-          })();
-          if (!isNew) doLocal(); // optimistic for edit
-        } else {
-          doLocal();
-        }
+            push(log(verb, 'scholar', item.name));
+            await refresh();
+          } catch (e: any) {
+            setScholars(before);
+            failure(isNew ? 'Saving' : 'Updating', e);
+          }
+        })();
       },
       deleteScholar: (id) => {
+        if (!apiOnline) return offline('Deleting');
         const item = scholars.find((x) => x.id === id);
+        const before = scholars;
         setScholars((prev) => prev.filter((x) => x.id !== id));
         if (item) push(log('Removed', 'scholar', item.name));
         flash('Scholar removed.');
-        if (apiOnline) api.deleteScholar(id).then(() => refresh()).catch(() => {});
+        api
+          .deleteScholar(id)
+          .then(() => refresh())
+          .catch((e: any) => {
+            setScholars(before);
+            failure('Deleting', e);
+          });
       },
       setScholarStatus: (id, status) => {
+        if (!apiOnline) return offline('Publishing');
         const item = scholars.find((x) => x.id === id);
+        const before = scholars;
         setScholars((prev) => prev.map((x) => (x.id === id ? { ...x, status, updatedAt: todayStamp() } : x)));
         if (item) {
           push(log(status === 'published' ? 'Published' : 'Unpublished', 'scholar', item.name));
           flash(status === 'published' ? 'Scholar published.' : 'Scholar unpublished.');
         }
-        if (apiOnline) api.patchScholar(id, { status }).then(() => refresh()).catch(() => {});
+        api
+          .patchScholar(id, { status })
+          .then(() => refresh())
+          .catch((e: any) => {
+            setScholars(before);
+            failure('Changing the status', e);
+          });
       },
       upsertSubject: (item, verb) => {
         const isNew = !subjects.find((x) => x.id === item.id);
+        if (!apiOnline) return offline('Saving');
+        const before = subjects;
         const doLocal = () => {
           setSubjects((prev) => {
             const i = prev.findIndex((x) => x.id === item.id);
@@ -328,45 +364,57 @@ export function AdminProvider({ children }: { children: ReactNode }) {
             return next;
           });
           push(log(verb, 'subject', item.name));
-          flash(verb === 'Added' ? 'Subject saved.' : 'Subject updated.');
         };
-        if (apiOnline) {
-          (async () => {
-            try {
-              if (isNew) {
-                await api.createSubject({ name: item.name, group: item.group, description: item.description, accent: item.accent });
-                flash('Subject saved to database.');
-              } else {
-                await api.patchSubject(item.id, { name: item.name, group: item.group, description: item.description, accent: item.accent });
-                flash('Subject updated in database.');
-              }
-              push(log(verb, 'subject', item.name));
-              await refresh();
-            } catch (e: any) {
-              doLocal();
-              flash(e.message ?? 'API error');
+        if (!isNew) doLocal();
+        (async () => {
+          try {
+            const payload = { name: item.name, group: item.group, description: item.description, accent: item.accent };
+            if (isNew) {
+              await api.createSubject(payload);
+              flash('Subject saved to database.');
+            } else {
+              await api.patchSubject(item.id, payload);
+              flash('Subject updated in database.');
             }
-          })();
-          if (!isNew) doLocal();
-        } else {
-          doLocal();
-        }
+            push(log(verb, 'subject', item.name));
+            await refresh();
+          } catch (e: any) {
+            setSubjects(before);
+            failure(isNew ? 'Saving' : 'Updating', e);
+          }
+        })();
       },
       deleteSubject: (id) => {
+        if (!apiOnline) return offline('Deleting');
         const item = subjects.find((x) => x.id === id);
+        const before = subjects;
         setSubjects((prev) => prev.filter((x) => x.id !== id));
         if (item) push(log('Removed', 'subject', item.name));
         flash('Subject removed.');
-        if (apiOnline) api.deleteSubject(id).then(() => refresh()).catch(() => {});
+        api
+          .deleteSubject(id)
+          .then(() => refresh())
+          .catch((e: any) => {
+            setSubjects(before);
+            failure('Deleting', e);
+          });
       },
       setSubjectStatus: (id, status) => {
+        if (!apiOnline) return offline('Publishing');
         const item = subjects.find((x) => x.id === id);
+        const before = subjects;
         setSubjects((prev) => prev.map((x) => (x.id === id ? { ...x, status, updatedAt: todayStamp() } : x)));
         if (item) {
           push(log(status === 'published' ? 'Published' : 'Unpublished', 'subject', item.name));
           flash(status === 'published' ? 'Subject published.' : 'Subject unpublished.');
         }
-        if (apiOnline) api.patchSubject(id, { status }).then(() => refresh()).catch(() => {});
+        api
+          .patchSubject(id, { status })
+          .then(() => refresh())
+          .catch((e: any) => {
+            setSubjects(before);
+            failure('Changing the status', e);
+          });
       },
     }),
     [lectures, books, scholars, subjects, activity, notice, apiOnline, loading]
