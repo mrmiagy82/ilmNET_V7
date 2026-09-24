@@ -120,6 +120,7 @@ productie-e2e in een echte browser tegen de API die zelf de gebouwde frontend se
 | 12 | Geen productie-start/verify pad (build + env + SPA-serving) | `server/Dockerfile`, `docker-compose.yml`, `.env.example` (root + server), scripts |
 | 13 | **Upload-delete accepteerde een pad met `../` en meldde succes** (werd stil teruggebracht tot de basename in `uploads/`) | strikte bestandsnaamvalidatie: alleen `[A-Za-z0-9][A-Za-z0-9._-]*`, geen `..`, geen dotfiles → `400 INVALID_FILENAME`; traversal-varianten (incl. `%2e%2e%2f`, dubbel-gecodeerd) getest |
 | 14 | **Docker-build kon `server/.env` (dev-token), `uploads/` en `node_modules` in de image bakken** (`COPY . .` zonder ignore-bestand) | `server/.dockerignore` toegevoegd; `.env` geweigerd, `.env.example` behouden, `uploads/` alleen op het volume |
+| 15 | **De seed was destructief en zou op een productiedatabase de hele bibliotheek wissen** (`deleteMany` op content/scholars/subjects/importjobs) | seed kent nu twee modi: `npm run seed:reference` (upsert van subjects + scholars, raakt nooit content, idempotent) en de demo-seed die in productie weigert met exit 1; alleen `SEED_ALLOW_RESET=true` forceert een wipe |
 
 ## SAFE (gecontroleerd, geen wijziging nodig)
 
@@ -163,6 +164,22 @@ Nieuwe bevindingen uit deze controle zijn opgelost en staan als #13 en #14 in de
 `server/.env` met een dev-token de productie-boot wél laat slagen — met een bekend token. Daarom:
 `.env` staat in `.gitignore`, in `server/.dockerignore` en in de image; geef in productie
 `ADMIN_TOKEN` via de echte omgeving (of `--env-file`) en gebruik een lang, uniek token.
+
+## Deployment
+
+De volledige deploy-flow staat als runbook in **[DEPLOYMENT.md](DEPLOYMENT.md)**: env-vars,
+bouwen, migreren, seeden, starten, Docker/compose, updates en rollback, verificatie na de deploy en
+troubleshooting. De deploy is end-to-end getest op een verse database:
+
+- verse productie-DB → `prisma migrate deploy` → `npm run seed:reference` (idempotent: tweede run
+  geeft dezelfde aantallen) terwijl de demo-seed in productie weigert (exit 1);
+- server gestart met **alleen env-vars** (geen `server/.env`), `UPLOADS_DIR` op een volume buiten de
+  app-map: `/api/health` meldt `storage.persistent: true`, en de boot-audit logt
+  `1 referenced file(s), 0 unused on disk`;
+- thumbnail geüpload via de Admin API naar dat volume → publiek geserveerd (200, `image/png`) →
+  **server herstart (redeploy) → bestand nog steeds geserveerd**;
+- publieke site + Admin CMS werkend (productie-e2e 61/61), audio/waveform/thumbnails (media-e2e
+  27/27), echte Archive/YouTube-imports in de productie-DB (19/19).
 
 ## BLOCKER
 

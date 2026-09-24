@@ -1,9 +1,36 @@
 import { prisma } from './lib/prisma';
 import { toSlug } from './utils/slug';
 
-async function main() {
-  console.log('🌱 Seeding ilmNet (generic Content model) ...');
+// — Subjects —
+const subjectSeeds = [
+  { name: "Qur'ān & Tafsīr", group: 'Revelation', description: 'Reading the Book with its classical and contemporary commentaries.', accent: 'rose' },
+  { name: 'Ḥadīth', group: 'Revelation', description: 'The recorded words and example of the Prophet ﷺ, studied by chain and meaning.', accent: 'plain' },
+  { name: 'ʿAqīdah', group: 'Belief', description: 'The foundations of belief, from the early creeds to systematic theology.', accent: 'plain' },
+  { name: 'Fiqh', group: 'Practice', description: 'Jurisprudence across the schools — worship, transactions and family.', accent: 'olive' },
+  { name: 'Sīrah', group: 'History', description: 'The life of the Prophet ﷺ as the template for a lived Islam.', accent: 'plain' },
+  { name: 'Arabic Language', group: 'Language', description: 'Grammar, morphology and vocabulary to meet the sources directly.', accent: 'plain' },
+  { name: 'Uṣūl al-Fiqh', group: 'Practice', description: 'The methodology by which juristic judgement is derived.', accent: 'plain' },
+  { name: 'Tazkiyah', group: 'Character', description: 'Purification of the heart and the cultivation of inward states.', accent: 'olive' },
+  { name: 'Islamic History', group: 'History', description: 'From the caliphates to the modern era, through reliable narration.', accent: 'plain' },
+  { name: 'Ethics & Adab', group: 'Character', description: 'Conduct, manners and the character of the believer.', accent: 'plain' },
+  { name: 'Family & Society', group: 'Practice', description: 'Marriage, community and the ethics of public life.', accent: 'plain' },
+] as const;
 
+// — Scholars —
+const scholarSeeds = [
+  { name: 'Shaykh Usman Rahman', initials: 'UR', specialty: "Qur'ān & Tafsīr", bio: 'Known for unhurried, verse-by-verse Qurʾān sessions rooted in the early commentators.', accent: 'rose' },
+  { name: 'Dr. Aisha Mahmoud', initials: 'AM', specialty: 'Ḥadīth', bio: 'Specialist in the six canonical collections and the science of chains.', accent: 'olive' },
+  { name: 'Shaykh Ibrahim Nasser', initials: 'IN', specialty: 'Fiqh', bio: 'Teaches comparative fiqh with a focus on everyday worship and contracts.', accent: 'olive' },
+  { name: 'Ustadha Layla Hassan', initials: 'LH', specialty: 'Tazkiyah', bio: 'Guides readers through the classical texts of the inward sciences.', accent: 'rose' },
+  { name: 'Dr. Yusuf Karim', initials: 'YK', specialty: 'Islamic History', bio: 'Recovers the narrative of the caliphates from primary sources.', accent: 'olive' },
+  { name: 'Shaykh Abdullah Said', initials: 'AS', specialty: 'ʿAqīdah', bio: 'Presents the creedal positions with measured, sourced clarity.', accent: 'olive' },
+  { name: 'Ustadh Tariq Bashir', initials: 'TB', specialty: 'Arabic Language', bio: 'Builds reading fluency from the grammar up, one pattern at a time.', accent: 'rose' },
+  { name: 'Dr. Mariam Yusuf', initials: 'MY', specialty: 'Sīrah', bio: 'Weaves the biography into a coherent path of character and action.', accent: 'olive' },
+];
+
+
+/** Destructive: wipes the library. Only used by the demo seed (never in production by accident). */
+async function resetDatabase() {
   // Clean in order (junction first)
   await prisma.contentSubject.deleteMany();
   await prisma.contentScholar.deleteMany();
@@ -11,21 +38,77 @@ async function main() {
   await prisma.scholar.deleteMany();
   await prisma.subject.deleteMany();
   await prisma.importJob.deleteMany();
+}
 
-  // — Subjects —
-  const subjectSeeds = [
-    { name: "Qur'ān & Tafsīr", group: 'Revelation', description: 'Reading the Book with its classical and contemporary commentaries.', accent: 'rose' },
-    { name: 'Ḥadīth', group: 'Revelation', description: 'The recorded words and example of the Prophet ﷺ, studied by chain and meaning.', accent: 'plain' },
-    { name: 'ʿAqīdah', group: 'Belief', description: 'The foundations of belief, from the early creeds to systematic theology.', accent: 'plain' },
-    { name: 'Fiqh', group: 'Practice', description: 'Jurisprudence across the schools — worship, transactions and family.', accent: 'olive' },
-    { name: 'Sīrah', group: 'History', description: 'The life of the Prophet ﷺ as the template for a lived Islam.', accent: 'plain' },
-    { name: 'Arabic Language', group: 'Language', description: 'Grammar, morphology and vocabulary to meet the sources directly.', accent: 'plain' },
-    { name: 'Uṣūl al-Fiqh', group: 'Practice', description: 'The methodology by which juristic judgement is derived.', accent: 'plain' },
-    { name: 'Tazkiyah', group: 'Character', description: 'Purification of the heart and the cultivation of inward states.', accent: 'olive' },
-    { name: 'Islamic History', group: 'History', description: 'From the caliphates to the modern era, through reliable narration.', accent: 'plain' },
-    { name: 'Ethics & Adab', group: 'Character', description: 'Conduct, manners and the character of the believer.', accent: 'plain' },
-    { name: 'Family & Society', group: 'Practice', description: 'Marriage, community and the ethics of public life.', accent: 'plain' },
-  ] as const;
+type SeedMode = 'demo' | 'reference';
+
+function seedMode(): SeedMode {
+  return process.argv.includes('--reference') ? 'reference' : 'demo';
+}
+
+/**
+ * Production-safe seed: upserts the reference data (subjects + scholars) and never touches
+ * content. Safe to run on every deploy — a second run changes nothing.
+ */
+async function seedReference() {
+  const subjectIdsByName = new Map<string, string>();
+  for (const s of subjectSeeds) {
+    const slug = toSlug(s.name);
+    const data = {
+      name: s.name,
+      group: s.group as any,
+      description: s.description,
+      accent: s.accent,
+      status: 'published' as const,
+    };
+    const subject = await prisma.subject.upsert({ where: { slug }, update: data, create: { slug, ...data } });
+    subjectIdsByName.set(s.name, subject.id);
+    console.log(`  ✓ Subject: ${subject.name}`);
+  }
+
+  for (const s of scholarSeeds) {
+    const slug = toSlug(s.name);
+    const data = {
+      name: s.name,
+      initials: s.initials,
+      specialtyId: subjectIdsByName.get(s.specialty) ?? null,
+      bio: s.bio,
+      accent: s.accent,
+      status: 'published' as const,
+    };
+    const scholar = await prisma.scholar.upsert({ where: { slug }, update: data, create: { slug, ...data } });
+    console.log(`  ✓ Scholar: ${scholar.name}`);
+  }
+
+  const [subjects, scholars, contents] = await Promise.all([
+    prisma.subject.count(),
+    prisma.scholar.count(),
+    prisma.content.count(),
+  ]);
+  console.log('✅ Reference seed complete — no content was touched');
+  console.log(`  Subjects: ${subjects}, Scholars: ${scholars}, Contents: ${contents}`);
+}
+
+async function main() {
+  const mode = seedMode();
+  console.log(`🌱 Seeding ilmNet (generic Content model) — mode: ${mode}`);
+
+  // The demo seed deletes everything first; that must never happen on a production database.
+  if (mode === 'demo' && process.env.NODE_ENV === 'production' && process.env.SEED_ALLOW_RESET !== 'true') {
+    console.error(
+      'Refusing to run the destructive demo seed with NODE_ENV=production.\n' +
+        '  • For a new deployment run:  npm run seed:reference   (adds subjects/scholars, keeps your content)\n' +
+        '  • Only to wipe a production database on purpose:  SEED_ALLOW_RESET=true npm run seed',
+    );
+    process.exit(1);
+  }
+
+  if (mode === 'reference') {
+    await seedReference();
+    return;
+  }
+
+  await resetDatabase();
 
   const subjects: any[] = [];
   for (const s of subjectSeeds) {
@@ -46,18 +129,6 @@ async function main() {
 
   const byName = (name: string) => subjects.find((s) => s.name === name)!.id;
   const byGroup = (group: string) => subjects.filter((s) => s.group === group).map((s) => s.id);
-
-  // — Scholars —
-  const scholarSeeds = [
-    { name: 'Shaykh Usman Rahman', initials: 'UR', specialty: "Qur'ān & Tafsīr", bio: 'Known for unhurried, verse-by-verse Qurʾān sessions rooted in the early commentators.', accent: 'rose' },
-    { name: 'Dr. Aisha Mahmoud', initials: 'AM', specialty: 'Ḥadīth', bio: 'Specialist in the six canonical collections and the science of chains.', accent: 'olive' },
-    { name: 'Shaykh Ibrahim Nasser', initials: 'IN', specialty: 'Fiqh', bio: 'Teaches comparative fiqh with a focus on everyday worship and contracts.', accent: 'olive' },
-    { name: 'Ustadha Layla Hassan', initials: 'LH', specialty: 'Tazkiyah', bio: 'Guides readers through the classical texts of the inward sciences.', accent: 'rose' },
-    { name: 'Dr. Yusuf Karim', initials: 'YK', specialty: 'Islamic History', bio: 'Recovers the narrative of the caliphates from primary sources.', accent: 'olive' },
-    { name: 'Shaykh Abdullah Said', initials: 'AS', specialty: 'ʿAqīdah', bio: 'Presents the creedal positions with measured, sourced clarity.', accent: 'olive' },
-    { name: 'Ustadh Tariq Bashir', initials: 'TB', specialty: 'Arabic Language', bio: 'Builds reading fluency from the grammar up, one pattern at a time.', accent: 'rose' },
-    { name: 'Dr. Mariam Yusuf', initials: 'MY', specialty: 'Sīrah', bio: 'Weaves the biography into a coherent path of character and action.', accent: 'olive' },
-  ];
 
   const scholars: any[] = [];
   for (const s of scholarSeeds) {
