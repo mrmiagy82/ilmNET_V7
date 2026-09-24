@@ -16,7 +16,7 @@ een persistent uploads-volume en de volledige testset (server-suites + browser-e
 | --- | --- | --- |
 | `DATABASE_URL` | ja | Postgres-URL, bv. `postgresql://user:pass@host:5432/ilmnet?schema=public` |
 | `NODE_ENV` | ja (prod) | `production` → admin-token verplicht, CORS-wildcard verboden, `secure`-cookies/fallbacks uit |
-| `ADMIN_TOKEN` | ja in prod | Lang, uniek geheim (bv. `openssl rand -hex 32`). Beschermt alle writes + alle `/api/admin/*` |
+| `ADMIN_TOKEN` | ja in prod | Uniek geheim, **minimaal 16 tekens** (gebruik `openssl rand -hex 32`). Beschermt alle writes + alle `/api/admin/*`. Bekende dev-/voorbeeldwaarden worden in productie geweigerd |
 | `CORS_ORIGIN` | ja | Exacte browser-origin(s) die de API mogen aanroepen, kommagescheiden. `*` is verboden in prod |
 | `HOST` / `PORT` | nee | Default `0.0.0.0` / `3001` |
 | `UPLOADS_DIR` | sterk aanbevolen | Map voor custom thumbnails/covers — **op een persistent volume** |
@@ -28,6 +28,31 @@ een persistent uploads-volume en de volledige testset (server-suites + browser-e
 Frontend-build (root `.env.example`): `VITE_API_URL` leeg laten in vorm A (zelfde origin).
 Zet **nooit** `VITE_ADMIN_TOKEN` in een productiebuild — vite inlined elke `VITE_*`-waarde in de
 publieke JavaScript-bundle. De beheerder voert het token in via **Admin → Token** (sessionStorage).
+
+### Hoe env-vars gelezen worden (belangrijk)
+
+De server kent de **herkomst** van elke variabele: de procesomgeving (systemd `EnvironmentFile`,
+`docker compose environment:`, een PaaS-env-paneel, `docker run --env-file`) is leidend; een
+`.env`-bestand in de servermap is er **alleen voor lokaal ontwikkelen**. Bij het starten gelden
+deze regels:
+
+1. **Modus** — `NODE_ENV` uit de procesomgeving wint; anders de waarde uit `.env`; anders
+   `development`.
+2. **Geen stille terugval** — draagt de procesomgeving deploymentconfiguratie (`DATABASE_URL`,
+   `ADMIN_TOKEN`, `CORS_ORIGIN` of `UPLOADS_DIR`) maar is `NODE_ENV` daar niet gezet, dan weigert de
+   server te starten in plaats van stil naar development te vallen. Zet `NODE_ENV=production`
+   (deployment) of expliciet `NODE_ENV=development` (lokale run met eigen database).
+3. **Een `.env` mag productie niet configureren** — in productie mogen `NODE_ENV`, `ADMIN_TOKEN`,
+   `CORS_ORIGIN` en `ADMIN_ALLOW_LOCALHOST` niet uit een `.env`-bestand komen. Gebeurt dat toch, dan
+   stopt de server met een melding die het bestand én de variabelen noemt.
+4. **Tokenkwaliteit** — in productie moet `ADMIN_TOKEN` minimaal 16 tekens hebben en mag het geen
+   bekende dev-/voorbeeldwaarde zijn (zoals `change-me-dev-only` of het token uit dit project).
+
+> **Zet dus nooit een `.env` in de app-map van een productiehost.** De server leest zo'n bestand
+> niet alleen zelf (dotenv), maar ook via de Prisma-client, ongeacht de werkmap. In Docker is dat
+> al afgedekt (`server/.dockerignore` houdt `.env` buiten de image); op een host waar je de service
+> direct start moet je het bestand verwijderen. Lokale ontwikkeling (`npm run dev`, de testsuites,
+> `npm run seed`) blijft gewoon op `server/.env` werken.
 
 ---
 
@@ -146,6 +171,9 @@ geschreven, dus draai geen `migrate reset` op productie.
 | Symptoom | Oorzaak / oplossing |
 | --- | --- |
 | Server start niet, `ADMIN_TOKEN is required when NODE_ENV=production` | Token ontbreekt. Zet `ADMIN_TOKEN` in de echte omgeving (niet in een `.env` die per ongeluk meegaat). |
+| `A .env file may not configure a production boot: …` | Er staat een (dev-)`.env` in de servermap die `NODE_ENV`/`ADMIN_TOKEN`/`CORS_ORIGIN` zou leveren. Verwijder het bestand van de productiehost of zet die variabelen in de serviceomgeving. |
+| `NODE_ENV is not set in the process environment, but deployment configuration was found there` | Je start met een echte `DATABASE_URL`/`ADMIN_TOKEN`/`CORS_ORIGIN`, maar zonder `NODE_ENV`. Zet `NODE_ENV=production` (deployment) of `NODE_ENV=development` (lokale run). |
+| `ADMIN_TOKEN is too short for production` / `ADMIN_TOKEN is a known development/example value` | Genereer een nieuw token: `openssl rand -hex 32`. |
 | `CORS_ORIGIN="*" is not allowed in production` | Zet de exacte publieke origin(s) in `CORS_ORIGIN`. |
 | `P1012` / `Environment variable not found: DATABASE_URL` | `DATABASE_URL` ontbreekt of is leeg in de procesomgeving. |
 | Admin geeft 401 | Verkeerd/ontbrekend token: opnieuw instellen via **Admin → Token**. |

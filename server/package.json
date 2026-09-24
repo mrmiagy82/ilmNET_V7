@@ -15,13 +15,14 @@
     "test": "tsx test/audit.test.ts",
     "test:watch": "tsx --watch test/audit.test.ts",
     "test:uploads": "tsx test/uploads.test.ts",
-    "test:all": "tsx test/audit.test.ts && tsx test/uploads.test.ts && tsx test/production.test.ts && tsx test/youtube.test.ts",
+    "test:all": "tsx test/audit.test.ts && tsx test/uploads.test.ts && tsx test/production.test.ts && tsx test/env-hardening.test.ts && tsx test/youtube.test.ts",
     "test:production": "tsx test/production.test.ts",
     "test:imports": "tsx test/regression-imports.test.ts",
     "seed:reference": "tsx src/seed.ts --reference",
     "seed:reset": "tsx src/seed.ts",
     "deploy": "prisma migrate deploy && node dist/server.js",
-    "seed:reference:built": "node dist/seed.js --reference"
+    "seed:reference:built": "node dist/seed.js --reference",
+    "test:env": "tsx test/env-hardening.test.ts"
   },
   "dependencies": {
     "@fastify/cors": "^11.0.1",

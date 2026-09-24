@@ -2,14 +2,17 @@
 #
 #   docker compose up -d --build
 #
-# Required env (put these in server/.env next to this file, or export them):
+# Required env — provide these as real environment variables (export them, or put them in a .env
+# file next to THIS compose file: compose only uses that file for ${VAR} substitution on the host,
+# and the container receives them through the environment: block below). Never copy a .env into the
+# app directory/image — the server refuses a production boot configured from a .env file.
 #   ADMIN_TOKEN        long random string; admin CMS + uploads require it in production
 #   CORS_ORIGIN        exact frontend origin(s), comma separated (no wildcards in production)
 #   POSTGRES_PASSWORD  database password (change the default below!)
 #
 # Fresh database: run the reference seed once, inside the container (the image ships server/dist):
 #   docker compose exec server node dist/seed.js --reference
-# Never use the plain demo seed on a production database — it refuses when NODE_ENV=production.
+# Never use the plain demo seed on a production database — it refuses in a production environment.
 #
 # The API serves the build in ../dist when it exists (SERVE_FRONTEND=false to disable),
 # so with `npm run build` in the repo root a single container hosts the whole site.

@@ -1,3 +1,6 @@
+// Imported before ./lib/prisma: the environment snapshot must be taken before Prisma/dotenv can
+// load a .env file (Fase 3.8.1).
+import { isProductionSafe } from './lib/env';
 import { prisma } from './lib/prisma';
 import { toSlug } from './utils/slug';
 
@@ -94,9 +97,11 @@ async function main() {
   console.log(`🌱 Seeding ilmNet (generic Content model) — mode: ${mode}`);
 
   // The demo seed deletes everything first; that must never happen on a production database.
-  if (mode === 'demo' && process.env.NODE_ENV === 'production' && process.env.SEED_ALLOW_RESET !== 'true') {
+  // isProductionSafe() also treats an undeclared mode on a host that carries deployment
+  // configuration as production, so a stale .env cannot talk this guard down (Fase 3.8.1).
+  if (mode === 'demo' && isProductionSafe() && process.env.SEED_ALLOW_RESET !== 'true') {
     console.error(
-      'Refusing to run the destructive demo seed with NODE_ENV=production.\n' +
+      'Refusing to run the destructive demo seed in a production environment.\n' +
         '  • For a new deployment run:  npm run seed:reference   (adds subjects/scholars, keeps your content)\n' +
         '  • Only to wipe a production database on purpose:  SEED_ALLOW_RESET=true npm run seed',
     );

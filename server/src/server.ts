@@ -6,7 +6,9 @@ import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
 import sensible from '@fastify/sensible';
 import fastifyStatic from '@fastify/static';
-import dotenv from 'dotenv';
+// Imported before ./lib/prisma on purpose: the snapshot of the real process environment has to be
+// taken before Prisma/dotenv can load a .env file (Fase 3.8.1).
+import { assertBootConfiguration, isProduction } from './lib/env';
 import { prisma } from './lib/prisma';
 import { healthRoutes } from './routes/health';
 import { contentRoutes } from './routes/content';
@@ -16,15 +18,12 @@ import { importRoutes } from './routes/import';
 import { uploadRoutes } from './routes/uploads';
 import { auditUploadReferences, ensureUploadsDir, getUploadsDir, isUploadsDirWritable, MAX_UPLOAD_BYTES } from './lib/storage';
 
-dotenv.config();
-
 const PORT = parseInt(process.env.PORT || '3001', 10);
 const HOST = process.env.HOST || '0.0.0.0';
 /**
- * Evaluated at call time (not at import) so a process can be started with
- * NODE_ENV=production and so tests can exercise production behaviour.
+ * `isProduction()` comes from ./lib/env and is evaluated at call time (not at import), so a process
+ * can be started with NODE_ENV=production and tests can exercise production behaviour.
  */
-const isProduction = () => process.env.NODE_ENV === 'production';
 const adminToken = () => process.env.ADMIN_TOKEN?.trim() || '';
 
 /** Comma separated list of allowed browser origins. Dev defaults to the vite dev server. */
@@ -52,6 +51,9 @@ function frontendBuild() {
 
 export async function buildApp() {
   // ── Production guard rails: never boot a public deployment without admin protection ──
+  // Fase 3.8.1: refuses a production boot configured by a local .env file, an undeclared mode on a
+  // host that carries deployment config, and development/placeholder admin tokens.
+  assertBootConfiguration();
   if (isProduction() && !adminToken()) {
     throw new Error(
       'ADMIN_TOKEN is required when NODE_ENV=production. The admin CMS (writes, draft listings, uploads) must never be exposed unprotected.',

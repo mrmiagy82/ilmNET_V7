@@ -18,7 +18,9 @@ import { buildApp } from '../src/server';
 import { prisma } from '../src/lib/prisma';
 import { getUploadsDir, listUploadFiles, uploadsHealth } from '../src/lib/storage';
 
-const TOKEN = process.env.ADMIN_TOKEN || 'ilmnet-admin-dev-2026';
+// Fase 3.8.1: production refuses development/placeholder tokens, so the suite uses a
+// production-grade value (a real deployment provides its own via the process environment).
+const TOKEN = process.env.TEST_ADMIN_TOKEN || 'ilmnet-production-suite-2f9c41a7e5b2d48c6';
 const WRONG = 'definitely-not-the-token';
 let passed = 0;
 let failed = 0;
@@ -249,13 +251,19 @@ async function main() {
     process.env.NODE_ENV = 'production';
     const savedToken = process.env.ADMIN_TOKEN;
     delete process.env.ADMIN_TOKEN;
-    let refused = false;
+    let refuseMessage = '';
     try {
       await buildApp();
     } catch (e: any) {
-      refused = /ADMIN_TOKEN is required/i.test(e?.message ?? '');
+      refuseMessage = e?.message ?? '';
     }
-    check(refused, 'production boot without ADMIN_TOKEN is refused');
+    // Without a token in the process environment the boot is refused: either because the token is
+    // missing entirely, or — when a development .env is present — because that file may not
+    // configure a production boot (Fase 3.8.1).
+    check(
+      /ADMIN_TOKEN is required|\.env file may not configure a production boot/i.test(refuseMessage),
+      `production boot without ADMIN_TOKEN is refused (${refuseMessage.slice(0, 60)}…)`,
+    );
     process.env.ADMIN_TOKEN = savedToken;
 
     const badCors = process.env.CORS_ORIGIN;
@@ -268,6 +276,30 @@ async function main() {
     }
     check(corsRefused, 'production boot with CORS_ORIGIN="*" is refused');
     process.env.CORS_ORIGIN = badCors;
+
+    // Fase 3.8.1 — a known development token is never production authentication.
+    const strongToken = process.env.ADMIN_TOKEN;
+    process.env.ADMIN_TOKEN = 'ilmnet-admin-dev-2026';
+    let devTokenRefused = '';
+    try {
+      await buildApp();
+    } catch (e: any) {
+      devTokenRefused = e?.message ?? '';
+    }
+    check(
+      /\.env file may not configure a production boot|must never authenticate a production deployment/i.test(devTokenRefused),
+      `production boot with a known dev token is refused (${devTokenRefused.slice(0, 60)}…)`,
+    );
+
+    process.env.ADMIN_TOKEN = 'short';
+    let shortTokenRefused = '';
+    try {
+      await buildApp();
+    } catch (e: any) {
+      shortTokenRefused = e?.message ?? '';
+    }
+    check(/too short for production/i.test(shortTokenRefused), 'production boot with a too-short token is refused');
+    process.env.ADMIN_TOKEN = strongToken;
 
     const probe = Fastify();
     const headers = await new Promise<Record<string, any>>((resolve) => {

@@ -159,11 +159,12 @@ De volledige productieomgeving is na de hardening nog één keer end-to-end door
 
 Nieuwe bevindingen uit deze controle zijn opgelost en staan als #13 en #14 in de FIXED-tabel.
 
-**Operationele noot (belangrijk bij uitrol):** de server leest naast echte env-variabelen ook
-`server/.env` (dotenv + de Prisma-client). Dat is handig lokaal, maar betekent dat een achtergebleven
-`server/.env` met een dev-token de productie-boot wél laat slagen — met een bekend token. Daarom:
-`.env` staat in `.gitignore`, in `server/.dockerignore` en in de image; geef in productie
-`ADMIN_TOKEN` via de echte omgeving (of `--env-file`) en gebruik een lang, uniek token.
+**Operationele noot (opgelost in Fase 3.8.1):** de server leest naast echte env-variabelen ook
+`server/.env` (dotenv + de Prisma-client). Een achtergebleven dev-`.env` kon daardoor in productie
+`NODE_ENV` en een bekend dev-token leveren. Dat is nu dichtgezet: in productie mag een `.env` de
+guard-variabelen (`NODE_ENV`, `ADMIN_TOKEN`, `CORS_ORIGIN`, `ADMIN_ALLOW_LOCALHOST`) niet leveren —
+de server weigert dan te starten, en dev-/voorbeeldtokens worden altijd geweigerd. Zie
+[DEPLOYMENT.md §1](DEPLOYMENT.md) en [FASE3_8_1_ENV_SECURITY.md](FASE3_8_1_ENV_SECURITY.md).
 
 ## Deployment
 
