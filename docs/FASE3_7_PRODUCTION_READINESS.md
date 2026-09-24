@@ -118,6 +118,8 @@ productie-e2e in een echte browser tegen de API die zelf de gebouwde frontend se
 | 10 | **Admin Overview liep horizontaal buiten het scherm op mobiel (417 px bij 390 px)** | `min-w-0` op grid/secties |
 | 11 | Keuze tussen directe MP3 en embed-fallback was niet getest | e2e toont: directe `archive.org/download/…mp3` + 206 audio-bytes bij download |
 | 12 | Geen productie-start/verify pad (build + env + SPA-serving) | `server/Dockerfile`, `docker-compose.yml`, `.env.example` (root + server), scripts |
+| 13 | **Upload-delete accepteerde een pad met `../` en meldde succes** (werd stil teruggebracht tot de basename in `uploads/`) | strikte bestandsnaamvalidatie: alleen `[A-Za-z0-9][A-Za-z0-9._-]*`, geen `..`, geen dotfiles → `400 INVALID_FILENAME`; traversal-varianten (incl. `%2e%2e%2f`, dubbel-gecodeerd) getest |
+| 14 | **Docker-build kon `server/.env` (dev-token), `uploads/` en `node_modules` in de image bakken** (`COPY . .` zonder ignore-bestand) | `server/.dockerignore` toegevoegd; `.env` geweigerd, `.env.example` behouden, `uploads/` alleen op het volume |
 
 ## SAFE (gecontroleerd, geen wijziging nodig)
 
@@ -134,6 +136,33 @@ productie-e2e in een echte browser tegen de API die zelf de gebouwde frontend se
 - **Bestaande functionaliteit:** echte Archive/YouTube-imports (single, playlist, boekenreeks,
   audioreeks), series/collections-groepering, waveform tijdens echte weergave, custom thumbnails,
   downloads en Admin CMS — allemaal opnieuw bewezen in deze fase.
+
+## Eindcontrole (final production check)
+
+De volledige productieomgeving is na de hardening nog één keer end-to-end doorgemeten tegen een
+écht draaiende server (`NODE_ENV=production`, `ADMIN_TOKEN` actief, echte imports, geen mocks):
+
+| Controle | Resultaat |
+| --- | --- |
+| Productieserver + SPA deep links | `GET /` → 200 met de gebouwde app; 10 deep links + hard refresh OK; onbekende API-route → JSON 404 |
+| ADMIN_TOKEN / security | admin-read zonder token 401, met fout token 401, met juist token 200; publieke write geblokkeerd (401); draft/archived niet in publieke lijst, publieke detail-URL van een draft 404, admin ziet ze wél |
+| CORS + env | toegestane origin krijgt CORS-header, onbekende origin niet; preflight 204; `nosniff` + referrer-policy aanwezig; productie-boot zónder token faalt (exit 1, duidelijke melding), `CORS_ORIGIN=*` in productie faalt, ontbrekende `DATABASE_URL` faalt |
+| Uploads / storage | niet-multipart → 400 `NO_FILE`; traversal-varianten → 400/404 en sentinel buiten `uploads/` blijft intact; geldige delete werkt; `/api/health` toont storage `dir/writable/files` |
+| Public vs admin API | publiek alleen `published`; alle writes onder `/api/admin/*` met token |
+| Database / migraties | 2 migraties toegepast; unieke indexen (slug, provider+externalIdentifier); 4 cascade-FK's; duplicate-import → 409; join-rijen cascade-verwijderd bij hard delete |
+| Archive/YouTube imports | 19/19 (single + playlist van 7 + 8 boeken + 3 audiotracks, echte downloads 302 → 206 `audio/mpeg`) |
+| Audio waveform/player | 27/27 media-e2e: echte weergave, 18 frames variatie, live waveform, pause/reset, seek op 50% |
+| Thumbnails | custom upload wint van provider-thumbnail (kaart + detail), ontbrekend bestand valt netjes terug, geen zwarte Archive-afbeelding |
+| Mobile/desktop | 14 routes zonder horizontale overflow op 390×844; desktop 1366×900 volledig doorgelopen |
+| Tests + build | audit ✅, uploads 25/25, production 42/42, YouTube 14+, media-e2e 27/27, productie-e2e 61/61; `tsc` 0 fouten; build 637 kB (gzip 161 kB); geen token in de bundle |
+
+Nieuwe bevindingen uit deze controle zijn opgelost en staan als #13 en #14 in de FIXED-tabel.
+
+**Operationele noot (belangrijk bij uitrol):** de server leest naast echte env-variabelen ook
+`server/.env` (dotenv + de Prisma-client). Dat is handig lokaal, maar betekent dat een achtergebleven
+`server/.env` met een dev-token de productie-boot wél laat slagen — met een bekend token. Daarom:
+`.env` staat in `.gitignore`, in `server/.dockerignore` en in de image; geef in productie
+`ADMIN_TOKEN` via de echte omgeving (of `--env-file`) en gebruik een lang, uniek token.
 
 ## BLOCKER
 
@@ -154,7 +183,7 @@ productie-e2e in een echte browser tegen de API die zelf de gebouwde frontend se
 | --- | --- | --- |
 | Audit | `cd server && npx tsx test/audit.test.ts` | ✅ all passed |
 | Uploads/thumbnails | `cd server && npx tsx test/uploads.test.ts` | ✅ 25/25 |
-| Production readiness (API/security/deploy + SPA-serving) | `cd server && npm run test:production` | ✅ 37/37 |
+| Production readiness (API/security/deploy + SPA-serving + upload-delete) | `cd server && npm run test:production` | ✅ 42/42 |
 | YouTube-import | `cd server && npx tsx test/youtube.test.ts` | ✅ 14+ cases |
 | Echte imports-regressie (Archive + YouTube) | `cd server && npm run test:imports` (backend nodig) | ✅ 19/19 |
 | Media-e2e (Fase 3.6-ijkpunt) | `npm run test:e2e` | ✅ 27/27 |

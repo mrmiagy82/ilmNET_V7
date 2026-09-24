@@ -60,6 +60,16 @@ async function raw(method: string, url: string, body?: any, token?: string): Pro
   return { status: res.status, json };
 }
 
+/** Bodyless request without a JSON content-type (so Fastify does not reject it before routing). */
+async function noBody(method: string, url: string, token?: string): Promise<{ status: number; json: any }> {
+  const res = await fetch(url, {
+    method,
+    headers: { host: 'ilmnet.example', ...(token ? { 'x-admin-token': token } : {}) },
+  });
+  const json = await res.json().catch(() => ({}));
+  return { status: res.status, json };
+}
+
 async function main() {
   const { app, base } = await prodApp();
   const createdIds: string[] = [];
@@ -173,9 +183,46 @@ async function main() {
     }
 
     console.log('\n--- 4. Upload hardening ---');
-    const traversal = await raw('DELETE', `${base}/api/admin/uploads/${encodeURIComponent('../../.env')}`, undefined, TOKEN);
+    const traversal = await noBody('DELETE', `${base}/api/admin/uploads/${encodeURIComponent('../../.env')}`, TOKEN);
     check(traversal.status === 404 || traversal.status === 400, `path traversal in DELETE upload is blocked (${traversal.status})`);
     check(fs.existsSync(path.join(process.cwd(), '.env')), '.env file untouched after traversal attempt');
+
+    const traversalEncoded = await noBody('DELETE', `${base}/api/admin/uploads/..%2F..%2FSENTINEL.txt`, TOKEN);
+    check(
+      traversalEncoded.status === 400 && traversalEncoded.json?.error?.code === 'INVALID_FILENAME',
+      `percent-encoded traversal is rejected with INVALID_FILENAME (${traversalEncoded.status} ${traversalEncoded.json?.error?.code})`,
+    );
+    check(
+      !fs.existsSync(path.join(getUploadsDir(), 'SENTINEL.txt')),
+      'traversal attempt did not delete a same-named file inside the uploads dir',
+    );
+
+    // a real upload must still be deletable (the strict check does not break normal use)
+    const pngBody = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg==',
+      'base64',
+    );
+    const boundary = '----ilmnetProduction' + Date.now();
+    const multipart = Buffer.concat([
+      Buffer.from(
+        `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="delete-me.png"\r\nContent-Type: image/png\r\n\r\n`,
+      ),
+      pngBody,
+      Buffer.from(`\r\n--${boundary}--\r\n`),
+    ]);
+    const uploadRes = await fetch(`${base}/api/admin/uploads`, {
+      method: 'POST',
+      headers: { 'content-type': `multipart/form-data; boundary=${boundary}`, 'x-admin-token': TOKEN },
+      body: multipart,
+    });
+    const uploadJson = await uploadRes.json().catch(() => ({}));
+    const filename = uploadJson?.data?.filename;
+    check(uploadRes.status === 201 && Boolean(filename), `upload for delete-check created (${uploadRes.status})`);
+    if (filename) {
+      const removable = await noBody('DELETE', `${base}/api/admin/uploads/${filename}`, TOKEN);
+      check(removable.status === 200, `a genuine upload is still deletable (${removable.status})`);
+      check(!fs.existsSync(path.join(getUploadsDir(), filename)), 'deleted upload is gone from disk');
+    }
 
     const traversalStatic = await raw('GET', `${base}/uploads/${encodeURIComponent('../.env')}`);
     check(traversalStatic.status === 404 || traversalStatic.status === 400, `static /uploads traversal blocked (${traversalStatic.status})`);

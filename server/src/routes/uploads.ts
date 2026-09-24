@@ -89,15 +89,22 @@ export async function uploadRoutes(app: FastifyInstance) {
 
   app.delete('/api/admin/uploads/:filename', async (req, reply) => {
     const { filename } = req.params as { filename: string };
+    // Strict: only the plain filenames this API generates (no separators, no '..', no dotfiles,
+    // no percent-encodings). A path-like value is rejected instead of being silently reduced to
+    // its basename, so a traversal attempt can never target something inside the uploads dir.
+    if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(filename) || filename.includes('..')) {
+      return reply.code(400).send({
+        error: { code: 'INVALID_FILENAME', message: 'Invalid upload filename.' },
+      });
+    }
     const dir = ensureUploadsDir();
-    const safe = path.basename(filename);
-    const target = path.join(dir, safe);
-    // defence in depth: never leave the uploads directory, only delete image files
+    const target = path.join(dir, filename);
+    // defence in depth: never leave the uploads directory, only delete regular files
     if (path.dirname(target) !== dir || !fs.existsSync(target) || !fs.statSync(target).isFile()) {
-      return reply.code(404).send({ error: { code: 'NOT_FOUND', message: `Upload ${safe} not found` } });
+      return reply.code(404).send({ error: { code: 'NOT_FOUND', message: `Upload ${filename} not found` } });
     }
     fs.unlinkSync(target);
-    return reply.send({ data: { deleted: safe } });
+    return reply.send({ data: { deleted: filename } });
   });
 
   app.get('/api/admin/uploads', async () => {

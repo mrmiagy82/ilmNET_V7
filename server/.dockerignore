@@ -1,0 +1,16 @@
+# Never bake secrets, local state or build output into the image.
+# The runtime image only needs: prisma/, dist/ (from the build stage) and package.json.
+.env
+.env.*
+!.env.example
+node_modules
+dist
+uploads
+.git
+.gitignore
+*.log
+*.md
+test
+Dockerfile
+docker-compose.yml
+.dockerignore

@@ -110,6 +110,15 @@ async function main() {
     ],
   });
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  // Admin CMS runs against a token-protected server in production mode: the operator pastes the
+  // token in the admin panel (sessionStorage) — the harness does the same, with the real token.
+  await context.addInitScript((token) => {
+    try {
+      window.sessionStorage.setItem('ilmnet.adminToken', token);
+    } catch {
+      /* storage unavailable */
+    }
+  }, TOKEN);
   const page = await context.newPage();
 
   try {
