@@ -1,5 +1,7 @@
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Aurora from './Aurora';
+import { listPublicScholars, listPublishedContents } from '../lib/api';
 
 function PlayIcon({ className = '' }: { className?: string }) {
   return (
@@ -9,24 +11,34 @@ function PlayIcon({ className = '' }: { className?: string }) {
   );
 }
 
+function EqualizerIcon({ className = '' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+      <path d="M6 10v4M12 6v12M18 9v6" />
+    </svg>
+  );
+}
+
 const bars = [14, 26, 38, 22, 44, 30, 52, 36, 24, 42, 18, 32, 46, 26, 16, 34, 22, 40, 28, 18];
 
+/**
+ * Decorative surface: it shows what the player looks like, with no invented episode,
+ * duration or playback position — the real player only shows real values.
+ */
 function LectureSurface() {
   return (
     <div className="bg-cream neu-float relative rounded-[36px] p-6 sm:p-8">
       <div className="flex items-center gap-4">
         <div className="bg-sand neu-inset-sm grid h-12 w-12 shrink-0 place-items-center rounded-2xl">
-          <span className="font-display text-olive-deep text-sm font-extrabold">04</span>
+          <EqualizerIcon className="h-5 w-5 text-olive-deep" />
         </div>
         <div className="min-w-0">
           <p className="text-ink-muted text-[0.7rem] font-semibold tracking-[0.18em] uppercase">Player preview</p>
-          <p className="font-display text-ink truncate text-[1.05rem] font-bold tracking-tight">
-            Uṣūl al-Fiqh · The Sources
-          </p>
+          <p className="font-display text-ink truncate text-[1.05rem] font-bold tracking-tight">Lecture audio</p>
         </div>
       </div>
 
-      <div className="mt-7 flex h-16 items-end gap-[3px]">
+      <div className="mt-7 flex h-16 items-end gap-[3px]" aria-hidden="true">
         {bars.map((h, i) => (
           <span
             key={i}
@@ -37,41 +49,65 @@ function LectureSurface() {
       </div>
 
       <div className="mt-6 flex items-center gap-4">
-        <button className="bg-sand neu-raised-sm text-rose grid h-14 w-14 shrink-0 place-items-center rounded-full transition-transform hover:scale-[1.04] active:scale-95">
+        <span className="bg-sand neu-inset-sm text-rose grid h-14 w-14 shrink-0 place-items-center rounded-full" aria-hidden="true">
           <PlayIcon className="h-6 w-6" />
-        </button>
-        <div className="w-full">
-          <div className="bg-sand neu-inset-sm h-2.5 w-full rounded-full">
-            <div className="bg-rose h-2.5 w-[42%] rounded-full" />
-          </div>
-          <div className="text-ink-muted mt-2 flex justify-between text-[0.72rem] font-medium">
-            <span>18:24</span>
-            <span>43:50</span>
-          </div>
-        </div>
+        </span>
+        <p className="text-ink-muted text-[0.78rem] leading-relaxed">
+          The real player streams the source audio and draws the waveform from the live signal.
+        </p>
       </div>
     </div>
   );
 }
 
+/** Decorative surface: a book card, without an invented title or invented reading position. */
 function BookSurface() {
   return (
     <div className="bg-sand neu-raised w-[190px] rounded-[26px] p-5 sm:w-[215px]">
-      <div className="flex gap-1.5">
+      <div className="flex gap-1.5" aria-hidden="true">
         <span className="bg-olive h-16 w-4 rounded-[4px]" />
         <span className="bg-rose/80 h-16 w-3 rounded-[4px]" />
         <span className="bg-ink/70 h-16 w-2.5 rounded-[4px]" />
         <span className="bg-olive/50 h-16 w-3.5 rounded-[4px]" />
       </div>
-      <p className="font-display text-ink mt-4 text-[0.98rem] leading-tight font-bold tracking-tight">
-        The Book of Knowledge
-      </p>
-      <p className="text-ink-muted mt-1.5 text-[0.78rem]">Chapter 3 · 62 pages left</p>
+      <p className="font-display text-ink mt-4 text-[0.98rem] leading-tight font-bold tracking-tight">Book preview</p>
+      <p className="text-ink-muted mt-1.5 text-[0.78rem]">Scans stay on Archive.org</p>
     </div>
   );
 }
 
 export default function Hero() {
+  // Real library counts. Rendered only once the API has answered; while loading or on
+  // failure the row is absent — the landing page never invents a number.
+  const [counts, setCounts] = useState<{ lectures: number; books: number; scholars: number } | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        // The server counts, so the numbers stay correct beyond one page of results.
+        const [lecRes, bookRes, schRes] = await Promise.all([
+          listPublishedContents({ limit: 1, type: 'lecture,video,audio' }),
+          listPublishedContents({ limit: 1, type: 'book,document' }),
+          listPublicScholars(),
+        ]);
+        if (!alive) return;
+        setCounts({
+          lectures: lecRes.pagination.total,
+          books: bookRes.pagination.total,
+          scholars: schRes.data.length,
+        });
+      } catch {
+        // No data → no numbers. Never a placeholder count.
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const showCounts = counts && counts.lectures + counts.books + counts.scholars > 0;
+
   return (
     <section id="top" className="relative overflow-hidden pt-32 pb-20 sm:pt-40 lg:pt-44 lg:pb-32">
       {/* Atmospheric aurora */}
@@ -120,18 +156,20 @@ export default function Hero() {
             </a>
           </div>
 
-          <dl className="border-line/80 mt-12 flex max-w-[460px] gap-8 border-t pt-7 sm:gap-12">
-            {[
-              ['1,240+', 'Lectures'],
-              ['380', 'Books'],
-              ['96', 'Scholars'],
-            ].map(([n, l]) => (
-              <div key={l}>
-                <dt className="font-display text-ink text-[1.5rem] font-extrabold tracking-tight">{n}</dt>
-                <dd className="text-ink-muted mt-1 text-[0.82rem] font-medium tracking-[0.08em] uppercase">{l}</dd>
-              </div>
-            ))}
-          </dl>
+          {showCounts && (
+            <dl className="border-line/80 mt-12 flex max-w-[460px] gap-8 border-t pt-7 sm:gap-12">
+              {[
+                [String(counts!.lectures), 'Lectures'],
+                [String(counts!.books), 'Books'],
+                [String(counts!.scholars), 'Scholars'],
+              ].map(([n, l]) => (
+                <div key={l}>
+                  <dt className="font-display text-ink text-[1.5rem] font-extrabold tracking-tight">{n}</dt>
+                  <dd className="text-ink-muted mt-1 text-[0.82rem] font-medium tracking-[0.08em] uppercase">{l}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
         </div>
 
         {/* Spatial composite */}
@@ -155,8 +193,8 @@ export default function Hero() {
                 </svg>
               </span>
               <div>
-                <p className="font-display text-ink text-[0.88rem] font-bold">Ḥadīth · Series 2</p>
-                <p className="text-ink-muted text-[0.74rem]">Continue where you left off</p>
+                <p className="font-display text-ink text-[0.88rem] font-bold">Scholar · Subject · Series</p>
+                <p className="text-ink-muted text-[0.74rem]">Every item is attributed and grouped</p>
               </div>
             </div>
           </div>

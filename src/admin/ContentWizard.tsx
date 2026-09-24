@@ -347,7 +347,7 @@ export default function ContentWizard() {
                     : bookSource === 'archive'
                       ? 'Example: https://archive.org/details/… — the scan stays on Archive.org, we only embed the reader.'
                       : bookSource === 'pdf'
-                        ? 'Example: https://publisher.example/books/title.pdf'
+                        ? 'A direct link ending in .pdf — it will be embedded in a reader.'
                         : 'Any http(s) URL. We will link, not re-host.'
                 }
               >
@@ -721,7 +721,7 @@ export default function ContentWizard() {
         </div>
 
         <p className="text-ink-muted text-center text-[0.76rem]">
-          Step {step} of 9 · <span className="font-semibold">{stepTitle}</span> {step < 9 && '· nothing is permanent yet — this is still frontend only.'}
+          Step {step} of 9 · <span className="font-semibold">{stepTitle}</span> {step < 9 && '· nothing is saved until the final step.'}
         </p>
       </div>
     </div>

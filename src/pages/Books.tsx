@@ -225,7 +225,7 @@ export default function Books() {
         eyebrow="Read & Reflect"
         title="Books"
         intro="Classical texts and contemporary works — search by title, subject or scholar. Filters are shareable via the URL."
-        meta={<StatRow items={[{ value: loading ? '—' : `${series.length + standalone.length}`, label: 'Items' }, { value: loading ? '—' : `${series.length}`, label: 'Collections' }, { value: 'Free', label: 'To read' }]} />}
+        meta={<StatRow items={[{ value: loading || error ? '—' : `${contents.length}`, label: 'Items' }, { value: loading || error ? '—' : `${series.length}`, label: 'Collections' }, { value: 'Free', label: 'To read' }]} />}
       />
 
       <section className="px-5 pb-24 sm:px-6 lg:pb-32">

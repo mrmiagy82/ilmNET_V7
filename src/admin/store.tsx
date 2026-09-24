@@ -13,6 +13,9 @@ import * as api from '@/lib/api';
 
 type Kind = Activity['kind'];
 
+/** Why the admin API is not usable right now — an auth problem is not a network problem. */
+export type BackendState = 'connecting' | 'online' | 'unauthenticated' | 'offline';
+
 interface AdminStore {
   lectures: AdminLecture[];
   books: AdminBook[];
@@ -21,6 +24,8 @@ interface AdminStore {
   activity: Activity[];
   notice: string | null;
   apiOnline: boolean;
+  apiAuthError: boolean;
+  backendState: BackendState;
   loading: boolean;
   clearNotice: () => void;
   flash: (msg: string) => void;
@@ -69,6 +74,16 @@ function toAdminSubject(s: api.BackendSubject): AdminSubject {
   };
 }
 
+type Settled<T> = { ok: true; value: T } | { ok: false; status?: number };
+
+async function settle<T>(p: Promise<T>): Promise<Settled<T>> {
+  try {
+    return { ok: true, value: await p };
+  } catch (e: any) {
+    return { ok: false, status: typeof e?.status === 'number' ? e.status : undefined };
+  }
+}
+
 export function AdminProvider({ children }: { children: ReactNode }) {
   const [lectures, setLectures] = useState<AdminLecture[]>([]);
   const [books, setBooks] = useState<AdminBook[]>([]);
@@ -77,49 +92,46 @@ export function AdminProvider({ children }: { children: ReactNode }) {
   // Activity reflects real actions in this session only — never seeded with demo entries.
   const [activity, setActivity] = useState<Activity[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
-  const [apiOnline, setApiOnline] = useState(false);
+  const [backendState, setBackendState] = useState<BackendState>('connecting');
   const [loading, setLoading] = useState(true);
 
   const push = (entry: Activity) => setActivity((prev) => [entry, ...prev].slice(0, 14));
   const flash = (msg: string) => setNotice(msg);
 
   const refresh = async () => {
-    try {
-      const [schRes, subRes, contRes] = await Promise.all([
-        api.listAdminScholars().catch(() => null),
-        api.listAdminSubjects().catch(() => null),
-        api.listAdminContents({ limit: 100 }).catch(() => null),
-      ]);
-      if (schRes && subRes && contRes) {
-        // map scholars/subjects
-        setScholars(schRes.data.map(toAdminScholar));
-        setSubjects(subRes.data.map(toAdminSubject));
-        const all = contRes.data as api.BackendContent[];
-        const lecTypes = new Set(['lecture', 'audio', 'video']);
-        const bookTypes = new Set(['book', 'document']);
-        const l: AdminLecture[] = [];
-        const b: AdminBook[] = [];
-        for (const c of all) {
-          if (lecTypes.has(c.type)) l.push(api.backendToAdminLecture(c));
-          else if (bookTypes.has(c.type)) b.push(api.backendToAdminBook(c));
-          else {
-            // fallback: if provider youtube => lecture else book
-            if (c.provider === 'youtube') l.push(api.backendToAdminLecture(c));
-            else b.push(api.backendToAdminBook(c));
-          }
+    const [schRes, subRes, contRes] = await Promise.all([
+      settle(api.listAdminScholars()),
+      settle(api.listAdminSubjects()),
+      settle(api.listAdminContents({ limit: 100 })),
+    ]);
+
+    if (schRes.ok && subRes.ok && contRes.ok) {
+      setScholars(schRes.value.data.map(toAdminScholar));
+      setSubjects(subRes.value.data.map(toAdminSubject));
+      const all = contRes.value.data as api.BackendContent[];
+      const lecTypes = new Set(['lecture', 'audio', 'video']);
+      const bookTypes = new Set(['book', 'document']);
+      const l: AdminLecture[] = [];
+      const b: AdminBook[] = [];
+      for (const c of all) {
+        if (lecTypes.has(c.type)) l.push(api.backendToAdminLecture(c));
+        else if (bookTypes.has(c.type)) b.push(api.backendToAdminBook(c));
+        else {
+          // fallback: if provider youtube => lecture else book
+          if (c.provider === 'youtube') l.push(api.backendToAdminLecture(c));
+          else b.push(api.backendToAdminBook(c));
         }
-        // sort by updatedAt desc (backend already)
-        setLectures(l);
-        setBooks(b);
-        setApiOnline(true);
-      } else {
-        setApiOnline(false);
       }
-    } catch {
-      setApiOnline(false);
-    } finally {
-      setLoading(false);
+      // sort by updatedAt desc (backend already)
+      setLectures(l);
+      setBooks(b);
+      setBackendState('online');
+    } else {
+      const status = [schRes, subRes, contRes].find((r) => !r.ok && r.status !== undefined) as { status?: number } | undefined;
+      const code = status?.status;
+      setBackendState(code === 401 || code === 403 ? 'unauthenticated' : 'offline');
     }
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -128,12 +140,23 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // wrappers removed — direct API calls handle fallback per action
+  const apiOnline = backendState === 'online';
+  const apiAuthError = backendState === 'unauthenticated';
 
-  const offline = (what: string) =>
-    flash(`${what} failed — the backend is unreachable. Nothing was written to the database.`);
-  const failure = (what: string, e: any) =>
+  /** A rejected token is an authentication problem, not a broken backend — say so. */
+  const blocked = (what: string) => {
+    if (apiAuthError) {
+      return flash(`${what} failed — the admin token was rejected (401). Set a valid token; nothing was written to the database.`);
+    }
+    flash(`${what} failed — the backend is not reachable. Nothing was written to the database.`);
+  };
+  const failure = (what: string, e: any) => {
+    if (e?.status === 401 || e?.status === 403) {
+      setBackendState('unauthenticated');
+      return flash(`${what} failed — the admin token was rejected (401). Nothing was written to the database.`);
+    }
     flash(`${what} failed — ${e?.message ?? 'API error'}. Nothing was written to the database.`);
+  };
 
   const value = useMemo<AdminStore>(
     () => ({
@@ -144,25 +167,24 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       activity,
       notice,
       apiOnline,
+      apiAuthError,
+      backendState,
       loading,
       clearNotice: () => setNotice(null),
       flash,
       refresh,
       upsertLecture: (item, verb) => {
         const isNew = !lectures.find((x) => x.id === item.id);
-        if (!apiOnline) return offline('Saving');
+        if (!apiOnline) return blocked('Saving');
         const before = lectures;
-        const doLocal = () => {
-          setLectures((prev) => {
-            const i = prev.findIndex((x) => x.id === item.id);
-            if (i === -1) return [item, ...prev];
-            const next = [...prev];
-            next[i] = item;
-            return next;
-          });
-          push(log(verb, 'lecture', item.title));
-        };
-        doLocal(); // optimistic — reverted below if the write fails
+        // Optimistic list update only. The activity feed is written after the database confirmed it.
+        setLectures((prev) => {
+          const i = prev.findIndex((x) => x.id === item.id);
+          if (i === -1) return [item, ...prev];
+          const next = [...prev];
+          next[i] = item;
+          return next;
+        });
         (async () => {
           try {
             const payload = api.adminLectureToPayload(item);
@@ -173,6 +195,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
               await api.patchContent(item.id, { ...payload, title: item.title });
               flash('Lecture updated in database.');
             }
+            push(log(verb, 'lecture', item.title));
             await refresh();
           } catch (e: any) {
             setLectures(before);
@@ -181,36 +204,40 @@ export function AdminProvider({ children }: { children: ReactNode }) {
         })();
       },
       deleteLecture: (id) => {
-        if (!apiOnline) return offline('Deleting');
+        if (!apiOnline) return blocked('Deleting');
         const item = lectures.find((x) => x.id === id);
         const before = lectures;
         setLectures((prev) => prev.filter((x) => x.id !== id));
-        if (item) push(log('Removed', 'lecture', item.title));
-        flash('Lecture removed.');
         api
           .deleteContent(id, true)
-          .then(() => refresh())
+          .then(async () => {
+            if (item) push(log('Removed', 'lecture', item.title));
+            flash('Lecture removed.');
+            await refresh();
+          })
           .catch((e: any) => {
             setLectures(before);
             failure('Deleting', e);
           });
       },
       setLectureStatus: (id, status) => {
-        if (!apiOnline) return offline('Publishing');
+        if (!apiOnline) return blocked('Changing the status');
         const item = lectures.find((x) => x.id === id);
         const before = lectures;
         setLectures((prev) => prev.map((x) => (x.id === id ? { ...x, status, updatedAt: todayStamp() } : x)));
-        if (item) {
-          push(log(status === 'published' ? 'Published' : 'Unpublished', 'lecture', item.title));
+        const verb: Activity['verb'] = status === 'published' ? 'Published' : 'Unpublished';
+        const confirmed = async () => {
+          if (item) push(log(verb, 'lecture', item.title));
           flash(status === 'published' ? 'Lecture published.' : 'Lecture unpublished.');
-        }
+          await refresh();
+        };
         const fn = status === 'published' ? api.publishContent : api.unpublishContent;
         fn(id)
-          .then(() => refresh())
+          .then(confirmed)
           .catch(async () => {
             try {
               await api.patchContent(id, { status });
-              await refresh();
+              await confirmed();
             } catch (e: any) {
               setLectures(before);
               failure('Changing the status', e);
@@ -219,19 +246,15 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       },
       upsertBook: (item, verb) => {
         const isNew = !books.find((x) => x.id === item.id);
-        if (!apiOnline) return offline('Saving');
+        if (!apiOnline) return blocked('Saving');
         const before = books;
-        const doLocal = () => {
-          setBooks((prev) => {
-            const i = prev.findIndex((x) => x.id === item.id);
-            if (i === -1) return [item, ...prev];
-            const next = [...prev];
-            next[i] = item;
-            return next;
-          });
-          push(log(verb, 'book', item.title));
-        };
-        doLocal();
+        setBooks((prev) => {
+          const i = prev.findIndex((x) => x.id === item.id);
+          if (i === -1) return [item, ...prev];
+          const next = [...prev];
+          next[i] = item;
+          return next;
+        });
         (async () => {
           try {
             const payload = api.adminBookToPayload(item);
@@ -242,6 +265,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
               await api.patchContent(item.id, { ...payload, title: item.title });
               flash('Book updated in database.');
             }
+            push(log(verb, 'book', item.title));
             await refresh();
           } catch (e: any) {
             setBooks(before);
@@ -250,36 +274,40 @@ export function AdminProvider({ children }: { children: ReactNode }) {
         })();
       },
       deleteBook: (id) => {
-        if (!apiOnline) return offline('Deleting');
+        if (!apiOnline) return blocked('Deleting');
         const item = books.find((x) => x.id === id);
         const before = books;
         setBooks((prev) => prev.filter((x) => x.id !== id));
-        if (item) push(log('Removed', 'book', item.title));
-        flash('Book removed.');
         api
           .deleteContent(id, true)
-          .then(() => refresh())
+          .then(async () => {
+            if (item) push(log('Removed', 'book', item.title));
+            flash('Book removed.');
+            await refresh();
+          })
           .catch((e: any) => {
             setBooks(before);
             failure('Deleting', e);
           });
       },
       setBookStatus: (id, status) => {
-        if (!apiOnline) return offline('Publishing');
+        if (!apiOnline) return blocked('Changing the status');
         const item = books.find((x) => x.id === id);
         const before = books;
         setBooks((prev) => prev.map((x) => (x.id === id ? { ...x, status, updatedAt: todayStamp() } : x)));
-        if (item) {
-          push(log(status === 'published' ? 'Published' : 'Unpublished', 'book', item.title));
+        const verb: Activity['verb'] = status === 'published' ? 'Published' : 'Unpublished';
+        const confirmed = async () => {
+          if (item) push(log(verb, 'book', item.title));
           flash(status === 'published' ? 'Book published.' : 'Book unpublished.');
-        }
+          await refresh();
+        };
         const fn = status === 'published' ? api.publishContent : api.unpublishContent;
         fn(id)
-          .then(() => refresh())
+          .then(confirmed)
           .catch(async () => {
             try {
               await api.patchContent(id, { status });
-              await refresh();
+              await confirmed();
             } catch (e: any) {
               setBooks(before);
               failure('Changing the status', e);
@@ -288,19 +316,15 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       },
       upsertScholar: (item, verb) => {
         const isNew = !scholars.find((x) => x.id === item.id);
-        if (!apiOnline) return offline('Saving');
+        if (!apiOnline) return blocked('Saving');
         const before = scholars;
-        const doLocal = () => {
-          setScholars((prev) => {
-            const i = prev.findIndex((x) => x.id === item.id);
-            if (i === -1) return [item, ...prev];
-            const next = [...prev];
-            next[i] = item;
-            return next;
-          });
-          push(log(verb, 'scholar', item.name));
-        };
-        if (!isNew) doLocal();
+        setScholars((prev) => {
+          const i = prev.findIndex((x) => x.id === item.id);
+          if (i === -1) return [item, ...prev];
+          const next = [...prev];
+          next[i] = item;
+          return next;
+        });
         (async () => {
           try {
             const payload = { name: item.name, bio: item.bio, accent: item.accent, specialtyId: item.specialtyId || null };
@@ -320,32 +344,35 @@ export function AdminProvider({ children }: { children: ReactNode }) {
         })();
       },
       deleteScholar: (id) => {
-        if (!apiOnline) return offline('Deleting');
+        if (!apiOnline) return blocked('Deleting');
         const item = scholars.find((x) => x.id === id);
         const before = scholars;
         setScholars((prev) => prev.filter((x) => x.id !== id));
-        if (item) push(log('Removed', 'scholar', item.name));
-        flash('Scholar removed.');
         api
           .deleteScholar(id)
-          .then(() => refresh())
+          .then(async () => {
+            if (item) push(log('Removed', 'scholar', item.name));
+            flash('Scholar removed.');
+            await refresh();
+          })
           .catch((e: any) => {
             setScholars(before);
             failure('Deleting', e);
           });
       },
       setScholarStatus: (id, status) => {
-        if (!apiOnline) return offline('Publishing');
+        if (!apiOnline) return blocked('Changing the status');
         const item = scholars.find((x) => x.id === id);
         const before = scholars;
         setScholars((prev) => prev.map((x) => (x.id === id ? { ...x, status, updatedAt: todayStamp() } : x)));
-        if (item) {
-          push(log(status === 'published' ? 'Published' : 'Unpublished', 'scholar', item.name));
-          flash(status === 'published' ? 'Scholar published.' : 'Scholar unpublished.');
-        }
+        const verb: Activity['verb'] = status === 'published' ? 'Published' : 'Unpublished';
         api
           .patchScholar(id, { status })
-          .then(() => refresh())
+          .then(async () => {
+            if (item) push(log(verb, 'scholar', item.name));
+            flash(status === 'published' ? 'Scholar published.' : 'Scholar unpublished.');
+            await refresh();
+          })
           .catch((e: any) => {
             setScholars(before);
             failure('Changing the status', e);
@@ -353,19 +380,15 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       },
       upsertSubject: (item, verb) => {
         const isNew = !subjects.find((x) => x.id === item.id);
-        if (!apiOnline) return offline('Saving');
+        if (!apiOnline) return blocked('Saving');
         const before = subjects;
-        const doLocal = () => {
-          setSubjects((prev) => {
-            const i = prev.findIndex((x) => x.id === item.id);
-            if (i === -1) return [item, ...prev];
-            const next = [...prev];
-            next[i] = item;
-            return next;
-          });
-          push(log(verb, 'subject', item.name));
-        };
-        if (!isNew) doLocal();
+        setSubjects((prev) => {
+          const i = prev.findIndex((x) => x.id === item.id);
+          if (i === -1) return [item, ...prev];
+          const next = [...prev];
+          next[i] = item;
+          return next;
+        });
         (async () => {
           try {
             const payload = { name: item.name, group: item.group, description: item.description, accent: item.accent };
@@ -385,39 +408,42 @@ export function AdminProvider({ children }: { children: ReactNode }) {
         })();
       },
       deleteSubject: (id) => {
-        if (!apiOnline) return offline('Deleting');
+        if (!apiOnline) return blocked('Deleting');
         const item = subjects.find((x) => x.id === id);
         const before = subjects;
         setSubjects((prev) => prev.filter((x) => x.id !== id));
-        if (item) push(log('Removed', 'subject', item.name));
-        flash('Subject removed.');
         api
           .deleteSubject(id)
-          .then(() => refresh())
+          .then(async () => {
+            if (item) push(log('Removed', 'subject', item.name));
+            flash('Subject removed.');
+            await refresh();
+          })
           .catch((e: any) => {
             setSubjects(before);
             failure('Deleting', e);
           });
       },
       setSubjectStatus: (id, status) => {
-        if (!apiOnline) return offline('Publishing');
+        if (!apiOnline) return blocked('Changing the status');
         const item = subjects.find((x) => x.id === id);
         const before = subjects;
         setSubjects((prev) => prev.map((x) => (x.id === id ? { ...x, status, updatedAt: todayStamp() } : x)));
-        if (item) {
-          push(log(status === 'published' ? 'Published' : 'Unpublished', 'subject', item.name));
-          flash(status === 'published' ? 'Subject published.' : 'Subject unpublished.');
-        }
+        const verb: Activity['verb'] = status === 'published' ? 'Published' : 'Unpublished';
         api
           .patchSubject(id, { status })
-          .then(() => refresh())
+          .then(async () => {
+            if (item) push(log(verb, 'subject', item.name));
+            flash(status === 'published' ? 'Subject published.' : 'Subject unpublished.');
+            await refresh();
+          })
           .catch((e: any) => {
             setSubjects(before);
             failure('Changing the status', e);
           });
       },
     }),
-    [lectures, books, scholars, subjects, activity, notice, apiOnline, loading]
+    [lectures, books, scholars, subjects, activity, notice, apiOnline, apiAuthError, backendState, loading]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

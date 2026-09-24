@@ -217,13 +217,6 @@ export default function YouTubeImportPage() {
             <Field label="YouTube URL" required hint="Supports youtube.com/watch?v=, youtu.be/, youtube.com/shorts/, youtube.com/embed/, and youtube.com/playlist?list= for collections">
               <TextInput value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://www.youtube.com/watch?v=..." inputMode="url" />
             </Field>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <button type="button" onClick={() => setUrl('https://www.youtube.com/watch?v=dQw4w9WgXcQ')} className="bg-cream neu-raised-sm rounded-full px-3 py-1.5 text-[0.78rem] font-medium">Live demo: single video</button>
-              <button type="button" onClick={() => setUrl('https://www.youtube.com/playlist?list=PLMC9KNkIncKtPzgY-5rmhvj7fax8fdxoj')} className="bg-cream neu-raised-sm rounded-full px-3 py-1.5 text-[0.78rem] font-medium">Live: playlist (PLMC...)</button>
-              <button type="button" onClick={() => setUrl('https://youtu.be/dQw4w9WgXcQ')} className="bg-cream neu-raised-sm rounded-full px-3 py-1.5 text-[0.78rem] font-medium">Test: youtu.be</button>
-              <button type="button" onClick={() => setUrl('https://www.youtube.com/shorts/dQw4w9WgXcQ')} className="bg-cream neu-raised-sm rounded-full px-3 py-1.5 text-[0.78rem] font-medium">Test: shorts</button>
-              <button type="button" onClick={() => setUrl('https://www.youtube.com/embed/dQw4w9WgXcQ')} className="bg-cream neu-raised-sm rounded-full px-3 py-1.5 text-[0.78rem] font-medium">Test: embed</button>
-            </div>
             {providerNote && <p className={`mt-3 text-[0.82rem] font-medium ${providerNote.includes('failed') || providerNote.includes('Duplicates') ? 'text-rose' : 'text-olive-deep'}`}>{providerNote}</p>}
             {loading && <p className="text-ink-muted mt-3 text-[0.82rem]">Fetching YouTube metadata — watch page scrape + oEmbed, playlist via lockupViewModel (max 100, dedup), 7s timeout per request…</p>}
           </div>

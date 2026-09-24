@@ -116,7 +116,7 @@ export default function Scholars() {
         eyebrow="Learn From"
         title="Scholars"
         intro="Every item on ilmNet is traced back to its teacher. Follow a scholar's full body of work — lectures and books gathered in one place."
-        meta={<StatRow items={[{ value: loading ? '—' : `${scholars.length}`, label: 'Scholars' }, { value: loading ? '—' : `${subjects.length}`, label: 'Fields' }, { value: 'Free', label: 'Access' }]} />}
+        meta={<StatRow items={[{ value: loading || error ? '—' : `${scholars.length}`, label: 'Scholars' }, { value: loading || error ? '—' : `${subjects.length}`, label: 'Fields' }, { value: 'Free', label: 'Access' }]} />}
       />
 
       <section className="px-5 pb-24 sm:px-6 lg:pb-32">

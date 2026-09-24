@@ -146,7 +146,10 @@ function SeriesNav({ c }: { c: BackendContent }) {
           setSiblings(filtered.slice(0, 6));
         }
       })
-      .catch(() => {})
+      .catch(() => {
+        // The sibling list is a convenience block: on failure we show nothing rather than stale items.
+        if (!cancelled) setSiblings([]);
+      })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [c.collectionIdentifier, c.id]);

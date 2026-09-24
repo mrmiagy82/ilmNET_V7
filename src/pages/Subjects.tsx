@@ -109,7 +109,7 @@ export default function Subjects() {
         eyebrow="Browse by subject"
         title="Subjects"
         intro="Start from what you want to understand. Choose a discipline and ilmNet gathers every lecture, book and series that belongs to it — grouped the way the tradition already is."
-        meta={<StatRow items={[{ value: loading ? '—' : `${subjects.length}`, label: 'Subjects' }, { value: loading ? '—' : formatCount(totalLectures), label: 'Lectures' }, { value: loading ? '—' : `${totalBooks}`, label: 'Books' }]} />}
+        meta={<StatRow items={[{ value: loading || error ? '—' : `${subjects.length}`, label: 'Subjects' }, { value: loading || error ? '—' : formatCount(totalLectures), label: 'Lectures' }, { value: loading || error ? '—' : `${totalBooks}`, label: 'Books' }]} />}
       />
 
       <section className="px-5 pb-24 sm:px-6 lg:pb-32">

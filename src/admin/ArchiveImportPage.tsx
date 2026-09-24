@@ -239,11 +239,6 @@ export default function ArchiveImportPage() {
             <Field label="Archive.org URL" required hint="Supports /details/<identifier>, /embed/<identifier>, /search.php?query=… and collection pages. YouTube stays separate.">
               <TextInput value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://archive.org/details/…" inputMode="url" />
             </Field>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <button type="button" onClick={() => setUrl('https://archive.org/details/commute')} className="bg-cream neu-raised-sm rounded-full px-3 py-1.5 text-[0.78rem] font-medium">Live demo: commute (video)</button>
-              <button type="button" onClick={() => setUrl('https://archive.org/details/etree')} className="bg-cream neu-raised-sm rounded-full px-3 py-1.5 text-[0.78rem] font-medium">Live: etree collection</button>
-              <button type="button" onClick={() => setUrl('https://archive.org/details/prelinger')} className="bg-cream neu-raised-sm rounded-full px-3 py-1.5 text-[0.78rem] font-medium">Live: prelinger (movies)</button>
-            </div>
             {providerNote && <p className={`mt-3 text-[0.82rem] font-medium ${providerNote.includes('failed') || providerNote.includes('Duplicates') ? 'text-rose' : 'text-olive-deep'}`}>{providerNote}</p>}
             {loading && <p className="text-ink-muted mt-3 text-[0.82rem]">Fetching Archive.org metadata — single items are fast, collections may take several seconds (up to 100 items, concurrency limited)…</p>}
           </div>

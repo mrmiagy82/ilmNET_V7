@@ -26,9 +26,9 @@ export default function Overview() {
   return (
     <div className="mx-auto max-w-[1080px] space-y-10">
       <PageIntro
-        eyebrow="Library desk — frontend only"
+        eyebrow="Library desk"
         title="Admin overview"
-        intro="The public ilmNet library stays free and needs no login. Here you curate everything that appears there — YouTube (videos/playlists) and Archive.org — now as a generic provider for lectures, audio, video, books, documents and mixed collections. Bulk import can turn one Archive.org link into 100 separate records. Nothing is written to a server yet."
+        intro="The public ilmNet library stays free and needs no login. Everything you curate here — YouTube (videos/playlists) and Archive.org — is saved to the PostgreSQL library as lectures, audio, video, books, documents and mixed collections, and appears on the public site as soon as it is published. Bulk import can turn one Archive.org link into up to 100 separate records."
         action={
           <div className="flex flex-col gap-2.5">
             <PrimaryButton to="/admin/archive-import">Archive.org Bulk Import</PrimaryButton>
@@ -205,10 +205,6 @@ export default function Overview() {
             <p className="text-ink-muted mt-3 px-2 text-[0.78rem]">
               {draftB} book {draftB === 1 ? 'draft' : 'drafts'} · {draftL} lecture {draftL === 1 ? 'draft' : 'drafts'} · {pubL + pubB} published
             </p>
-          </div>
-          <div className="mt-4 rounded-[20px] bg-cream neu-raised-sm p-4">
-            <p className="text-ink-muted text-[0.72rem] font-semibold tracking-[0.14em] uppercase">Tip for reviewers</p>
-            <p className="text-ink-soft mt-2 text-[0.86rem] leading-relaxed">Try <Link to="/admin/archive-import" className="text-rose font-semibold underline decoration-rose/30">Archive.org Bulk Import</Link> with “100 items” to see the detection banner and per-item configuration. Single YouTube flows remain at <Link to="/admin/new" className="text-rose font-semibold underline decoration-rose/30">Add content</Link>.</p>
           </div>
         </section>
       </div>

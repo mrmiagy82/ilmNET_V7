@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import PageHeader from '../components/PageHeader';
 import { SearchBar, FilterChips, Tag, EmptyState, StatRow } from '../components/ui';
-import { formatCount, formatDuration } from '../data';
+import { formatDuration } from '../data';
 import { listPublishedContents, listPublicScholars, listPublicSubjects, type BackendContent, type BackendScholar, type BackendSubject } from '@/lib/api';
 import { groupByCollection, type SeriesGroup } from '@/lib/series';
 import { resolveThumbnail } from '@/lib/thumbnail';
@@ -235,7 +235,6 @@ export default function Lectures() {
 
   const hasActiveFilters = urlQ || urlScholar !== 'all' || urlSubject !== 'all' || format !== 'all';
   const { series, standalone } = useMemo(() => groupByCollection(contents), [contents]);
-  const totalListens = contents.length * 120;
 
   function clearAll() {
     setInputQ('');
@@ -251,9 +250,9 @@ export default function Lectures() {
         meta={
           <StatRow
             items={[
-              { value: loading ? '—' : `${series.length + standalone.length}`, label: 'Items' },
-              { value: loading ? '—' : `${series.length}`, label: 'Series' },
-              { value: loading ? '—' : formatCount(totalListens), label: 'Listens' },
+              { value: loading || error ? '—' : `${contents.length}`, label: 'Items' },
+              { value: loading || error ? '—' : `${series.length}`, label: 'Series' },
+              { value: 'Free', label: 'To listen' },
             ]}
           />
         }

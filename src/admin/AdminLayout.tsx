@@ -46,7 +46,16 @@ export default function AdminLayout() {
   const [open, setOpen] = useState(false);
   const [tokenSet, setTokenSet] = useState(() => hasAdminToken());
   const { pathname } = useLocation();
-  const { notice, clearNotice, refresh, apiOnline } = useAdmin();
+  const { notice, clearNotice, refresh, apiOnline, backendState } = useAdmin();
+
+  const connectionMessage =
+    backendState === 'online'
+      ? 'Connected to the PostgreSQL library. Writes require the admin token in production.'
+      : backendState === 'unauthenticated'
+        ? 'Admin token missing or rejected (401) — set a valid token to load and edit content.'
+        : backendState === 'connecting'
+          ? 'Connecting to the backend…'
+          : 'Backend unreachable — saving, publishing and deleting are disabled until it responds.';
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'auto' });
@@ -116,9 +125,7 @@ export default function AdminLayout() {
                           <p
                 className={`mt-3 text-[0.75rem] leading-relaxed ${apiOnline ? 'text-ink-muted/80' : 'text-rose font-semibold'}`}
               >
-                {apiOnline
-                  ? 'Connected to the PostgreSQL library. Writes require the admin token in production.'
-                  : 'Backend unreachable — saving, publishing and deleting are disabled until it responds.'}
+                {connectionMessage}
               </p>
             <p className="text-ink-muted/60 mt-2 text-[0.7rem]">Public site remains free & requires no login.</p>
           </div>
