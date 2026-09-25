@@ -42,18 +42,18 @@ enum SubjectGroup {
 // — Scholar —
 // specialtyId is optional FK to Subject, onDelete SetNull to avoid missing relation
 model Scholar {
-  id          String        @id @default(cuid())
-  slug        String        @unique
+  id          String           @id @default(cuid())
+  slug        String           @unique
   name        String
   initials    String?
   specialtyId String?
-  specialty   Subject?      @relation(fields: [specialtyId], references: [id], onDelete: SetNull)
-  bio         String?       @db.Text
-  accent      String?       // rose | olive — kept as string for flexibility
-  status      ContentStatus @default(published)
-  metadata    Json?         // extensible: any future scholar metadata
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  specialty   Subject?         @relation(fields: [specialtyId], references: [id], onDelete: SetNull)
+  bio         String?          @db.Text
+  accent      String? // rose | olive — kept as string for flexibility
+  status      ContentStatus    @default(published)
+  metadata    Json? // extensible: any future scholar metadata
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
   contents    ContentScholar[]
 
   @@index([status])
@@ -62,16 +62,16 @@ model Scholar {
 }
 
 model Subject {
-  id          String        @id @default(cuid())
-  slug        String        @unique
-  name        String        @unique
+  id          String           @id @default(cuid())
+  slug        String           @unique
+  name        String           @unique
   group       SubjectGroup
-  description String?       @db.Text
-  accent      String?       // rose | olive | plain
-  status      ContentStatus @default(published)
+  description String?          @db.Text
+  accent      String? // rose | olive | plain
+  status      ContentStatus    @default(published)
   metadata    Json?
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
   contents    ContentSubject[]
   scholars    Scholar[]
 
@@ -81,20 +81,20 @@ model Subject {
 }
 
 model Content {
-  id                   String        @id @default(cuid())
+  id                   String           @id @default(cuid())
   type                 ContentType
   title                String
-  slug                 String        @unique
-  description          String?       @db.Text
-  status               ContentStatus @default(draft)
-  language             String?       // e.g. "English", "Arabic / English"
+  slug                 String           @unique
+  description          String?          @db.Text
+  status               ContentStatus    @default(draft)
+  language             String? // e.g. "English", "Arabic / English"
   thumbnailUrl         String?
   coverUrl             String?
   // series correctly stored (string, nullable)
   series               String?
   provider             Provider
-  sourceUrl            String        // canonical external url
-  externalIdentifier   String?       // youtube videoId / archive identifier / etc.
+  sourceUrl            String // canonical external url
+  externalIdentifier   String? // youtube videoId / archive identifier / etc.
   embedUrl             String?
   // collection support: one archive collection → 100 contents share collectionIdentifier
   collectionIdentifier String?
@@ -104,20 +104,24 @@ model Content {
   pages                Int?
   year                 Int?
   publishedAt          DateTime?
-  createdAt            DateTime      @default(now())
-  updatedAt            DateTime      @updatedAt
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+  // attribution (Fase 4.5): admin username of the first and the most recent write; null when the
+  // write came from the legacy ADMIN_TOKEN or from localhost development.
+  createdBy            String?
+  updatedBy            String?
   // relation to import job (null for manually created)
   importJobId          String?
-  importJob            ImportJob?    @relation(fields: [importJobId], references: [id], onDelete: SetNull)
+  importJob            ImportJob?       @relation(fields: [importJobId], references: [id], onDelete: SetNull)
   // extensible archive.org metadata via JSONB — never requires schema change
   metadata             Json?
   scholars             ContentScholar[]
   subjects             ContentSubject[]
 
+  @@unique([provider, externalIdentifier])
   @@index([status, publishedAt])
   @@index([type, provider])
   @@index([provider, externalIdentifier])
-  @@unique([provider, externalIdentifier])
   @@index([collectionIdentifier])
   @@index([slug])
   @@index([language])
@@ -151,22 +155,57 @@ model ContentSubject {
 // Prepared for Archive.org collections and YouTube playlists.
 // Not yet used in Fase 1 beyond creation, but schema ready.
 model ImportJob {
-  id                 String   @id @default(cuid())
+  id                 String    @id @default(cuid())
   provider           Provider
   sourceUrl          String
   externalIdentifier String? // archive collection id / youtube playlist id
-  kind               String   // archive_single | archive_collection | youtube_video | youtube_playlist | external
-  status             String   @default("pending") // pending | fetching | awaiting_review | importing | completed | failed
+  kind               String // archive_single | archive_collection | youtube_video | youtube_playlist | external
+  status             String    @default("pending") // pending | fetching | awaiting_review | importing | completed | failed
   totalItems         Int?
-  importedCount      Int?     @default(0)
-  preview            Json?    // snapshot of detected items for review step
-  error              String?  @db.Text
-  createdBy          String?  // userId later (auth)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  importedCount      Int?      @default(0)
+  preview            Json? // snapshot of detected items for review step
+  error              String?   @db.Text
+  createdBy          String? // admin username of the operator who ran the import (Fase 4.5); null for token/localhost
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
   contents           Content[]
 
   @@index([status, provider])
   @@index([provider, externalIdentifier])
   @@map("import_jobs")
+}
+
+// ── Admin authentication (Fase 4.5) ─────────────────────────────────────────────
+// Real operator accounts instead of one shared token. Passwords are stored as scrypt hashes
+// (node:crypto), sessions as SHA-256 hashes of 32 random bytes — the database never holds a
+// credential that could be replayed against the API.
+model AdminUser {
+  id           String         @id @default(cuid())
+  username     String         @unique
+  displayName  String?
+  passwordHash String         @db.Text
+  role         String         @default("admin") // admin | editor
+  disabled     Boolean        @default(false)
+  lastLoginAt  DateTime?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  sessions     AdminSession[]
+
+  @@map("admin_users")
+}
+
+model AdminSession {
+  id         String    @id @default(cuid())
+  tokenHash  String    @unique // sha256(session token) — the raw token only exists in the cookie
+  userId     String
+  user       AdminUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime  @default(now())
+  expiresAt  DateTime
+  lastSeenAt DateTime  @default(now())
+  userAgent  String?
+  ip         String?
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("admin_sessions")
 }

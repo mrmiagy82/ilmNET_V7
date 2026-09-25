@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { prisma } from '../lib/prisma';
+import { adminUsername } from '../lib/auth';
 import { z } from 'zod';
 import { previewArchive, parseArchiveIdentifier, parseDurationToMinutes } from '../services/archive.service';
 import { previewYouTube, parseYouTubeUrl, youtubeVideoLink, youtubeEmbedLink } from '../services/youtube.service';
@@ -53,6 +54,7 @@ export async function importRoutes(app: FastifyInstance) {
           sourceUrl: sourceUrl.trim(),
           externalIdentifier: preview.identifier,
           kind: preview.isCollection ? 'archive_collection' : 'archive_single',
+          createdBy: adminUsername(req),
           status: 'awaiting_review',
           totalItems: preview.totalItems,
           preview: preview as any,
@@ -83,6 +85,7 @@ export async function importRoutes(app: FastifyInstance) {
             sourceUrl: sourceUrl.trim(),
             externalIdentifier: identifier,
             kind: 'archive_collection',
+            createdBy: adminUsername(req),
             status: 'failed',
             error: String(msg).slice(0, 2000),
             preview: { error: String(msg) } as any,
@@ -113,6 +116,7 @@ export async function importRoutes(app: FastifyInstance) {
           sourceUrl: sourceUrl.trim(),
           externalIdentifier: preview.identifier,
           kind: preview.isCollection ? 'youtube_playlist' : 'youtube_video',
+          createdBy: adminUsername(req),
           status: 'awaiting_review',
           totalItems: preview.totalItems,
           preview: preview as any,
@@ -148,6 +152,7 @@ export async function importRoutes(app: FastifyInstance) {
             sourceUrl: sourceUrl.trim(),
             externalIdentifier: identifier,
             kind: ytParsed.isPlaylist ? 'youtube_playlist' : 'youtube_video',
+            createdBy: adminUsername(req),
             status: 'failed',
             error: String(msg).slice(0, 2000),
             preview: { error: String(msg) } as any,
@@ -318,6 +323,8 @@ export async function importRoutes(app: FastifyInstance) {
               metadata,
               publishedAt: status === 'published' ? new Date() : null,
               importJobId: job.id,
+              createdBy: adminUsername(req) ?? job.createdBy,
+              updatedBy: adminUsername(req),
             },
           });
           if (scholarIds.length) {
@@ -524,6 +531,8 @@ export async function importRoutes(app: FastifyInstance) {
               metadata,
               publishedAt: status === 'published' ? new Date() : null,
               importJobId: job.id,
+              createdBy: adminUsername(req) ?? job.createdBy,
+              updatedBy: adminUsername(req),
             },
           });
           if (scholarIds.length) {

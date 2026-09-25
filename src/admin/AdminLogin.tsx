@@ -4,20 +4,21 @@ import { Mark, Wordmark } from '../components/Brand';
 import { useAdminAuth } from './auth';
 
 /**
- * Admin sign-in.
+ * Admin sign-in (Fase 4.5).
  *
- * The credential is the server-side `ADMIN_TOKEN` (never baked into this bundle, never in
- * localStorage — it is verified against the API and kept in this tab's sessionStorage only).
- * The public library needs no login at all.
+ * Username + password against `POST /api/admin/login`; the API returns a server-side session as an
+ * `HttpOnly` cookie, so the browser stores no credential of its own — not in localStorage, not in
+ * sessionStorage, not in the bundle. The public library needs no login at all.
  */
 export default function AdminLogin() {
   const { signIn, busy, message, retry } = useAdminAuth();
-  const [value, setValue] = useState('');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [reveal, setReveal] = useState(false);
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    void signIn(value);
+    void signIn(username, password);
   };
 
   return (
@@ -52,8 +53,29 @@ export default function AdminLogin() {
           ) : null}
 
           <form className="mt-6" onSubmit={submit}>
-            <label className="text-ink-muted text-[0.72rem] font-semibold tracking-[0.16em] uppercase" htmlFor="admin-token">
-              Admin token
+            <label className="text-ink-muted text-[0.72rem] font-semibold tracking-[0.16em] uppercase" htmlFor="admin-username">
+              Username
+            </label>
+            <div className="bg-sand neu-inset mt-2 rounded-[18px] px-4 py-2.5">
+              <input
+                id="admin-username"
+                data-testid="admin-login-username"
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="your admin username"
+                autoComplete="username"
+                autoFocus
+                spellCheck={false}
+                className="text-ink placeholder:text-ink-muted/60 w-full bg-transparent text-[0.95rem] outline-none"
+              />
+            </div>
+
+            <label
+              className="text-ink-muted mt-5 block text-[0.72rem] font-semibold tracking-[0.16em] uppercase"
+              htmlFor="admin-password"
+            >
+              Password
             </label>
             <div className="bg-sand neu-inset mt-2 flex items-center gap-2 rounded-[18px] px-4 py-2.5">
               <svg viewBox="0 0 24 24" className="text-ink-muted h-5 w-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -61,14 +83,13 @@ export default function AdminLogin() {
                 <path d="M8 10V7a4 4 0 0 1 8 0v3" />
               </svg>
               <input
-                id="admin-token"
-                data-testid="admin-login-token"
+                id="admin-password"
+                data-testid="admin-login-password"
                 type={reveal ? 'text' : 'password'}
-                value={value}
-                onChange={(e) => setValue(e.target.value)}
-                placeholder="Paste the ADMIN_TOKEN configured on the server"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="your password"
                 autoComplete="current-password"
-                autoFocus
                 spellCheck={false}
                 className="text-ink placeholder:text-ink-muted/60 w-full bg-transparent text-[0.95rem] outline-none"
               />
@@ -76,22 +97,21 @@ export default function AdminLogin() {
                 type="button"
                 onClick={() => setReveal((v) => !v)}
                 className="text-ink-muted hover:text-ink shrink-0 text-[0.76rem] font-semibold"
-                aria-label={reveal ? 'Hide token' : 'Show token'}
+                aria-label={reveal ? 'Hide password' : 'Show password'}
               >
                 {reveal ? 'Hide' : 'Show'}
               </button>
             </div>
             <p className="text-ink-muted mt-2 text-[0.76rem] leading-relaxed">
-              The server checks this token on every admin request (constant-time compare, at least 16 characters). It is
-              never stored in the built frontend — only in this tab&rsquo;s sessionStorage, and it disappears when the tab
-              closes.
+              Your password is checked on the server (scrypt) and exchanged for a session cookie —
+              this browser stores no credential, and signing out ends the session on the server.
             </p>
 
             <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <button
                 type="submit"
                 data-testid="admin-login-submit"
-                disabled={busy || !value.trim()}
+                disabled={busy || !username.trim() || !password}
                 className="bg-rose text-cream rounded-[18px] px-6 py-3 text-[0.95rem] font-semibold shadow-[8px_10px_22px_rgba(204,58,99,0.26)] transition-colors hover:bg-[#b83156] disabled:opacity-50"
               >
                 {busy ? 'Checking…' : 'Sign in'}

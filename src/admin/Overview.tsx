@@ -13,7 +13,7 @@ export default function Overview() {
   ];
 
   // Numbers come from the database (`pagination.total`, one row per query). While the admin is
-  // loading — or when the backend/token is not usable — the dashboard shows a state, not a 0.
+  // loading — or when the backend/session is not usable — the dashboard shows a state, not a 0.
   const degraded = backendState === 'offline' || backendState === 'unauthenticated';
   const countsLoading = loading || backendState === 'connecting';
   const n = (value: number | undefined) => (countsLoading ? '—' : value === undefined ? '—' : String(value));
@@ -48,10 +48,10 @@ export default function Overview() {
 
       {degraded ? (
         <ErrorRow
-          title={backendState === 'unauthenticated' ? 'Admin token missing or rejected (401)' : 'Backend unreachable'}
+          title={backendState === 'unauthenticated' ? 'Not signed in (401)' : 'Backend unreachable'}
           body={
             backendState === 'unauthenticated'
-              ? 'The library totals cannot be shown: the API refused the request. Set a valid admin token and the real numbers appear again.'
+              ? 'The library totals cannot be shown: the API refused the request. Sign in again and the real numbers appear again.'
               : 'The library totals cannot be shown while the API does not respond. Nothing is hidden — the numbers simply are not known right now.'
           }
         />

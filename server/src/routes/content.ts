@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { prisma } from '../lib/prisma';
+import { adminUsername } from '../lib/auth';
 import {
   createContentSchema,
   listContentQuerySchema,
@@ -275,6 +276,8 @@ export async function contentRoutes(app: FastifyInstance) {
               pages: data.pages || null,
               year: data.year || null,
               metadata: data.metadata as any,
+              createdBy: adminUsername(req),
+              updatedBy: adminUsername(req),
               publishedAt,
             },
           });
@@ -366,6 +369,8 @@ export async function contentRoutes(app: FastifyInstance) {
       if (data.embedUrl === '') data.embedUrl = null;
 
       const { scholarIds, subjectIds, ...rest } = data;
+      // attribution: who touched this record last (null for the legacy token / localhost)
+      rest.updatedBy = adminUsername(req);
 
       const updated = await prisma.$transaction(async (tx) => {
         await tx.content.update({ where: { id: existing.id }, data: rest });
@@ -411,7 +416,7 @@ export async function contentRoutes(app: FastifyInstance) {
       } else {
         const archived = await prisma.content.update({
           where: { id: existing.id },
-          data: { status: 'archived' },
+          data: { status: 'archived', updatedBy: adminUsername(req) },
           include: { scholars: { include: { scholar: true } }, subjects: { include: { subject: true } } },
         });
         return { data: archived };
@@ -442,7 +447,7 @@ export async function contentRoutes(app: FastifyInstance) {
     }
     const updated = await prisma.content.update({
       where: { id: existing.id },
-      data: { status: 'published', publishedAt: new Date() },
+      data: { status: 'published', publishedAt: new Date(), updatedBy: adminUsername(req) },
       include: { scholars: { include: { scholar: true } }, subjects: { include: { subject: true } } },
     });
     return { data: updated };
@@ -455,7 +460,7 @@ export async function contentRoutes(app: FastifyInstance) {
     if (existing.status !== 'published') return { data: existing };
     const updated = await prisma.content.update({
       where: { id: existing.id },
-      data: { status: 'draft' },
+      data: { status: 'draft', updatedBy: adminUsername(req) },
       include: { scholars: { include: { scholar: true } }, subjects: { include: { subject: true } } },
     });
     return { data: updated };
@@ -475,6 +480,7 @@ export async function contentRoutes(app: FastifyInstance) {
       return reply.code(400).send({ error: { code: 'VALIDATION_ERROR', message: 'No valid patch fields' } });
     }
     if (allowed.status === 'published') allowed.publishedAt = new Date();
+    allowed.updatedBy = adminUsername(req);
     const result = await prisma.content.updateMany({ where: { id: { in: ids } }, data: allowed });
     return { data: { count: result.count } };
   });

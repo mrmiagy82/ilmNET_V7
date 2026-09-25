@@ -16,6 +16,13 @@ import { scholarRoutes } from './routes/scholar';
 import { subjectRoutes } from './routes/subject';
 import { importRoutes } from './routes/import';
 import { uploadRoutes } from './routes/uploads';
+import { authRoutes } from './routes/auth';
+import {
+  clearedSessionCookieHeader,
+  readSessionCookie,
+  resolveAdminSession,
+  touchAdminSession,
+} from './lib/auth';
 import { auditUploadReferences, ensureUploadsDir, getUploadsDir, isUploadsDirWritable, MAX_UPLOAD_BYTES } from './lib/storage';
 
 const PORT = parseInt(process.env.PORT || '3001', 10);
@@ -91,33 +98,65 @@ export async function buildApp() {
     return payload;
   });
 
-  // ── Admin protection ──
-  // Every write under /api/* and every request under /api/admin/* (including reads of
-  // drafts, import jobs and uploads) requires the admin token when ADMIN_TOKEN is set.
-  if (adminToken()) {
-    app.addHook('onRequest', async (req, reply) => {
-      const url = req.url.split('?')[0];
-      const method = req.method.toUpperCase();
-      const isWrite = ['POST', 'PATCH', 'PUT', 'DELETE'].includes(method);
-      const isAdminPath = url.startsWith('/api/admin/') || url === '/api/admin';
-      if (!isWrite && !isAdminPath) return;
-      if (!url.startsWith('/api/')) return;
+  // ── Admin protection (Fase 4.5) ──
+  // Every write under /api/* and every request under /api/admin/* (including reads of drafts,
+  // import jobs and uploads) requires an authenticated operator. The order is:
+  //   1. a valid **session cookie** (username/password sign-in) — carries an identity,
+  //   2. the legacy **ADMIN_TOKEN** header/bearer as a dual-mode fallback for scripts and CI,
+  //   3. the localhost development bypass (non-production only; `ADMIN_ALLOW_LOCALHOST=false` off).
+  // `/api/admin/login` and `/api/admin/logout` are reachable without credentials by design.
+  app.decorateRequest('adminAuth', null);
+  const publicAdminPaths = new Set(['/api/admin/login', '/api/admin/logout']);
+  app.addHook('onRequest', async (req, reply) => {
+    const url = req.url.split('?')[0];
+    const method = req.method.toUpperCase();
+    const isWrite = ['POST', 'PATCH', 'PUT', 'DELETE'].includes(method);
+    const isAdminPath = url.startsWith('/api/admin/') || url === '/api/admin';
+    if (!isWrite && !isAdminPath) return;
+    if (!url.startsWith('/api/')) return;
+    if (publicAdminPaths.has(url)) return;
 
-      // Local development convenience: same-machine requests (vite proxy, curl, tests)
-      if (!isProduction() && process.env.ADMIN_ALLOW_LOCALHOST !== 'false') {
-        const ip = (req.ip || '').toString();
-        const isLocal = ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1' || req.headers.host?.includes('localhost');
-        if (isLocal) return;
+    // Local development convenience: same-machine requests (vite proxy, curl, tests)
+    if (!isProduction() && process.env.ADMIN_ALLOW_LOCALHOST !== 'false') {
+      const ip = (req.ip || '').toString();
+      const isLocal = ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1' || req.headers.host?.includes('localhost');
+      if (isLocal) {
+        req.adminAuth = { method: 'localhost', username: null, userId: null, sessionId: null };
+        return;
       }
+    }
 
-      const headerToken = (req.headers['x-admin-token'] as string) || (req.headers['x-admin-secret'] as string) || '';
-      const auth = (req.headers['authorization'] as string) || '';
-      const bearer = auth.startsWith('Bearer ') ? auth.slice(7) : '';
-      if (!tokenMatches(headerToken || bearer)) {
-        return reply.code(401).send({ error: { code: 'UNAUTHORIZED', message: 'Missing or invalid admin token' } });
+    // 1) Session cookie
+    const sessionToken = readSessionCookie(req.headers.cookie);
+    if (sessionToken) {
+      const session = await resolveAdminSession(sessionToken);
+      if (session) {
+        req.adminAuth = {
+          method: 'session',
+          username: session.user.username,
+          userId: session.user.id,
+          sessionId: session.sessionId,
+        };
+        await touchAdminSession(session);
+        return;
       }
+      // Expired/unknown/tampered cookie: drop it so the browser stops sending a dead session.
+      reply.header('set-cookie', clearedSessionCookieHeader());
+    }
+
+    // 2) Legacy shared token (dual-mode; no identity attached)
+    const headerToken = (req.headers['x-admin-token'] as string) || (req.headers['x-admin-secret'] as string) || '';
+    const auth = (req.headers['authorization'] as string) || '';
+    const bearer = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+    if (adminToken() && tokenMatches(headerToken || bearer)) {
+      req.adminAuth = { method: 'token', username: null, userId: null, sessionId: null };
+      return;
+    }
+
+    return reply.code(401).send({
+      error: { code: 'UNAUTHORIZED', message: 'Sign in to the admin CMS, or provide a valid admin token.' },
     });
-  }
+  });
 
   // ── Static uploads (custom thumbnails/covers) ──
   ensureUploadsDir();
@@ -158,6 +197,7 @@ export async function buildApp() {
     return reply.code(500).send({ error: { code: 'INTERNAL_ERROR', message: 'Internal Server Error' } });
   });
 
+  await app.register(authRoutes);
   await app.register(healthRoutes);
   await app.register(contentRoutes);
   await app.register(scholarRoutes);
@@ -203,7 +243,9 @@ if (require.main === module) {
       await app.listen({ port: PORT, host: HOST });
       app.log.info(`Server listening on http://${HOST}:${PORT} [${isProduction() ? 'production' : 'development'}]`);
       app.log.info(`CORS origins: ${corsOrigins().join(', ')}`);
-      app.log.info(`Admin token protection: ${adminToken() ? 'enabled' : 'DISABLED (development only)'}`);
+      app.log.info(
+        `Admin protection: session sign-in enabled${adminToken() ? ' + legacy ADMIN_TOKEN fallback' : ' (no ADMIN_TOKEN set — development only)'}`,
+      );
       const build = frontendBuild();
       app.log.info(
         `Serving frontend build: ${build.available && process.env.SERVE_FRONTEND !== 'false' ? build.dir : 'no (API only — set VITE_API_URL on the frontend host)'}`,

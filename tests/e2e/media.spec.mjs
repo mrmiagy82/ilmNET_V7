@@ -8,6 +8,7 @@
  * Run with the backend (3001) and vite dev server (5173) up:   npm run test:e2e
  */
 import { chromium } from 'playwright';
+import { signInBrowser } from './lib/admin-session.mjs';
 import fs from 'fs';
 import path from 'path';
 
@@ -110,15 +111,9 @@ async function main() {
     ],
   });
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
-  // Admin CMS runs against a token-protected server in production mode: the operator pastes the
-  // token in the admin panel (sessionStorage) — the harness does the same, with the real token.
-  await context.addInitScript((token) => {
-    try {
-      window.sessionStorage.setItem('ilmnet.adminToken', token);
-    } catch {
-      /* storage unavailable */
-    }
-  }, TOKEN);
+  // The CMS is behind the Fase 4.5 sign-in: the harness signs in over the API and hands the
+  // browser the session cookie — exactly what an operator ends up with, nothing in web storage.
+  await signInBrowser(context, SITE, process.env.ADMIN_USERNAME || 'media-e2e-admin');
   const page = await context.newPage();
 
   try {

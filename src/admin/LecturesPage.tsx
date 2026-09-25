@@ -128,8 +128,8 @@ export default function LecturesPage() {
       {backendState === 'unauthenticated' ? (
         <div className="mt-6">
           <ErrorRow
-            title="Admin token missing or rejected (401)"
-            body="The lectures could not be loaded. Set a valid token in the admin panel — nothing was changed."
+            title="Not signed in (401)"
+            body="The lectures could not be loaded. Sign in again — nothing was changed."
           />
         </div>
       ) : backendState === 'offline' ? (

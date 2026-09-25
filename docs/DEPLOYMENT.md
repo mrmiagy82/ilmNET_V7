@@ -16,7 +16,7 @@ een persistent uploads-volume en de volledige testset (server-suites + browser-e
 | --- | --- | --- |
 | `DATABASE_URL` | ja | Postgres-URL, bv. `postgresql://user:pass@host:5432/ilmnet?schema=public` |
 | `NODE_ENV` | ja (prod) | `production` → admin-token verplicht, CORS-wildcard verboden, `secure`-cookies/fallbacks uit |
-| `ADMIN_TOKEN` | ja in prod | Uniek geheim, **minimaal 16 tekens** (gebruik `openssl rand -hex 32`). Beschermt alle writes + alle `/api/admin/*`. Bekende dev-/voorbeeldwaarden worden in productie geweigerd |
+| `ADMIN_TOKEN` | ja in prod | Uniek geheim, **minimaal 16 tekens** (gebruik `openssl rand -hex 32`). Dual-mode fallback naast de sessie-login: beschermt alle writes + alle `/api/admin/*` voor scripts/CI. Bekende dev-/voorbeeldwaarden worden in productie geweigerd |
 | `CORS_ORIGIN` | ja | Exacte browser-origin(s) die de API mogen aanroepen, kommagescheiden. `*` is verboden in prod |
 | `HOST` / `PORT` | nee | Default `0.0.0.0` / `3001` |
 | `UPLOADS_DIR` | sterk aanbevolen | Map voor custom thumbnails/covers — **op een persistent volume** |
@@ -27,8 +27,10 @@ een persistent uploads-volume en de volledige testset (server-suites + browser-e
 | `SEED_ALLOW_RESET` | nee | Alleen bewust: laat de **destructieve** demo-seed in productie toe |
 
 Frontend-build (root `.env.example`): `VITE_API_URL` leeg laten in vorm A (zelfde origin).
-Zet **nooit** `VITE_ADMIN_TOKEN` in een productiebuild — vite inlined elke `VITE_*`-waarde in de
-publieke JavaScript-bundle. De beheerder voert het token in via **Admin → Token** (sessionStorage).
+Zet **nooit** een token of wachtwoord in een `VITE_*`-variabele — vite inlined elke `VITE_*`-waarde in
+de publieke JavaScript-bundle. Sinds Fase 4.5 voert de beheerder gebruikersnaam + wachtwoord in op
+`/admin`; de API antwoordt met een `HttpOnly; Secure; SameSite=Lax`-sessiecookie en de browser bewaart
+zelf **niets** (geen `localStorage`, geen `sessionStorage`). `VITE_ADMIN_TOKEN` is vervallen.
 
 ### Hoe env-vars gelezen worden (belangrijk)
 
@@ -137,6 +139,30 @@ productiedatabase bewust wilt leegvegen: `SEED_ALLOW_RESET=true npm run seed`.
 
 ---
 
+## 4b. Beheerdersaccounts (Fase 4.5)
+
+Er is geen account-UI en geen seed die accounts aanmaakt: de eerste beheerder wordt **op de server**
+aangemaakt. Dat is met opzet — een wachtwoord hoort nooit door een browser of een SQL-client te gaan.
+
+```bash
+cd server
+npm run admin:create -- --username admin --password '<lang, uniek wachtwoord>' [--name 'Weergavenaam']
+npm run admin:list                    # wie bestaan er, rollen, laatste login, actieve sessies
+npm run admin:password -- --username admin --password '<nieuw>'   # trekt alle sessies van dat account in
+npm run admin:disable -- --username admin                         # idem, account geblokkeerd
+npm run admin:enable  -- --username admin
+```
+
+- Wachtwoordbeleid: minimaal 10 tekens, geen bekende standaardwaarde, niet gelijk aan de gebruikersnaam;
+  opslag met scrypt (`node:crypto`).
+- Sessies: 12 uur standaard (`ADMIN_SESSION_TTL_MINUTES`, 5 minuten – 30 dagen), rollend bij gebruik,
+  harde grens 30 dagen; uitloggen verwijdert de sessierij direct.
+- **TLS is verplicht**: de cookievlag `Secure` betekent dat browsers de sessie alleen bewaren op HTTPS
+  (of op `localhost`/`127.0.0.1`). Zonder TLS lijkt de login te slagen en valt de CMS daarna terug op
+  het loginscherm — zie §7.
+- Mislukte pogingen worden geremd: 5 per gebruikersnaam+IP en 20 per IP per 15 minuten → `429` met
+  `Retry-After`.
+
 ## 5. Verificatie na elke deploy
 
 ```bash
@@ -145,7 +171,7 @@ curl -s https://ilmnet.example/api/health   # status ok, database up, storage.wr
 
 - `/` en diepe links (`/lectures`, `/books`, `/series/<id>`, `/lectures/<slug>`) geven 200 en
   renderen na een harde refresh (SPA-fallback).
-- Admin: `/admin` vraagt om het token; met het juiste token verschijnen drafts, imports en uploads.
+- Admin: `/admin` vraagt om gebruikersnaam + wachtwoord; na inloggen verschijnen drafts, imports en uploads (het dashboard toont de echte totalen).
 - Upload-test: voeg in het CMS een thumbnail toe, herlaad de pagina — het bestand moet daarna nog
   steeds geserveerd worden (bewijs dat `UPLOADS_DIR` op een volume staat).
 - Bij het starten logt de server de storage-audit, bv.
@@ -177,7 +203,10 @@ geschreven, dus draai geen `migrate reset` op productie.
 | `ADMIN_TOKEN is too short for production` / `ADMIN_TOKEN is a known development/example value` | Genereer een nieuw token: `openssl rand -hex 32`. |
 | `CORS_ORIGIN="*" is not allowed in production` | Zet de exacte publieke origin(s) in `CORS_ORIGIN`. |
 | `P1012` / `Environment variable not found: DATABASE_URL` | `DATABASE_URL` ontbreekt of is leeg in de procesomgeving. |
-| Admin geeft 401 | Verkeerd/ontbrekend token: opnieuw instellen via **Admin → Token**. |
+| Admin geeft 401 | Niet (meer) ingelogd, of een verlopen/ingetrokken sessie: opnieuw inloggen. Bestaat er nog geen account, maak er dan een met `npm run admin:create` (een lege `admin_users`-tabel betekent dat elke login 401 geeft). |
+| Login lukt, maar de CMS valt direct terug op het loginscherm | De sessiecookie is `Secure` en de site draait op platte `http://` (niet localhost). Zet TLS voor de reverse proxy of gebruik `https://`. |
+| `429 Too many sign-in attempts` | Throttle: 5 mislukte pogingen per gebruikersnaam+IP (20 per IP) per 15 minuten. Wacht het venster af of herstart de API (de teller is in-process). |
+| Wachtwoord vergeten / account kwijt | Op de server: `npm run admin:password -- --username <naam> --password '<nieuw>'` (trekt bestaande sessies in). |
 | YouTube-import werkt, maar zonder exacte duur/embeddable-status | Geen `YOUTUBE_API_KEY` in de serveromgeving: ilmNet leest dan de publieke pagina's. Zet de key in de procesomgeving voor de officiële Data API (server-side, nooit in een `VITE_*`-variabele) |
 | YouTube-import meldt "Data API unavailable … falling back" | Key ongeldig, quotum op of Google onbereikbaar; de import gaat verder via de publieke pagina's. De melding bevat nooit de key zelf |
 | Thumbnails 404, boot-waarschuwing over ontbrekende uploads | `UPLOADS_DIR` staat niet op een persistent volume, of het volume is niet gemount. |

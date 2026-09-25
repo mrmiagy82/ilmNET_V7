@@ -5,61 +5,84 @@
 const BASE = (import.meta as any).env?.VITE_API_URL ?? "";
 
 /**
- * Admin token handling.
+ * Admin authentication (Fase 4.5).
  *
- * A token must NEVER end up in a production bundle: `VITE_*` values are inlined at build
- * time, so anything set there is readable by every visitor. We therefore only accept the
- * build-time token in development, and otherwise use a token the operator pastes into the
- * Admin CMS at runtime (kept in sessionStorage, cleared when the tab closes).
+ * The browser holds **no credential at all**: signing in creates a server-side session that is
+ * carried by an `HttpOnly` cookie, so there is nothing to keep in `localStorage`, `sessionStorage`
+ * or the bundle. Every admin request goes out with `credentials: "include"`, and the API decides
+ * whether the session (or, in dual mode, a server-side `ADMIN_TOKEN`) is accepted.
  */
-const DEV_BUILD_TOKEN = (import.meta as any).env?.DEV ? ((import.meta as any).env?.VITE_ADMIN_TOKEN ?? "") : "";
-const TOKEN_STORAGE_KEY = "ilmnet.adminToken";
-
-export function getAdminToken(): string {
-  try {
-    const stored = sessionStorage.getItem(TOKEN_STORAGE_KEY);
-    if (stored) return stored;
-  } catch {
-    /* storage blocked (private mode) — fall back to the dev token */
-  }
-  return DEV_BUILD_TOKEN;
+export interface AdminUser {
+  id: string;
+  username: string;
+  displayName: string | null;
+  role: string;
 }
 
-export function setAdminToken(token: string): void {
-  try {
-    const value = token.trim();
-    if (value) sessionStorage.setItem(TOKEN_STORAGE_KEY, value);
-    else sessionStorage.removeItem(TOKEN_STORAGE_KEY);
-  } catch {
-    /* ignore */
-  }
+export interface AdminSessionInfo {
+  authenticated: boolean;
+  method: "session" | "token" | "localhost";
+  user: AdminUser | null;
+  username: string | null;
+  expiresAt: string | null;
 }
 
-export function clearAdminToken(): void {
-  try {
-    sessionStorage.removeItem(TOKEN_STORAGE_KEY);
-  } catch {
-    /* ignore */
+export class AdminAuthError extends Error {
+  status: number;
+  code?: string;
+  constructor(message: string, status: number, code?: string) {
+    super(message);
+    this.name = "AdminAuthError";
+    this.status = status;
+    this.code = code;
   }
 }
 
-export function hasAdminToken(): boolean {
-  return Boolean(getAdminToken());
+/** Sign in with username + password. Never stores anything; the API sets the session cookie. */
+export async function adminLogin(username: string, password: string): Promise<AdminUser> {
+  const res = await fetch(`${BASE}/api/admin/login`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = (body as any)?.error;
+    throw new AdminAuthError(
+      res.status === 429
+        ? (err?.message ?? "Too many sign-in attempts. Try again later.")
+        : res.status === 400
+          ? "Enter both a username and a password."
+          : "Those credentials were not accepted.",
+      res.status,
+      err?.code,
+    );
+  }
+  return (body as any).data.user as AdminUser;
+}
+
+/** End the server-side session and clear the cookie. Idempotent. */
+export async function adminLogout(): Promise<void> {
+  try {
+    await fetch(`${BASE}/api/admin/logout`, { method: "POST", credentials: "include" });
+  } catch {
+    /* the local state is dropped either way */
+  }
 }
 
 /**
- * Ask the real API whether the current token is accepted.
- *
- * Used by the admin sign-in flow and by the gate on every page load: a session is never trusted just
- * because something sits in the session storage — the server decides. Never throws, because the
- * caller needs a status (200 / 401 / unreachable) rather than an exception.
+ * Ask the API who we are. Never throws: the caller needs a status (200 / 401 / unreachable).
+ * Used by the gate on every page load, so a refresh re-verifies with the server.
  */
-export async function verifyAdminSession(): Promise<{ ok: boolean; status?: number }> {
+export async function fetchAdminSession(): Promise<{ ok: boolean; status?: number; session?: AdminSessionInfo }> {
   try {
-    await apiFetch<{ data: unknown[] }>("/api/admin/contents?limit=1");
-    return { ok: true };
-  } catch (e: any) {
-    return { ok: false, status: typeof e?.status === "number" ? e.status : undefined };
+    const res = await fetch(`${BASE}/api/admin/session`, { credentials: "include" });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, status: res.status };
+    return { ok: true, status: res.status, session: (body as any).data as AdminSessionInfo };
+  } catch {
+    return { ok: false, status: undefined };
   }
 }
 
@@ -90,12 +113,9 @@ async function apiFetch<T>(path: string, opts: RequestInit = {}): Promise<T> {
   const url = `${BASE}${path}`;
   const baseHeaders: Record<string, string> = {};
   if (opts.body) baseHeaders["Content-Type"] = "application/json";
-  // Admin endpoints (reads of drafts + all writes) need the token
-  if (path.startsWith("/api/admin")) {
-    const token = getAdminToken();
-    if (token) baseHeaders["x-admin-token"] = token;
-  }
+  // Every request carries the session cookie; admin endpoints are authorised by it server-side.
   const res = await fetch(url, {
+    credentials: "include",
     headers: { ...baseHeaders, ...((opts.headers as Record<string, string>) ?? {}) },
     ...opts,
   });
@@ -104,7 +124,7 @@ async function apiFetch<T>(path: string, opts: RequestInit = {}): Promise<T> {
     const msg = (body as any)?.error?.message ?? (body as any)?.error?.details ?? res.statusText;
       const err: ApiError = new Error(
         res.status === 401
-          ? "Admin token missing or rejected (401) — sign in again."
+          ? "Admin session missing or rejected (401) — sign in again."
           : typeof msg === "string"
             ? msg
             : JSON.stringify(msg),
@@ -217,10 +237,7 @@ export function restoreContent(id: string) {
 export async function uploadImage(file: File): Promise<{ url: string; filename: string; bytes: number; mime: string }> {
   const form = new FormData();
   form.append("file", file);
-  const headers: Record<string, string> = {};
-  const token = getAdminToken();
-  if (token) headers["x-admin-token"] = token;
-  const res = await fetch(`${BASE}/api/admin/uploads`, { method: "POST", body: form, headers });
+  const res = await fetch(`${BASE}/api/admin/uploads`, { method: "POST", body: form, credentials: "include" });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
     const msg = (body as any)?.error?.message ?? res.statusText;

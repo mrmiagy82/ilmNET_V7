@@ -206,17 +206,17 @@ export function AdminProvider({ children }: { children: ReactNode }) {
   const apiOnline = backendState === 'online';
   const apiAuthError = backendState === 'unauthenticated';
 
-  /** A rejected token is an authentication problem, not a broken backend — say so. */
+  /** A rejected session is an authentication problem, not a broken backend — say so. */
   const blocked = (what: string) => {
     if (apiAuthError) {
-      return flash(`${what} failed — the admin token was rejected (401). Set a valid token; nothing was written to the database.`);
+      return flash(`${what} failed — your admin session was rejected (401). Sign in again; nothing was written to the database.`);
     }
     flash(`${what} failed — the backend is not reachable. Nothing was written to the database.`);
   };
   const failure = (what: string, e: any) => {
     if (e?.status === 401 || e?.status === 403) {
       setBackendState('unauthenticated');
-      return flash(`${what} failed — the admin token was rejected (401). Nothing was written to the database.`);
+      return flash(`${what} failed — your admin session was rejected (401). Nothing was written to the database.`);
     }
     flash(`${what} failed — ${e?.message ?? 'API error'}. Nothing was written to the database.`);
   };

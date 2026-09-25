@@ -6,7 +6,7 @@ import AdminLogin from './AdminLogin';
 /**
  * Guards every `/admin/*` route.
  *
- * Nothing of the CMS is mounted before the API has confirmed the token, so there is no window in
+ * Nothing of the CMS is mounted before the API has confirmed the session, so there is no window in
  * which admin data (drafts, imports, uploads) can be rendered without authentication. The current
  * URL is kept, so a deep link such as `/admin/lectures/…` works: sign in and the same page opens.
  */
@@ -22,7 +22,7 @@ export default function AdminGate({ children }: { children: ReactNode }) {
           </span>
           <p className="font-display text-ink text-[1.15rem] font-extrabold">Checking your admin session…</p>
           <p className="text-ink-muted text-[0.88rem]">
-            The token is verified against the API before any part of the CMS is loaded.
+            Your session is verified against the API before any part of the CMS is loaded.
           </p>
         </div>
       </div>

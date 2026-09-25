@@ -81,8 +81,8 @@ export default function LectureForm() {
       return (
         <div className="mx-auto max-w-[720px]">
           <ErrorRow
-            title={backendState === 'unauthenticated' ? 'Admin token missing or rejected (401)' : 'Backend unreachable'}
-            body="This record could not be loaded, so it is not shown as “not found”. Retry with a valid token and a reachable API."
+            title={backendState === 'unauthenticated' ? 'Not signed in (401)' : 'Backend unreachable'}
+            body="This record could not be loaded, so it is not shown as “not found”. Sign in again and check that the API is reachable."
           />
           <div className="mt-8">
             <GhostButton to="/admin/lectures">Back to lectures</GhostButton>

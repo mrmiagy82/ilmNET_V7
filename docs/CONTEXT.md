@@ -5,7 +5,10 @@ Update it after every finished phase, commit, sanity check or significant discov
 Rules: only facts that are verifiable from the repository, Git history or existing docs — and
 **never** secrets, tokens or credentials.
 
-_Last updated: Fase 4.3 (YouTube playback & import)._
+_Last updated: Fase 4.5 (real admin authentication)._
+
+Fase 4.4 (a read-only audit of the admin authentication) was answered with the Fase 4.5 instruction;
+since then every `/admin` route signs in with a username and a password.
 
 ---
 
@@ -14,14 +17,14 @@ _Last updated: Fase 4.3 (YouTube playback & import)._
 | | |
 | --- | --- |
 | Branch | `master` |
-| Codebase state described here | `07ea4a9` (Fase 4.2 admin CMS cleanup) **plus** the Fase 4.3 YouTube changes in §7e — this document ships in the Fase 4.3 commit |
-| This document | updated in Fase 4.3; its own revision is visible with `git log -1 -- docs/CONTEXT.md` |
+| Codebase state described here | `dab8211` (Fase 4.3 YouTube) **plus** the Fase 4.5 authentication changes in §7f — this document ships in the Fase 4.5 commit |
+| This document | updated in Fase 4.5; its own revision is visible with `git log -1 -- docs/CONTEXT.md` |
 | Working tree | clean (verified against `origin/master`) |
 | Repository | `github.com/mrmiagy82/ilmNET_V7` |
 | Size | 66 source files, ~14.9k lines in `src/` + `server/src/`; the admin (`src/admin/`, 20 files, ~6.6k lines) is the largest area |
-| Build (git-ignored artefact) | single-file `dist/index.html` (~642 kB, ~160.5 kB gzip) |
-| Phase state | Fase 4.3 complete: YouTube import verified end-to-end (works keyless, optional official Data API), public playback proven to stream from the YouTube CDN in a real browser |
-| Open blockers | none |
+| Build (git-ignored artefact) | single-file `dist/index.html` (644.42 kB, 161.00 kB gzip) |
+| Phase state | Fase 4.5 complete: operators sign in with a username + password (scrypt, server-side sessions, HttpOnly cookie); the legacy `ADMIN_TOKEN` still works as a dual-mode fallback; writes carry `createdBy`/`updatedBy` |
+| Open blockers | none. Note: YouTube throttles watch-page *scrapes* from this datacenter IP (`302 → google.com/sorry`) now and then, which can fail the live `test/youtube.test.ts` and `test:imports` checks; embeds, playback and `oEmbed` keep working (see §8.11) |
 
 ## 2. Completed phases (from Git history)
 
@@ -40,7 +43,8 @@ _Last updated: Fase 4.3 (YouTube playback & import)._
 | `45fc54a` | Fase 4 | admin CMS: archived status, real totals, honest admin states (see §7) |
 | `5805520` | Fase 4.1 | admin authentication: real login gate on the existing `ADMIN_TOKEN` (see §7c) |
 | `07ea4a9` | Fase 4.2 | admin CMS cleanup: no CMS naming, no unused admin helpers — functionality unchanged (see §7d) |
-| _this commit_ | Fase 4.3 | YouTube: optional official Data API for the import, verified public playback (see §7e) |
+| `dab8211` | Fase 4.3 | YouTube: optional official Data API for the import, verified public playback (see §7e) |
+| _this commit_ | Fase 4.5 | real admin authentication: username + password, server-side sessions, attribution (see §7f) |
 
 Earlier work is documented per topic in `docs/FASE2A_ARCHIVE.md`, `docs/FASE2B_YOUTUBE.md`,
 `docs/FASE2C_PUBLIC_FRONTEND.md`, `docs/FASE2D_SEARCH_FILTERING.md`,
@@ -102,15 +106,26 @@ round-trip unchanged (`draft | published | archived`) and group fields (`series`
 `collectionIdentifier`, `collectionTitle`) survive an edit. Counters come from `pagination.total`
 (one record per query) — never from the capped list and never invented.
 
-**Admin authentication (Fase 4.1).** Every `/admin/*` route is wrapped in `AdminAuthProvider` →
-`AdminGate` → `AdminProvider`. The gate asks the API (`verifyAdminSession()` → `GET /api/admin/contents?limit=1`)
-*before* it mounts anything, so no CMS component, query or route renders before the token is confirmed.
-Three states: `checking` (verification screen), `signed-out` (`AdminLogin`), `signed-in` (the CMS). The
-credential is only ever the existing server-side `ADMIN_TOKEN`: the browser keeps it in
-`sessionStorage` (`ilmnet.adminToken` — tab-scoped, survives a refresh, gone when the tab closes) and
-sends it as `x-admin-token`; it never reaches the URL, `localStorage` or the bundle. The URL is preserved
-across the login, so a deep link such as `/admin/lectures/:id` opens that page after signing in, and any
-401/403 during use ends the session (`signOut`) instead of pretending the backend is down.
+**Admin authentication (Fase 4.5).** Operators have real accounts. `AdminUser` (username, scrypt
+password hash, role, disabled, lastLoginAt) and `AdminSession` (SHA-256 hash of a 32-byte token,
+expiry, lastSeenAt, user agent, IP) live in PostgreSQL. `POST /api/admin/login` verifies the password
+with `node:crypto` scrypt (constant time, with a dummy hash for unknown users so timing cannot
+enumerate accounts) and issues an `HttpOnly; Secure; SameSite=Lax; Path=/` cookie; the raw token
+exists only in that cookie. `POST /api/admin/logout` destroys the session server-side and clears the
+cookie; `GET /api/admin/session` tells the gate who is calling (`session`, or `token` in the legacy
+fallback — with `user: null`, never an invented identity). The request hook in `server.ts` protects
+every `/api/admin/*` path and every write under `/api/*`: session cookie first, then the legacy
+`ADMIN_TOKEN` header/bearer (dual mode, for scripts and CI), then the non-production localhost
+convenience; `/api/admin/login` and `/api/admin/logout` are the only admin paths reachable without
+credentials. Sessions are rolling (12 h default, `ADMIN_SESSION_TTL_MINUTES`, hard cap 30 days) and
+are revoked when a password changes or an account is disabled. Login attempts are throttled
+in-process (5 failures per username+IP, 20 per address, 15-minute window). Accounts are managed from
+the server with `npm run admin:create|password|disable|enable|list`. The browser stores **no**
+credential: not in `localStorage`, not in `sessionStorage`, not in the bundle — `/admin` is wrapped in
+`AdminAuthProvider` → `AdminGate` → `AdminProvider`, the gate asks `GET /api/admin/session` before it
+mounts anything, and a refresh re-verifies. Writes are attributed: `Content.createdBy`/`updatedBy`
+and `ImportJob.createdBy` carry the signed-in username (`null` when the caller was the legacy token or
+the localhost bypass — attribution never invents a name). The public site needs no login at all.
 
 **Style.** Neumorphic/spatial UI with the cream/olive/rose palette; no religious symbols or
 decorative clichés; the public site is free and needs no login. Fixed website texts (headings, labels,
@@ -141,21 +156,25 @@ empty states, errors) live in the React components — there is no content layer
 1. No secrets in the repository, in documents, in commits or in `docs/CONTEXT.md`. `.env`,
    `server/.env`, `dist/`, `server/dist/`, `node_modules/`, logs and the opencode tarball are
    git-ignored.
-2. Never set an admin token via `VITE_*`: Vite inlines it into the public bundle. The build-time
-   token is honoured **only** in `vite dev`. Deployed builds use the runtime token in
-   `sessionStorage` (`src/lib/api.ts`).
-3. `ADMIN_TOKEN` must be at least 16 characters and non-guessable; every `/api/admin/*` request and
-   every write requires it (401 otherwise). `CORS_ORIGIN` lists exact origins — a wildcard stops a
-   production boot.
+2. Never put a credential in the frontend. The browser authenticates with a username + password
+   and stores nothing (the session lives in an `HttpOnly` cookie); `VITE_*` values would be inlined
+   into the public bundle, so no token or password may ever come from there. `VITE_ADMIN_TOKEN` is
+   obsolete since Fase 4.5 — the API ignores browser tokens entirely.
+3. Every `/api/admin/*` request and every write requires either a valid session cookie or (dual
+   mode) the `ADMIN_TOKEN`, which must be at least 16 characters and non-guessable; anything else is
+   401. Passwords are scrypt-hashed (≥10 characters, no known defaults, never equal to the username);
+   only the SHA-256 hash of a session token is stored. `CORS_ORIGIN` lists exact origins — a wildcard
+   stops a production boot.
 4. Public endpoints expose published content only; drafts stay invisible (verified in Fase 3.9,
    including detail pages and search).
 5. A rejected token must be reported as an authentication problem (401), not as “backend
    unreachable” (implemented as `backendState` in `src/admin/store.tsx`).
 6. The API redacts `x-admin-token` / `authorization` headers from its logs
    (`server/src/server.ts`).
-7. `/admin` mounts no CMS code before the API has verified the token (Fase 4.1); a refresh re-verifies,
-   a tampered or expired session falls back to the login screen, and the token never appears in the URL
-   or in `localStorage`.
+7. `/admin` mounts no CMS code before the API has verified the session (Fase 4.1/4.5); a refresh
+   re-verifies, a tampered, expired, revoked or disabled-account session falls back to the login
+   screen and the dead cookie is cleared, and no credential ever appears in the URL, `localStorage`
+   or `sessionStorage`.
 8. `YOUTUBE_API_KEY`, when used, lives in the **server** process environment only. It is never sent to
    the browser, stored in the database, committed, documented with a value, or repeated in an error
    message (Fase 4.3 redacts it; the importer keeps working without it).
@@ -166,15 +185,21 @@ empty states, errors) live in the React components — there is no content layer
 | --- | --- | --- |
 | `npx tsc --noEmit` (root + `server/`) | types | 0 errors |
 | `npm run build` (root) | single-file production build | ~642 kB / ~160.5 kB gzip |
-| `cd server && npm run test:all` | audit, uploads (25), production readiness (44), env hardening (13), youtube (+ Data API fallback) | all green |
+| `cd server && npm run test:all` | audit, uploads (25), production readiness (44), env hardening (13), youtube (+ Data API fallback), **auth (69)** | all green in Fase 4.5 (the live YouTube scrape check can fail when Google throttles this IP — see §8.11) |
 | `cd server && npm run test:imports` | live Archive.org + YouTube import regression | 19/19 |
 | `npm run test:e2e:production` | routes, embeds, **real YouTube playback**, error states, mobile, admin entry (login gate) | 67/67 |
 | `npm run test:e2e` | waveform, thumbnails, admin upload flow | 27/27 |
 | `npm run test:e2e:cms` | admin CMS: real totals, draft→published→archived→restored, collection round-trip, 401 honesty | 28/28 |
-| `npm run test:e2e:auth` | Fase 4.1 gate: login required, wrong token, deep link, refresh, tampered session, sign-out, public site stays free | 42/42 |
+| `npm run test:e2e:auth` | Fase 4.5 gate: username/password sign-in, 401s, cookie flags, deep link, refresh, tampered cookie, server-side logout, no credential in web storage, public site stays free | 60/60 |
 
-Browser specs take `SITE_URL`, `API_URL` and `ADMIN_TOKEN`; the server suite takes
-`TEST_ADMIN_TOKEN`. The server suite needs an explicit mode next to a deployment variable
+Browser specs take `SITE_URL`, `API_URL`, `ADMIN_TOKEN` (for their API fixtures) and sign the
+browser in with `ADMIN_USERNAME`/`ADMIN_PASSWORD` (usernames default to `e2e-admin` for the
+production suites and `media-e2e-admin` for the media suite; the **password has no default** — no
+credential is committed — so create the account with `npm run admin:create` and export
+`ADMIN_PASSWORD`); the server suite
+takes `TEST_ADMIN_TOKEN`. `tests/e2e/lib/admin-session.mjs` holds the shared sign-in helper (it logs
+in over the API and hands the session cookie to the browser context — nothing is injected into
+JavaScript-visible storage). The server suite needs an explicit mode next to a deployment variable
 (`NODE_ENV=test ADMIN_TOKEN=… npm run test:all`) — a boot that sees `ADMIN_TOKEN` without `NODE_ENV`
 refuses to start (Fase 3.8.1). `test:e2e:auth` and `test:e2e:production` expect a production server
 (`NODE_ENV=production`, the same `ADMIN_TOKEN`, matching `CORS_ORIGIN`). Mutating suites clean up their
@@ -306,6 +331,54 @@ Investigated first, changed second — the YouTube path was already close to pro
   cross-origin frame, so the test starts playback through the player API — the same player a visitor's
   click drives.
 
+## 7f. What Fase 4.5 (real admin authentication) changed
+
+The audit in Fase 4.4 found one shared `ADMIN_TOKEN` and no accounts, sessions, attribution or
+throttling. Fase 4.5 replaced exactly that, without touching anything else:
+
+- **Real accounts.** `admin_users` (username unique, scrypt password hash, role, disabled,
+  lastLoginAt) and `admin_sessions` (SHA-256 hash of a 32-byte token, userId FK cascade, expiresAt,
+  lastSeenAt, userAgent, ip) — one migration, `20260925170628_fase_4_5_admin_auth`, which also added
+  `contents.createdBy` / `contents.updatedBy` (both nullable). Existing tables were not changed
+  otherwise.
+- **Credentials never reach the browser.** `POST /api/admin/login` checks the password with
+  `node:crypto` scrypt (N=16384, r=8, p=1, 64-byte key, random salt; constant-time compare; a dummy
+  hash burns the same CPU for unknown users) and answers with the generic
+  `INVALID_CREDENTIALS` for every failure — unknown user, wrong password and disabled account are
+  indistinguishable. The session token (32 random bytes, hex) travels only in the cookie; the
+  database stores its SHA-256 hash, and `logout` deletes the row, so a captured cookie dies with the
+  session.
+- **Cookie.** `HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=…` — JavaScript cannot read it, it is
+  never sent cross-site, and CSRF does not need a second token. Sessions roll (default 12 h,
+  `ADMIN_SESSION_TTL_MINUTES`, hard cap 30 days) with `lastSeenAt` written at most every 5 minutes;
+  expired rows are removed on use and at login.
+- **Protection order (`server.ts`).** session cookie → legacy `ADMIN_TOKEN` (dual mode, no identity)
+  → localhost convenience (non-production only) → 401. `/api/admin/login` and `/api/admin/logout`
+  are the only admin paths that need no credentials. A rejected cookie is cleared in the response.
+- **Throttling.** In-process: 5 failures per username+IP and 20 per address inside a 15-minute
+  window → `429` with `Retry-After`. A blocked username does not block other operators.
+- **Attribution.** `Content.createdBy`/`updatedBy` (create, patch, archive, publish, unpublish,
+  bulk) and `ImportJob.createdBy` (previews, failures, imports) carry the signed-in username; token
+  and localhost callers leave `null` — the system never invents an operator.
+- **Frontend.** `src/lib/api.ts` keeps only `adminLogin`/`adminLogout`/`fetchAdminSession` (all with
+  `credentials: "include"`); `src/admin/auth.tsx` exposes `status`, `user`, `method`, `message`,
+  `busy`, `signIn(username, password)`, `signOut`, `retry`; `AdminLogin.tsx` has username + password
+  fields (`admin-login-username` / `admin-login-password`; the old `admin-login-token` is gone) and
+  `AdminLayout` shows “Signed in as …”. Nothing is written to `localStorage`/`sessionStorage`.
+- **Accounts are managed from the server:** `npm run admin:create|password|disable|enable|list`
+  (`--password` or `ADMIN_PASSWORD`; changing or disabling revokes every session of that account).
+- **Tests.** New `server/test/auth.test.ts` (69 checks: hashing, policy, cookie flags, hash-only
+  storage, expiry, disabled account, forgery, throttling, dual mode, attribution) and a rewritten
+  `tests/e2e/admin-auth.spec.mjs` (60 checks). `cms`, `media` and `production` suites now sign in
+  through `tests/e2e/lib/admin-session.mjs`, which logs in over the API and injects the resulting
+  cookie — the same thing an operator gets, with nothing in web storage.
+- **Verified in this phase:** `tsc --noEmit` clean in `./` and `./server`; `npm run build` →
+  644.42 kB / 161.00 kB gzip; `test:all` green (uploads 25/25, readiness 44/44, env 13/13, auth
+  69/69; the live YouTube scrape check was green earlier in the session and later hit Google's
+  datacenter throttle — see §8.11); `test:e2e:auth` 60/60, `test:e2e:cms` 28/28,
+  `test:e2e:production` 67/67 (including real YouTube playback), `test:e2e` 27/27; both databases
+  hold 18 published records (8 books, 7 videos, 3 audio) imported from Archive.org and YouTube.
+
 ## 8. Known remaining issues (not blockers)
 
 From `docs/FASE3_9_CODEBASE_REVIEW.md` § Restrisico's plus the 3.9.1 report:
@@ -325,22 +398,38 @@ From `docs/FASE3_9_CODEBASE_REVIEW.md` § Restrisico's plus the 3.9.1 report:
    in `server/src/lib/storage.ts` adds one unused CSS rule to the bundle. Cosmetic; fixable with an
    `@source` scope in `src/index.css`.
 8. **`npm run test:imports` leaves one record** in the target database by design (see §6).
-9. **One shared admin token** — Fase 4.1 authenticates every operator with the single `ADMIN_TOKEN`;
-   there are no per-user accounts, sessions, audit trail or rotation UI (a schema/design change that was
-   out of scope for this phase).
+9. **Admin accounts exist, but management is CLI-only** (Fase 4.5): no password-reset or
+   account-management UI, no 2FA, and `AdminUser.role` is stored yet every admin currently has the
+   same rights. The login throttle is in-process (single node) — a multi-instance deployment needs a
+   shared store. There is still no separate audit-log table: attribution lives on the records
+   (`createdBy`/`updatedBy`, `ImportJob.createdBy`).
 10. **Dead helpers outside the admin surface** were left alone in Fase 4.2 (they are unreferenced but
     pre-date the CMS work): `src/lib/thumbnail.ts` `isUsableThumbnail` / `getEffectiveThumbnail`,
     `src/lib/api.ts` `getPublicScholar`, `src/components/ui.tsx` `SectionLabel`. Safe to delete in a
     later cleanup; removing them changes nothing at runtime.
+11. **YouTube throttles watch-page scrapes from datacenter IPs.** Google may answer the watch page
+    with `302 → google.com/sorry` (observed in the Fase 4.5 session after many live requests), which
+    fails the live checks in `server/test/youtube.test.ts` and `test:imports`. Embeds, playback and
+    `oEmbed` were unaffected. Setting `YOUTUBE_API_KEY` (Fase 4.3) or retrying later removes the
+    dependency on scraped pages — the same checks passed earlier in the same session.
+12. **The admin session cookie is `Secure`, so the CMS needs HTTPS** (or `localhost`/`127.0.0.1`,
+    which browsers treat as trustworthy). A production deployment on plain `http://<host>` will log
+    in and then appear signed out, because the browser refuses to store the cookie. Terminate TLS at
+    the reverse proxy.
+13. **`VITE_ADMIN_TOKEN` is obsolete** (Fase 4.5): the frontend no longer reads it. Existing local
+    `.env` files that still set it are harmless but should be cleaned up; `AGENTS.md` keeps the rule
+    that no credential may come from `VITE_*`.
 
 ## 9. Next step
 
-No open blockers: Fase 4.3 verified YouTube import and public playback and made the official Data API
-available without making the importer depend on it (§7e), Fase 4.2 removed the leftover naming and dead
-admin helpers without touching behaviour (§7d), Fase 4.1 put the admin CMS behind a real login on the
-existing `ADMIN_TOKEN` (§7c), and every suite is green. The next step is a **new user instruction**; the
-items in §8 are the documented candidates if the goal is scale, hardening or a cleanup. Before starting:
-`git status`, `git log --oneline -3`, and re-read this file.
+No open blockers: Fase 4.5 replaced the shared token with real accounts, sessions and attribution
+(§7f), Fase 4.3 verified YouTube import and playback (§7e), Fase 4.2 removed the leftover naming and
+dead helpers (§7d), Fase 4.1 put the CMS behind a login (§7c), and every suite is green — except the
+live YouTube scrape check when Google throttles this IP (§8.11), which is external and passes again
+after a pause. The next step is a **new user instruction**; the documented candidates are the items
+in §8, e.g. account management in the UI, roles/permissions, 2FA, a shared throttle store for
+multi-instance deployments or an audit-log table. Before starting: `git status`,
+`git log --oneline -3`, and re-read this file.
 
 ## 10. How to keep this file accurate
 

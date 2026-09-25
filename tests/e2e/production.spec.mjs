@@ -256,14 +256,14 @@ async function main() {
   check(/no login/i.test(adminText), 'the public library is documented as login-free right on the admin entry');
   check(
     (await page.locator('[data-testid="admin-login"]').count()) === 1,
-    'the CMS is behind an admin login gate (Fase 4.1) when no token is present'
+    'the CMS is behind an admin login gate (Fase 4.1/4.5) when no session is present'
   );
   check(
     !/Add content|Archive\.org Bulk Import|YouTube Bulk Import/.test(adminText),
     'no CMS chrome leaks before the admin has signed in'
   );
-  check(/token/i.test(adminText), 'admin CMS asks for the admin token (no baked-in secret)');
-  check(/PostgreSQL|connected|token/i.test(adminText), 'admin CMS reports the backend/database state and the token requirement');
+  check(/username/i.test(adminText) && /password/i.test(adminText), 'admin CMS asks for username + password (no baked-in secret)');
+  check(/PostgreSQL|connected|sign in|password/i.test(adminText), 'admin CMS reports the backend/database state and the sign-in requirement');
 
   console.log('\n--- 7. Mobile layout (390×844) ---');
   const mobile = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });

@@ -10,7 +10,7 @@ group related items; detail pages embed the real source (YouTube player, Archive
 Google Books preview) with an "open original" link. Audio items use a custom player with a live
 waveform. Search and filters live in the URL, so any view can be shared.
 
-**Admin CMS** (`/admin`, token-protected) — guided content wizard, CRUD for lectures, books, scholars
+**Admin CMS** (`/admin`, behind a username + password login) — guided content wizard, CRUD for lectures, books, scholars
 and subjects, custom thumbnail uploads, and bulk import from Archive.org and YouTube (preview →
 select → confirm, each item becomes its own record).
 
@@ -48,8 +48,19 @@ npm install
 npm run dev                   # vite on :5173, proxies /api and /uploads to :3001
 ```
 
-Admin: open `/admin` — the login screen asks for the `ADMIN_TOKEN` from `server/.env`; it is verified
-against the API and kept in `sessionStorage` for that tab only. The public site never needs a token.
+Admin: create the first operator on the server, then sign in at `/admin`:
+
+```bash
+cd server
+npm run admin:create -- --username admin --password 'a-long-unique-password'
+```
+
+The browser posts the username and password to the API, which checks them with scrypt and answers
+with an `HttpOnly; Secure; SameSite=Lax` session cookie — the browser stores no credential at all
+(no `localStorage`, no `sessionStorage`, nothing in the bundle), and signing out destroys the session
+on the server. Manage accounts with `npm run admin:list`, `admin:password`, `admin:disable` and
+`admin:enable`. The public site never needs a login. `ADMIN_TOKEN` still works server-side as a
+dual-mode fallback for scripts and CI.
 
 YouTube import: works without any key (it reads the public watch/playlist pages). Set `YOUTUBE_API_KEY`
 in the **server** environment to use the official YouTube Data API v3 first — exact durations, publish

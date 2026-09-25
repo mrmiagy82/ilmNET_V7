@@ -7,8 +7,19 @@ import { Toast } from './ui';
 
 /** Signed-in control: shows that the session is server-verified and lets the operator sign out. */
 function SessionControl() {
-  const { signOut } = useAdminAuth();
+  const { signOut, user, method } = useAdminAuth();
   return (
+    <div className="flex flex-col gap-2">
+      {user ? (
+        <p className="text-ink-muted px-1 text-[0.74rem] leading-snug" data-testid="admin-signed-in-as">
+          Signed in as <span className="text-ink font-semibold">{user.username}</span>
+          {user.displayName ? <span className="block text-[0.7rem]">{user.displayName}</span> : null}
+        </p>
+      ) : method && method !== 'session' ? (
+        <p className="text-ink-muted px-1 text-[0.74rem] leading-snug" data-testid="admin-signed-in-as">
+          Authorised with the legacy admin token (no account attached).
+        </p>
+      ) : null}
     <button
       type="button"
       onClick={() => signOut()}
@@ -21,6 +32,7 @@ function SessionControl() {
       </svg>
       Sign out
     </button>
+    </div>
   );
 }
 
@@ -66,8 +78,8 @@ export default function AdminLayout() {
   const { notice, clearNotice, apiOnline, backendState } = useAdmin();
   const { signOut } = useAdminAuth();
 
-  // A session that the API stops accepting (revoked/rotated token, or a token that was tampered
-  // with) must send the operator back to the login screen instead of leaving a half-working CMS.
+  // A session the API stops accepting (revoked, expired, or signed out elsewhere) must send the
+  // operator back to the login screen instead of leaving a half-working CMS.
   useEffect(() => {
     if (backendState === 'unauthenticated') {
       signOut('This session was rejected by the API (401). Sign in again.');
@@ -76,9 +88,9 @@ export default function AdminLayout() {
 
   const connectionMessage =
     backendState === 'online'
-      ? 'Connected to the PostgreSQL library. Writes require the admin token in production.'
+      ? 'Connected to the PostgreSQL library. Writes require a signed-in admin account.'
       : backendState === 'unauthenticated'
-        ? 'Admin token missing or rejected (401) — set a valid token to load and edit content.'
+        ? 'Signed out (401) — sign in again to load and edit content.'
         : backendState === 'connecting'
           ? 'Connecting to the backend…'
           : 'Backend unreachable — saving, publishing and deleting are disabled until it responds.';

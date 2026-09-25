@@ -15,6 +15,7 @@
  * The fixture this suite creates is deleted again at the end (hard delete).
  */
 import { chromium } from 'playwright';
+import { signInBrowser, tamperedCookieFor } from './lib/admin-session.mjs';
 
 const SITE = process.env.SITE_URL || 'http://localhost:3101';
 const API = process.env.API_URL || SITE;
@@ -85,14 +86,9 @@ async function main() {
 
   const browser = await chromium.launch();
   const context = await browser.newContext({ viewport: { width: 1366, height: 900 } });
-  // Same as the operator: the token is pasted in the admin UI and lives in sessionStorage only.
-  await context.addInitScript((token) => {
-    try {
-      window.sessionStorage.setItem('ilmnet.adminToken', token);
-    } catch {
-      /* ignore */
-    }
-  }, TOKEN);
+  // Same as the operator (Fase 4.5): sign in with username + password over the API; the browser
+  // receives the session cookie and stores no credential of its own.
+  await signInBrowser(context, SITE);
   const page = await context.newPage();
   const consoleErrors = [];
   page.on('console', (msg) => {
@@ -182,20 +178,14 @@ async function main() {
   );
   check(afterEdit.series === 'E2E Series', `saving an edit keeps the series field (${afterEdit.series})`);
 
-  // ── 7. A rejected token is an auth problem, never an empty library ──────────────────────────
+  // ── 7. A rejected session is an auth problem, never an empty library ────────────────────────
   const badContext = await browser.newContext({ viewport: { width: 1366, height: 900 } });
-  await badContext.addInitScript(() => {
-    try {
-      window.sessionStorage.setItem('ilmnet.adminToken', 'definitely-not-the-token');
-    } catch {
-      /* ignore */
-    }
-  });
+  await badContext.addCookies([tamperedCookieFor(SITE)]);
   const badPage = await badContext.newPage();
   await badPage.goto(`${SITE}/admin`, { waitUntil: 'networkidle' });
   const badText = await badPage.locator('body').innerText();
-  check(/401|rejected|token/i.test(badText), 'a rejected token is reported as a 401/token problem');
-  check(/not be shown|Not available|token/i.test(badText) && !/0 published/i.test(badText), 'no fake zeros are shown while the admin cannot read the database');
+  check(/sign in|401|rejected/i.test(badText), 'a rejected session lands on the sign-in screen (not a half-working CMS)');
+  check(/not be shown|Not available|sign in/i.test(badText) && !/0 published/i.test(badText), 'no fake zeros are shown while the admin cannot read the database');
   await badContext.close();
 
   // The Archive.org embed loads its own bundle inside the preview iframe; its internals are not ours

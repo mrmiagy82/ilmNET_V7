@@ -23,9 +23,9 @@ This file is the entry point for every automated session on **ilmNet**. Follow i
 
 ilmNet is a free, public, no-login library for Islamic knowledge (lectures, books, scholars,
 subjects, grouped into series/collections). Content is not re-hosted: pages embed the real source
-(YouTube, Archive.org, Google Books) and link to it. A token-protected admin CMS at `/admin` curates
-  everything — guided content wizard, CRUD, thumbnail uploads and bulk import from Archive.org and
-  YouTube. There is no CMS framework and no content layer for website texts: the admin talks to the
+(YouTube, Archive.org, Google Books) and link to it. The admin CMS at `/admin` is behind a real
+username + password login (server-side sessions, `HttpOnly` cookie) and curates everything — guided
+content wizard, CRUD, thumbnail uploads and bulk import from Archive.org and YouTube. There is no CMS framework and no content layer for website texts: the admin talks to the
   Fastify+Prisma API directly, and fixed copy lives in the React components.
 
 - **Frontend**: React 19, React Router 7, Tailwind v4, Vite — built as a **single `index.html`**
@@ -53,8 +53,14 @@ Details: `README.md` (overview), `docs/backend-architecture.md` (API + data mode
 - `YOUTUBE_API_KEY` (optional) is a **server-side** variable like `ADMIN_TOKEN`: it belongs in the
   process environment of the API, never in a `VITE_*` variable, the database or the repository. The
   importer works without it and falls back to the public YouTube pages.
-- Never put an admin token in a `VITE_*` variable: Vite inlines it into the public bundle. In a
-  deployed build the operator pastes the token at runtime in Admin → Token (sessionStorage).
+- **No credential in the frontend, ever.** Since Fase 4.5 the browser signs in with a username and
+  password and keeps nothing: the session lives in an `HttpOnly; Secure; SameSite=Lax` cookie, never
+  in `localStorage`, `sessionStorage`, a `VITE_*` variable or the bundle (`VITE_ADMIN_TOKEN` is
+  obsolete). `ADMIN_TOKEN` stays available **server-side** as a dual-mode fallback for scripts and CI.
+- Admin passwords are scrypt-hashed (`node:crypto`, ≥10 characters, no known defaults, never equal
+  to the username); only the SHA-256 hash of a session token is stored. Accounts are managed on the
+  server with `npm run admin:create|password|disable|enable|list` — never by writing rows by hand or
+  echoing a password/hash into a log, commit or document.
 - Never print, echo or paste secret values into documents, commits, logs or `docs/CONTEXT.md`.
 
 **Configuration**
@@ -92,6 +98,13 @@ npm run seed:reference           # subjects + scholars only (safe on any databas
 npm run dev                      # API on :3001
 npx tsc --noEmit
 
+# admin accounts (Fase 4.5) — the only way to create/maintain operators
+npm run admin:create -- --username <name> --password '<pw>' [--name '<display>'] [--role admin|editor]
+npm run admin:password -- --username <name> --password '<pw>'   # revokes that account's sessions
+npm run admin:disable -- --username <name>
+npm run admin:enable  -- --username <name>
+npm run admin:list
+
 # tests
 cd server && npm run test:all    # audit, uploads, production readiness, env guards, youtube
 cd server && npm run test:imports        # live Archive.org/YouTube import regression
@@ -99,8 +112,10 @@ npm run test:e2e:production      # needs a running server + built frontend (SITE
 npm run test:e2e                 # media: waveform, thumbnails, admin upload flow
 ```
 
-Environment overrides used by the browser specs: `SITE_URL`, `API_URL`, `ADMIN_TOKEN`
-(`TEST_ADMIN_TOKEN` for the server suite). Suites that create records clean up after themselves —
+Environment overrides used by the browser specs: `SITE_URL`, `API_URL`, `ADMIN_TOKEN` (for the
+fixtures their Node side creates), `ADMIN_USERNAME`/`ADMIN_PASSWORD` (the account the browser signs
+in with — username defaults to `e2e-admin` / `media-e2e-admin`, the password must be exported and is
+never committed), `TEST_ADMIN_TOKEN` for the server suite. Suites that create records clean up after themselves —
 verify that they did, and never point a mutating suite at a database whose content you must keep.
 
 ## 4. Definition of done
