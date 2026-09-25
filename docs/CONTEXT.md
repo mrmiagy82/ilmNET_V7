@@ -5,12 +5,13 @@ Update it after every finished phase, commit, sanity check or significant discov
 Rules: only facts that are verifiable from the repository, Git history or existing docs — and
 **never** secrets, tokens or credentials.
 
-_Last updated: Fase 4.5.1 (project context synchronized with the repository state after Fase 4.5)._
+_Last updated: Fase 5.1 (production blockers: backup + restore, honest footer links, TLS/HSTS)._
 
-The last phases: Fase 4.3.1 diagnosed YouTube “Error 153” without changing any code (§7e), Fase 4.4
-audited the admin authentication read-only and was answered by the Fase 4.5 instruction, and Fase 4.5
-shipped real accounts, server-side sessions, a secure cookie and attribution (§7f). Every `/admin`
-route now signs in with a username and a password.
+The last phases: Fase 4.5 shipped real accounts, server-side sessions, a secure cookie and
+attribution (§7f); Fase 5 audited production readiness read-only and named three blockers — no
+backup/restore, TLS not proven, and a footer that linked twelve labels to a single page. Fase 5.1
+closed them: `ops/backup.sh` + `ops/restore.sh` + a documented, executed restore drill, a footer that
+only links pages that exist, and TLS/HSTS support in the app with a provider-agnostic runbook (§7g).
 
 ---
 
@@ -19,15 +20,15 @@ route now signs in with a username and a password.
 | | |
 | --- | --- |
 | Branch | `master` |
-| Codebase state described here | `720ef70` (Fase 4.5, real admin authentication); this document is synchronized in Fase 4.5.1 |
-| This document | updated in Fase 4.5.1; its own revision is visible with `git log -1 -- docs/CONTEXT.md` |
+| Codebase state described here | `f030ef3` (Fase 4.5.1) **plus** the Fase 5.1 changes in §7g — this document ships in the Fase 5.1 commit |
+| This document | updated in Fase 5.1; its own revision is visible with `git log -1 -- docs/CONTEXT.md` |
 | Working tree | clean (verified against `origin/master`) |
 | Repository | `github.com/mrmiagy82/ilmNET_V7` |
 | Size | 69 source files, ~15.6k lines in `src/` + `server/src/`; the admin (`src/admin/`, 20 files, ~6.5k lines) is the largest area |
 | Build (git-ignored artefact) | single-file `dist/index.html` (644.42 kB, 161.00 kB gzip, measured in Fase 4.5) |
-| Phase state | Fase 4.5 complete and verified: operators sign in with a username + password (scrypt, server-side sessions, `HttpOnly` cookie); the legacy `ADMIN_TOKEN` still works as a dual-mode fallback; writes carry `createdBy`/`updatedBy`. TinyCMS is scrapped and off the roadmap (§2, §7d) |
-| Roadmap | production finishing, UI/UX and performance toward the definitive live deployment (§9) |
-| Open blockers | none. Note: YouTube throttles watch-page *scrapes* from this datacenter IP (`302 → google.com/sorry`) now and then, which can fail the live `test/youtube.test.ts` and `test:imports` checks; embeds, playback and `oEmbed` keep working (see §8.11) |
+| Phase state | Fase 5.1 complete: the three production blockers from the Fase 5 audit are closed — **backup + restore** (`ops/`, with an executed restore drill), **footer links** that only point at pages that exist, **TLS/HSTS** support with an opt-in HTTP→HTTPS redirect (§7g). Fase 4.5's authentication and Fase 4.3's YouTube work are unchanged |
+| Roadmap | production finishing, UI/UX and performance toward the definitive live deployment (§9) — phase 5.2 is the deploy hardening on the real host |
+| Open blockers | none in the repository. The remaining items are host-side and cannot be verified from the repo: terminating TLS in front of the app, `X-Forwarded-Proto` forwarding, the nightly backup timer running on the server, off-site copies, and an uptime/monitoring hook (§8.14) |
 
 ## 2. Completed phases (from Git history)
 
@@ -50,7 +51,9 @@ route now signs in with a username and a password.
 | — (diagnosis only) | Fase 4.3.1 | YouTube “Error 153”: proven that the missing `Referer` is not lost in our code; no change, no commit (see §7e) |
 | — (audit only) | Fase 4.4 | read-only audit of the admin authentication; no change, no commit — answered by the Fase 4.5 instruction (see §7f) |
 | `720ef70` | Fase 4.5 | real admin authentication: `AdminUser` + `AdminSession`, username + password, secure session cookie, attribution (see §7f) |
-| _this commit_ | Fase 4.5.1 | project context synchronized with the post-4.5 repository: roadmap, scrapped TinyCMS, test status and remaining issues (this file) |
+| `f030ef3` | Fase 4.5.1 | project context synchronized with the post-4.5 repository: roadmap, scrapped TinyCMS, test status and remaining issues |
+| — (audit only) | Fase 5 | production readiness audit; read-only, no commit — three blockers: no backup/restore, TLS not proven, footer linked to a single page |
+| _this commit_ | Fase 5.1 | production blockers closed: `ops/` backup + restore + drill, honest footer navigation, TLS/HSTS support (see §7g) |
 
 Earlier work is documented per topic in `docs/FASE2A_ARCHIVE.md`, `docs/FASE2B_YOUTUBE.md`,
 `docs/FASE2C_PUBLIC_FRONTEND.md`, `docs/FASE2D_SEARCH_FILTERING.md`,
@@ -126,7 +129,10 @@ convenience; `/api/admin/login` and `/api/admin/logout` are the only admin paths
 credentials. Sessions are rolling (12 h default, `ADMIN_SESSION_TTL_MINUTES`, hard cap 30 days) and
 are revoked when a password changes or an account is disabled. Login attempts are throttled
 in-process (5 failures per username+IP, 20 per address, 15-minute window). Accounts are managed from
-the server with `npm run admin:create|password|disable|enable|list`. The browser stores **no**
+the server with `npm run admin:create|password|disable|enable|list`. Because the cookie is `Secure`,
+the deployment needs HTTPS: the app sends HSTS on any request that arrives over HTTPS (directly or
+via `x-forwarded-proto` from a trusted proxy) and can redirect plain HTTP itself with
+`FORCE_HTTPS=true` — the proxy stays free of choice (`docs/DEPLOYMENT.md` §5b, §7g). The browser stores **no**
 credential: not in `localStorage`, not in `sessionStorage`, not in the bundle — `/admin` is wrapped in
 `AdminAuthProvider` → `AdminGate` → `AdminProvider`, the gate asks `GET /api/admin/session` before it
 mounts anything, and a refresh re-verifies. Writes are attributed: `Content.createdBy`/`updatedBy`
@@ -148,6 +154,9 @@ empty states, errors) live in the React components — there is no content layer
   (Fase 3.8.1). Reference: `docs/FASE3_8_1_ENV_SECURITY.md`.
 - Uploads must live on a persistent volume (`UPLOADS_DIR`, e.g. `/var/lib/ilmnet/uploads`),
   otherwise images vanish on redeploy while the database keeps referencing them.
+- **Backups are part of the deployment, not an extra**: `ops/backup.sh` writes a `pg_dump` + uploads
+  archive + manifest, `ops/systemd/ilmnet-backup.timer` runs it nightly, and `ops/restore-drill.sh`
+  proves the set restores. Procedure and the recorded drill result: `docs/DEPLOYMENT.md` §6b, §7g.
 - Production reference data: `npm run seed:reference` (subjects + scholars only, never content).
   The destructive demo seed refuses to run in production.
   - `server/.env` in this repository is **development only** and stays untracked; in production the
@@ -188,16 +197,21 @@ empty states, errors) live in the React components — there is no content layer
 8. `YOUTUBE_API_KEY`, when used, lives in the **server** process environment only. It is never sent to
    the browser, stored in the database, committed, documented with a value, or repeated in an error
    message (Fase 4.3 redacts it; the importer keeps working without it).
+9. **A database dump is a secret**: it holds the scrypt hashes of the admin accounts. Backups are
+   written outside the checkout (`.gitignore` also covers `backups/`), with mode 0600, and a restore
+   only ever targets a database named explicitly on the command line (`ops/restore.sh` refuses
+   anything else, and refuses to overwrite a non-empty uploads directory without `--force`).
 
 ## 6. Testing
 
 | Command | What it covers | Last verified result |
 | --- | --- | --- |
-| `npx tsc --noEmit` (root + `server/`) | types | 0 errors (Fase 4.5) |
-| `npm run build` (root) | single-file production build | 644.42 kB / 161.00 kB gzip (Fase 4.5) |
-| `cd server && npm run test:all` | audit, uploads (25), production readiness (44), env hardening (13), youtube (+ Data API fallback), **auth (69)** | green in Fase 4.5 — uploads 25/25, readiness 44/44, env 13/13, auth 69/69; the live YouTube scrape check can fail when Google throttles this IP (§8.11) |
+| `npx tsc --noEmit` (root + `server/`) | types | 0 errors (Fase 5.1) |
+| `npm run build` (root) | single-file production build | 644.91 kB / 161.10 kB gzip (Fase 5.1) |
+| `cd server && npm run test:all` | audit, uploads (25), production readiness (**54**, incl. TLS/HSTS/redirect), env hardening (13), youtube (+ Data API fallback), **auth (69)** | green in Fase 5.1 (exit 0; the live YouTube scrape check can still fail when Google throttles this IP — §8.11) |
+| `ops/backup.sh` + `ops/restore-drill.sh` | database + uploads backup, then a restore into a throwaway database with count and checksum comparison | drill PASSED in Fase 5.1 (seven tables + two upload files, §7g) |
 | `cd server && npm run test:imports` | live Archive.org + YouTube import regression | 19/19 whenever the provider answers; the live scrape check is the part that fails under Google's throttle (§8.11) |
-| `npm run test:e2e:production` | routes, embeds, **real YouTube playback**, error states, mobile, admin entry (login gate) | 67/67 |
+| `npm run test:e2e:production` | routes, embeds, **real YouTube playback**, error states, mobile, admin entry (login gate), **footer navigation (17 checks)** | 84/84 (Fase 5.1) |
 | `npm run test:e2e` | waveform, thumbnails, admin upload flow | 27/27 |
 | `npm run test:e2e:cms` | admin CMS: real totals, draft→published→archived→restored, collection round-trip, 401 honesty | 28/28 |
 | `npm run test:e2e:auth` | Fase 4.5 gate: username/password sign-in, 401s, cookie flags, deep link, refresh, tampered cookie, server-side logout, no credential in web storage, public site stays free | 60/60 |
@@ -217,10 +231,11 @@ own records — verify afterwards, and never point them at a database whose cont
 Known quirk: `test:imports` deliberately leaves the imported record in place (that is part of what it
 asserts), so run it against a throwaway database or remove the record afterwards.
 
-**State of these numbers (Fase 4.5.1):** no source file changed after `720ef70` — Fase 4.5.1 only
-updated this document — so the results above still describe the current repository. The sandbox is
-ephemeral (no `node_modules`, no database), so the suites have to be rebuilt and re-run before they can
-be quoted again; do that with the next code change (`AGENTS.md` §4).
+**State of these numbers (Fase 5.1):** measured against a rebuilt sandbox (PostgreSQL 17.11, fresh
+`ilmnet` + `ilmnet_prod`, real Archive.org/YouTube imports as fixtures — 8 books, 7 videos, 3 audio, 8
+scholars, 11 subjects) and a production server (`NODE_ENV=production`) on `:3101`; `test:e2e:auth` was
+re-run against that same server (60/60). The sandbox is ephemeral (dependencies, database and processes
+are not part of the snapshot): rebuild and re-run per `AGENTS.md` §4 before quoting these again.
 
 ## 7. What Fase 4 (the admin CMS) changed (so it is not re-broken)
 
@@ -421,6 +436,94 @@ throttling. Fase 4.5 replaced exactly that, without touching anything else:
   `test:e2e:production` 67/67 (including real YouTube playback), `test:e2e` 27/27; both databases
   hold 18 published records (8 books, 7 videos, 3 audio) imported from Archive.org and YouTube.
 
+## 7g. What Fase 5.1 (production blockers) changed
+
+The read-only Fase 5 audit named exactly three blockers. Fase 5.1 closed those three and nothing else.
+
+**1. Backup and restore (`ops/`, new).** No new dependencies: the scripts use `pg_dump`, `pg_restore`,
+`psql` and coreutils.
+
+- `ops/backup.sh` writes one timestamped set into `BACKUP_DIR` (mode 0600, retention via
+  `RETENTION_DAYS`): a `pg_dump --format=custom`, a `tar.gz` of `UPLOADS_DIR` and a manifest with the
+  row counts at backup time plus sha256 per file. A dump that `pg_restore --list` cannot read fails the
+  run instead of passing silently.
+- `ops/restore.sh` puts a set back. The target database must be named explicitly (`--database-url`),
+  `--recreate` (DROP + CREATE) additionally requires `--yes`, a non-empty uploads directory needs
+  `--force`, and the dump is validated before anything is touched. Both scripts accept the same
+  `DATABASE_URL` as the app: the Prisma-only query parameters (`schema`, `connection_limit`, …) are
+  stripped before the client tools see the URL — the very first drill run failed with
+  `pg_dump: error: invalid URI query parameter: "schema"`, which is exactly what a drill is for.
+- `ops/restore-drill.sh` proves a set restores **without touching live data**: it restores into the
+  throwaway database `ilmnet_restore_drill` through the real `restore.sh`, extracts the uploads into a
+  temporary directory, and compares row counts and per-file sha256 with the manifest.
+- `ops/systemd/ilmnet-backup.{service,timer}` + `ops/systemd/backup.env.example` schedule the nightly
+  run (02:30, random delay, `Persistent=true`); `ops/README.md` is the one-screen overview. Full
+  procedure, off-site advice and troubleshooting: `docs/DEPLOYMENT.md` §6b.
+
+**Recorded drill result (Fase 5.1, real data, no mocks).** The sandbox database held 8 published
+Archive.org books (with scholars/subjects linked), 4 import jobs, 1 admin account and 2 uploaded
+covers; the dump had 62 restorable objects (29,096 bytes) and the uploads archive 20,418 bytes.
+
+```
+table                manifest   restored       live   verdict
+contents                    8          8          8   PASS
+scholars                    8          8          8   PASS
+subjects                   11         11         11   PASS
+content_scholars            8          8          8   PASS
+content_subjects           16         16         16   PASS
+import_jobs                 4          4          4   PASS
+admin_users                 1          1          1   PASS
+uploads (files)             2          2        –   PASS
+uploads (sha256)            2          2        –   PASS
+drill PASSED — the backup set restores into an empty database with matching counts.
+```
+
+The restored environment was then **served** by a real API instance (pointing at the drill database and
+the extracted uploads): `/api/health` ok, `/api/contents` → `total=8` with the first restored title
+(`Usool At Tafseer`, provider archive, 1 scholar, 2 subjects), the detail route 200, and the restored
+file at `/uploads/drill-cover-a-…jpg` served as `image/jpeg` (17,770 bytes).
+
+**2. Honest footer (`src/components/SiteFooter.tsx`).** Before: twelve labels — *Our approach*,
+*Sources & attribution*, *Contributors*, *Contact*, *Collections*, *Beginners path*, *New additions*,
+*Series* — all rendered as `<Link to="/">`, so every one of them silently landed on the landing page and
+promised pages that do not exist. Now the footer links only what exists: the four public list routes
+plus the Lectures filters the page itself writes to the URL (`/lectures?type=audio|video`), and the
+*About* column is honest static text about sourcing instead of four dead links. `tests/e2e/production.spec.mjs`
+asserts it in the real browser: every footer `href` is in the set of real routes, none of the old labels
+survive, and each link opens its own page with the right heading (and, for the filter links, the active
+chip) — 17 new checks.
+
+**3. TLS, HTTPS, HSTS and HTTP→HTTPS (`server/src/server.ts`, docs).** The app now sends
+`Strict-Transport-Security: max-age=…` (`HSTS_MAX_AGE`, default one year, `0` disables) **only** on
+requests that really arrived over HTTPS — direct TLS or `x-forwarded-proto` from a trusted proxy — so
+plain HTTP stays honest and local development is unaffected. `includeSubDomains`/`preload` are
+deliberately not set. `FORCE_HTTPS=true` (production only, opt-in) answers plain HTTP with a **308** to
+the same URL, keeping method and body, using `x-forwarded-host` when the proxy supplies it; health
+endpoints stay reachable over plain HTTP so the container `HEALTHCHECK` on the app socket keeps working.
+`Referrer-Policy: strict-origin-when-cross-origin` is untouched (YouTube needs it, Fase 4.3.1) and the
+boot log now states the HSTS/redirect posture. No provider is assumed: `docs/DEPLOYMENT.md` §5b
+describes what the proxy must do (terminate TLS, forward `X-Forwarded-Proto`, redirect) and how to
+verify it with `curl -sI` on the live domain.
+
+**Smaller items in the same commit.**
+
+- `.gitignore` ignores `backups/`; `server/.env.example` documents `HSTS_MAX_AGE` and `FORCE_HTTPS`.
+- `server/test/production.test.ts` grew from 44 to 54 checks: HSTS present over https and absent over
+  http, `HSTS_MAX_AGE=0`, `referrer-policy` unchanged, 308 redirect with forwarded host and with the
+  connection host, https requests not redirected, health exempt.
+- `server/test/youtube.test.ts` §7d asserted that "the newest youtube import job exists" — true only
+  when an earlier run had left a row behind (the suite deletes its own jobs), so it failed on a clean
+  database. It now proves the invariant it was written for: a service-level preview writes nothing and
+  no stored import job contains the API key. Test-only change; the product code was not involved.
+- `AGENTS.md` and `README.md` point at the backup/restore commands; `docs/DEPLOYMENT.md` gained §5b
+  (TLS/HSTS) and §6b (backup/restore/drill) plus three troubleshooting rows.
+
+**Verified in this phase (commands and numbers).** `tsc --noEmit` clean in `./` and `./server`;
+`npm run build` → 644.91 kB / 161.10 kB gzip; `test:all` exit 0 — audit, uploads 25/25, production
+readiness **54/54**, env hardening 13/13, YouTube (live, including the Data API fallback) and auth 69/69;
+`test:e2e:production` **84/84** against a production server with the 18 real records; `test:e2e:auth`
+60/60 against the same server; the restore drill PASSED as shown above.
+
 ## 8. Known remaining issues (not blockers)
 
 From `docs/FASE3_9_CODEBASE_REVIEW.md` § Restrisico's plus the 3.9.1 report:
@@ -457,10 +560,18 @@ From `docs/FASE3_9_CODEBASE_REVIEW.md` § Restrisico's plus the 3.9.1 report:
 12. **The admin session cookie is `Secure`, so the CMS needs HTTPS** (or `localhost`/`127.0.0.1`,
     which browsers treat as trustworthy). A production deployment on plain `http://<host>` will log
     in and then appear signed out, because the browser refuses to store the cookie. Terminate TLS at
-    the reverse proxy.
+    the reverse proxy: the app helps (HSTS on https requests, optional `FORCE_HTTPS` redirect) but
+    cannot terminate TLS itself (`docs/DEPLOYMENT.md` §5b).
 13. **`VITE_ADMIN_TOKEN` is obsolete** (Fase 4.5): the frontend no longer reads it. Existing local
     `.env` files that still set it are harmless but should be cleaned up; `AGENTS.md` keeps the rule
     that no credential may come from `VITE_*`.
+
+14. **Host-side items the repository cannot verify** (Fase 5.1 closed everything that *is* verifiable
+    from the code): TLS termination and renewal; the proxy forwarding `X-Forwarded-Proto` (without it a
+    `FORCE_HTTPS` deployment would redirect in a loop); the nightly `ilmnet-backup.timer` actually
+    running; the off-site copy of the sets; the monthly `ops/restore-drill.sh`; rate limiting on the
+    public API, a non-public database port and `TRUST_PROXY` hygiene (Fase 5 audit I2-I4); uptime
+    monitoring/alerting (I9). `docs/DEPLOYMENT.md` §5b/§6b holds the exact commands and install steps.
 
 ## 9. Next step
 
@@ -471,18 +582,22 @@ verified YouTube import and playback (§7e); Fase 4.2 removed the leftover namin
 scrape check when Google throttles this IP (§8.11), which is external and passes again after a pause.
 
 **The roadmap is production finishing, UI/UX and performance toward the definitive live deployment.**
-Most of it is finishing work on what exists, not new features; the concrete items live in §8:
+Fase 5.1 removed the three blockers that were verifiable in the repository; the rest starts on the host.
 
-- **Production finishing** — a real deployment with TLS (the session cookie is `Secure`, §8.12),
-  operator accounts created with `npm run admin:create` before the first sign-in (`docs/DEPLOYMENT.md`
-  §4b), `UPLOADS_DIR` on a persistent volume, `GET /api/health` green, and the `Referrer-Policy` /
-  `Referer` check of §7e verified on the live domain.
-- **UI/UX** — refine the existing public and admin surfaces (density, empty/loading/error states,
-  mobile); anything visual keeps the neumorphic/spatial style, the cream/olive/rose palette and the
-  honesty rules of §7b — no invented numbers or state.
-- **Performance** — the measured limits in §8: server-side pagination for the 100-item lists (§8.2), a
-  trigram/full-text index for the `ILIKE` search (§8.3), rate limiting in front of the public API
-  (§8.4) and the Tailwind `@source` scope (§8.7).
+- **Phase 5.2 — deploy hardening and proof (next).** Terminate TLS in front of the app, forward
+  `X-Forwarded-Proto` and decide where the http→https redirect lives (`docs/DEPLOYMENT.md` §5b);
+  install `ilmnet-backup.timer` and copy the sets off-site (§6b); add an uptime check on `/api/health`;
+  put the public API behind a rate limit and keep Postgres off the public internet (audit I2-I4); then
+  run the §5 checklist on the live domain, including the `Referrer-Policy`/`Referer` check of §7e.
+- **Phase 5.3 — data safety.** Make the legacy `ADMIN_TOKEN` switchable off in production (audit I6),
+  ask before a hard delete (I7) and stop leaking `createdBy`/`updatedBy`/`metadata` in the public
+  payload (I8).
+- **Phase 5.4 — scale and speed.** Server-side pagination and real totals on the public lists
+  (§8.2/I10), a trigram index for the `ILIKE` search (§8.3/L1), cache headers (L3) and a performance
+  budget next to the bundle measurement (L2/L12).
+- **Phase 5.5 — polish and compliance.** Self-hosted fonts and a privacy/contact page beyond the
+  footer text (audit I5), `robots.txt`/`sitemap.xml`/favicon/Open Graph (L9), README and `.env.example`
+  drift (L10).
 
 TinyCMS is **not** on the roadmap: the name, the CMS framework and a content layer for website texts
 are scrapped permanently (Fase 4.2/4.5.1, §7d) and must never be reintroduced. The remaining

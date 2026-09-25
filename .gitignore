@@ -14,3 +14,7 @@ opencode-1.18.31-termux.tar.gz
 # Runtime media uploads (stored on the server, referenced from the DB as /uploads/<file>)
 server/uploads/*
 !server/uploads/.gitkeep
+
+# Database/uploads backups (ops/backup.sh default target). Never commit a dump: it holds the
+# scrypt password hashes of the admin accounts. Production backups belong outside the checkout.
+backups/

@@ -1,0 +1,13 @@
+[Unit]
+Description=Nightly ilmNet backup (database + uploads)
+
+[Timer]
+# 02:30 local time, with a random delay so many hosts do not hit the same storage at once.
+OnCalendar=*-*-* 02:30:00
+RandomizedDelaySec=15min
+# Run a missed backup after downtime instead of skipping it.
+Persistent=true
+Unit=ilmnet-backup.service
+
+[Install]
+WantedBy=timers.target

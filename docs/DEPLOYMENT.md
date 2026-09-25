@@ -23,6 +23,8 @@ een persistent uploads-volume en de volledige testset (server-suites + browser-e
 | `YOUTUBE_API_KEY` | optioneel | **Alleen server-side.** Zet hem in de procesomgeving om de officiële YouTube Data API v3 te gebruiken voor de import (exacte duur/datum + `status.embeddable`); zonder key leest ilmNet de publieke YouTube-pagina's. Nooit in `VITE_*`, de database of de frontend |
 | `SERVE_FRONTEND` | nee | `true` (default) laat de API de build uit `FRONTEND_DIR` serveren; `false` = API only |
 | `FRONTEND_DIR` | nee | Locatie van de frontend-build; default `<repo>/dist` |
+| `HSTS_MAX_AGE` | nee | HSTS-max-age in seconden (default 31536000 = 1 jaar). De header gaat **alleen** mee op requests die echt via HTTPS binnenkomen. `0` schakelt HSTS uit |
+| `FORCE_HTTPS` | nee | `true` (alleen productie): elk http-request krijgt een **308** naar https. Alleen aanzetten als de proxy `x-forwarded-proto` doorgeeft — zie §5b |
 | `ADMIN_ALLOW_LOCALHOST` | nee | Alleen dev: `false` dwingt het token ook op localhost af |
 | `SEED_ALLOW_RESET` | nee | Alleen bewust: laat de **destructieve** demo-seed in productie toe |
 
@@ -180,6 +182,50 @@ curl -s https://ilmnet.example/api/health   # status ok, database up, storage.wr
 
 ---
 
+## 5b. TLS, HTTPS, HSTS en HTTP→HTTPS (Fase 5.1)
+
+De admin-login gebruikt een cookie met de vlag `Secure`: **zonder HTTPS werkt `/admin` niet** (de
+browser bewaart de cookie dan niet en je valt steeds terug op het loginscherm). Regel daarom TLS bij
+de laag vóór de app — de app zelf termineert geen TLS en er is bewust geen provider gekozen.
+
+**Wat de app doet (geen configuratie nodig):**
+
+- op elk request dat via HTTPS binnenkomt (direct, of via een proxy die `x-forwarded-proto: https`
+  zet) antwoordt de API met `Strict-Transport-Security: max-age=31536000`. Over platte http wordt de
+  header **niet** gestuurd (browsers negeren hem daar toch, en hij zou misleiden);
+- `includeSubDomains`/`preload` worden **niet** gezet: voeg die pas toe bij de proxy als *alle*
+  subdomeinen HTTPS-only zijn;
+- `Referrer-Policy: strict-origin-when-cross-origin` blijft staan — die is verplicht voor de
+  YouTube-embeds (Fase 4.3.1). Een proxy of CDN mag deze header **niet** overschrijven naar
+  `same-origin`/`no-referrer`, anders krijg je “Error 153” in de speler.
+
+**Wat de proxy moet doen:**
+
+1. TLS termineren (certificaat via de gebruikelijke route van je host/platform);
+2. `X-Forwarded-Proto` doorgeven aan de app (anders krijgt de app nooit `https` te zien en dus ook
+   geen HSTS);
+3. http → https omleiden (permanent). Dat mag bij de proxy of in de app:
+   `FORCE_HTTPS=true` laat de app zelf een **308** terugsturen (308 behoudt methode en body, dus een
+   admin-POST wordt geen GET). Health-endpoints blijven bewust over http bereikbaar, zodat een
+   container-`HEALTHCHECK` op de app-socket blijft werken;
+4. `/api/health` blijft ongewijzigd doorwerken voor orchestrators.
+
+**Controleren na de deploy (5 minuten):**
+
+```bash
+curl -sI https://<domein>/ | grep -iE "strict-transport-security|referrer-policy"
+#   strict-transport-security: max-age=31536000
+#   referrer-policy: strict-origin-when-cross-origin
+curl -sI http://<domein>/ | head -1        # 308 (of 301) naar https
+curl -s https://<domein>/api/health        # status ok, database up, storage.writable true
+```
+
+In de browser: DevTools → Network → filter `embed/` → het YouTube-request moet een `Referer` hebben.
+Ontbreekt die, dan onderdrukt een laag de `Referrer-Policy` en breekt de speler (zie §7e in
+`docs/CONTEXT.md`).
+
+---
+
 ## 6. Updaten en terugrollen
 
 1. `git pull` → `npm ci` (root + server) → `npm run build` + `server: npm run build`.
@@ -190,6 +236,101 @@ Uploads staan buiten de image op een volume en blijven dus staan bij een redeplo
 verwijst naar `/uploads/<bestand>` en de server controleert bij het opstarten of die bestanden er
 zijn. Rollback = vorige image/commit terugzetten en opnieuw starten; migraties zijn voorwaarts
 geschreven, dus draai geen `migrate reset` op productie.
+
+---
+
+## 6b. Backup en herstel (Fase 5.1)
+
+De database én de uploads-map zijn samen de hele site: de content, de scholars/subjects, de
+beheerdersaccounts **en** de bestanden die de database als `/uploads/<bestand>` aanwijst. Docker-volumes
+(`postgres_data`, `uploads_data`) zijn geen backup: ze staan op dezelfde host en verdwijnen mee met een
+verkeerd commando. De scripts staan in `ops/` en gebruiken alleen `pg_dump`, `pg_restore`, `psql` en
+coreutils — dus niets extra te installeren.
+
+### Back-up maken
+
+```bash
+DATABASE_URL="postgresql://ilmnet:pass@localhost:5432/ilmnet?schema=public" \
+UPLOADS_DIR=/var/lib/ilmnet/uploads \
+BACKUP_DIR=/var/backups/ilmnet \
+RETENTION_DAYS=14 \
+ops/backup.sh
+```
+
+Dat schrijft een set van drie bestanden (rechten 0600, want de dump bevat wachtwoord-hashes):
+
+| Bestand | Inhoud |
+| --- | --- |
+| `ilmnet-db-<tijdstip>.dump` | `pg_dump --format=custom` — compleet en per object terug te zetten |
+| `ilmnet-uploads-<tijdstip>.tar.gz` | de uploads-map (custom thumbnails/covers) |
+| `ilmnet-manifest-<tijdstip>.txt` | rij-aantallen op het moment van de back-up + bestandsgroottes + sha256 |
+
+Na `RETENTION_DAYS` ruimt het script oudere sets zelf op. Prisma-parameters in `DATABASE_URL`
+(`?schema=public`, `connection_limit`) worden automatisch uit de URL gefilterd voordat `pg_dump`
+hem ziet; dezelfde URL werkt dus voor de app én voor de back-up.
+
+**Automatisch (aanbevolen):** `ops/systemd/ilmnet-backup.service` + `ilmnet-backup.timer` draaien de
+back-up elke nacht (02:30, met random vertraging). Installeer ze en zet de variabelen in
+`/etc/ilmnet/backup.env` (voorbeeld: `ops/systemd/backup.env.example`):
+
+```bash
+sudo install -d -m 0750 /etc/ilmnet
+sudo install -m 0600 ops/systemd/backup.env.example /etc/ilmnet/backup.env
+sudo editor /etc/ilmnet/backup.env
+sudo cp ops/systemd/ilmnet-backup.{service,timer} /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl enable --now ilmnet-backup.timer
+systemctl list-timers ilmnet-backup.timer
+```
+
+Zonder systemd (cron):
+
+```cron
+30 2 * * * cd /opt/ilmnet && set -a && . /etc/ilmnet/backup.env && set +a && ops/backup.sh >> /var/log/ilmnet-backup.log 2>&1
+```
+
+**Buiten de host bewaren:** `BACKUP_DIR` hoort op een andere schijf dan de database, en de set hoort
+daarna gekopieerd te worden naar opslag buiten de server (rsync/object-storage naar keuze). Een
+back-up op dezelfde host beschermt niet tegen schijfuitval of een verkeerde `rm`. Versleutel de
+doelopslag: de dump bevat de scrypt-hashes van de beheerdersaccounts.
+
+### Terugzetten
+
+```bash
+# naar een lege database (DROP + CREATE), inclusief uploads
+ops/restore.sh --dump /var/backups/ilmnet/ilmnet-db-<tijdstip>.dump \
+               --database-url "postgresql://ilmnet:pass@localhost:5432/ilmnet" \
+               --uploads /var/backups/ilmnet/ilmnet-uploads-<tijdstip>.tar.gz \
+               --recreate --yes
+```
+
+- De **doel-database moet je expliciet noemen** (`--database-url`); er is geen impliciete
+  “herstel over wat `DATABASE_URL` toevallig is”.
+- `--recreate` (DROP + CREATE) vraagt aanvullend `--yes`; zonder die vlag stopt het script.
+- Zonder `--recreate` herstelt het script in een bestaande database met `--clean --if-exists`.
+- De uploads-map wordt **nooit** stil overschreven: staat daar al iets, dan is `--force` nodig.
+- Draai daarna `npx prisma migrate deploy` als de dump ouder is dan de nieuwste migratie, herstart de
+  API en controleer `GET /api/health` + een paar pagina's.
+
+### De oefening (verplicht, 1 minuut)
+
+Een back-up die nooit is teruggezet is een aanname. `ops/restore-drill.sh` bewijst het zonder de
+live-omgeving aan te raken: hij zet de nieuwste set terug in een **wegwerp-database**
+(`ilmnet_restore_drill`) en een **tijdelijke uploads-map**, en vergelijkt daarna de rij-aantallen en
+de sha256 van elk bestand met het manifest.
+
+```bash
+DATABASE_URL="postgresql://ilmnet:pass@localhost:5432/ilmnet?schema=public" \
+BACKUP_DIR=/var/backups/ilmnet UPLOADS_DIR=/var/lib/ilmnet/uploads ops/restore-drill.sh
+# → drill PASSED — the backup set restores into an empty database with matching counts.
+```
+
+Draai deze oefening bij de eerste deploy en daarna bijvoorbeeld maandelijks; een `FAIL` betekent dat
+je back-up niet terug te zetten is en dat je dat **nu** wilt weten.
+
+### Wat er bewust niet in de back-up zit
+
+`.env`-bestanden en secrets (die horen in de procesomgeving/een secret manager), de reverse-proxy-
+config en het TLS-certificaat. Noteer die apart, zodat een herstel op een nieuwe host compleet is.
 
 ---
 
@@ -212,6 +353,9 @@ geschreven, dus draai geen `migrate reset` op productie.
 | Thumbnails 404, boot-waarschuwing over ontbrekende uploads | `UPLOADS_DIR` staat niet op een persistent volume, of het volume is niet gemount. |
 | Diepe link geeft 404 | Reverse proxy onderschept de route; stuur alles naar de Node-service of zet `SERVE_FRONTEND=true`. |
 | Archive-import faalt met `ARCHIVE_FETCH_FAILED` | Tijdelijke rate-limit bij archive.org — opnieuw proberen. |
+| `pg_dump: error: invalid URI query parameter: "schema"` | Alleen als je `pg_dump` handmatig met de Prisma-URL aanroept. `ops/backup.sh` filtert Prisma-parameters (`schema`, `connection_limit`, …) er zelf uit; doe dat handmatig ook, of laat `?schema=public` weg |
+| Na het terugzetten zijn thumbnails 404 | De uploads zijn niet (of in een andere map) teruggezet: controleer `UPLOADS_DIR` en de bootregel `Upload storage ready …` resp. `Missing upload file(s) …` |
+| `drill FAILED` bij een rij-aantal | De set is incompleet of hoort bij een andere database. Maak een nieuwe back-up en herhaal de drill; zet niets terug voordat de drill slaagt |
 
 ---
 

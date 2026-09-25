@@ -404,11 +404,24 @@ async function testOptionalDataApi() {
   assert.ok(!JSON.stringify(playlistFallback).includes(bogus), 'no key in the playlist payload');
   ok(`playlist fallback ok (${playlistFallback.totalItems} items, source=${playlistFallback.metadataSource})`);
 
-  // 7d. A key must never end up in the database: preview writes only the import job.
-  const job = await prisma.importJob.findFirst({ where: { provider: 'youtube' }, orderBy: { createdAt: 'desc' } });
-  assert.ok(job, 'import job written for the preview');
-  assert.ok(!JSON.stringify(job).includes(bogus), 'stored import job contains no API key');
-  ok('stored import job contains no API key');
+  // 7d. A key must never end up in the database. This suite drives the service directly (the HTTP
+  //     preview route that writes the ImportJob row is covered by test/production.test.ts), so it
+  //     proves two things that hold on any database — clean or not:
+  //       * a service-level preview writes nothing at all,
+  //       * no stored import job anywhere contains the key.
+  //     (Before Fase 5.1 this asserted on "the newest youtube job", which only existed when a
+  //     previous run or another suite had left one behind — a false failure on a clean database.)
+  const jobsBefore = await prisma.importJob.count({ where: { provider: 'youtube' } });
+  await previewYouTube('https://youtu.be/dQw4w9WgXcQ');
+  const jobsAfter = await prisma.importJob.count({ where: { provider: 'youtube' } });
+  assert.equal(jobsAfter, jobsBefore, 'a preview alone writes nothing to the database');
+
+  const storedJobs = await prisma.importJob.findMany({ where: { provider: 'youtube' } });
+  assert.ok(
+    !storedJobs.some((job) => JSON.stringify(job).includes(bogus)),
+    'no stored import job contains the API key',
+  );
+  ok(`stored import jobs contain no API key (${storedJobs.length} youtube job(s) inspected)`);
 
   delete process.env.YOUTUBE_API_KEY;
 }

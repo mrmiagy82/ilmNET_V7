@@ -1,0 +1,18 @@
+[Unit]
+Description=ilmNet backup (PostgreSQL dump + uploads archive + manifest)
+Documentation=file:/opt/ilmnet/docs/DEPLOYMENT.md
+# Optional: only run when the database container is up (docker compose deployments).
+# Requires=postgres.service
+# After=postgres.service
+
+[Service]
+Type=oneshot
+# Adjust WorkingDirectory and EnvironmentFile to your deployment.
+WorkingDirectory=/opt/ilmnet
+EnvironmentFile=/etc/ilmnet/backup.env
+ExecStart=/opt/ilmnet/ops/backup.sh
+User=ilmnet
+Group=ilmnet
+# The dump contains scrypt password hashes: keep it readable by the service user only.
+UMask=0077
+TimeoutStartSec=30min

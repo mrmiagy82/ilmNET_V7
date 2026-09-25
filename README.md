@@ -83,6 +83,11 @@ npm run test:e2e              # player/waveform, thumbnails, admin upload flow
 
 ## Production
 
+Operational scripts live in [`ops/`](ops/README.md): `backup.sh` (database dump + uploads archive +
+manifest), `restore.sh` (explicit target, refuses destructive guesses) and `restore-drill.sh` (proves a
+backup set restores into a throwaway database). A nightly systemd timer is included. Backups and their
+restore drill are covered in [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) § Backup en herstel.
+
 The full runbook lives in [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md): required environment variables,
 systemd/pm2 and Docker Compose setups, the production-safe seed (`npm run seed:reference`), health
 checks (`/api/health` → 200/503) and rollback.
@@ -103,7 +108,9 @@ pre-launch review of this codebase.
 
 ## Status
 
-Feature-complete for the current phase and verified end-to-end: 44 backend readiness checks, 25
-upload/thumbnail checks, 13 env-hardening checks, 19 import-regression checks, 61 production e2e
-checks and 27 media e2e checks all pass. Known scale limits (single-file bundle, 100-item client
-pagination, `ILIKE` search) are listed in the Fase 3.9 review.
+Feature-complete for the current phase and verified end-to-end: 54 backend readiness checks (including
+TLS/HSTS behaviour), 25 upload/thumbnail checks, 13 env-hardening checks, 69 admin-authentication
+checks, 19 import-regression checks, 84 production e2e checks and 60 admin-auth e2e checks all pass,
+and the backup/restore drill succeeds against real data. Known scale limits (single-file bundle,
+100-item client pagination, `ILIKE` search) are listed in the Fase 3.9 review; what still has to happen
+on a real host is in `docs/CONTEXT.md` §8.14.

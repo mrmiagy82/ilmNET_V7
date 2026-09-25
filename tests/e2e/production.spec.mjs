@@ -7,7 +7,8 @@
  *   node tests/e2e/production.spec.mjs
  *
  * Checks: direct URLs + hard refresh, loading state, API-failure state, missing thumbnail file,
- * real embeds (YouTube/Archive audio), mobile layout (no horizontal overflow), admin entry.
+ * real embeds (YouTube/Archive audio), footer navigation, mobile layout (no horizontal
+ * overflow), admin entry.
  *
  * Note: the two state checks delay/abort the *real* API request (fault injection) — no mock data.
  */
@@ -264,6 +265,52 @@ async function main() {
   );
   check(/username/i.test(adminText) && /password/i.test(adminText), 'admin CMS asks for username + password (no baked-in secret)');
   check(/PostgreSQL|connected|sign in|password/i.test(adminText), 'admin CMS reports the backend/database state and the sign-in requirement');
+
+  console.log('\n--- 6b. Footer navigation (Fase 5.1) ---');
+  // Every footer link must point at a page that really exists. A link to a route that is not in
+  // src/App.tsx would silently land on the catch-all route, so we check both the href and the page.
+  const footerPages = {
+    '/lectures': { heading: 'Lectures' },
+    '/lectures?type=audio': { heading: 'Lectures', chip: 'Audio' },
+    '/lectures?type=video': { heading: 'Lectures', chip: 'Video' },
+    '/books': { heading: 'Books' },
+    '/subjects': { heading: 'Subjects' },
+    '/scholars': { heading: 'Scholars' },
+  };
+  {
+    await page.goto(`${SITE}/`);
+    await page.waitForTimeout(400);
+    const hrefs = await page.$$eval('footer a', (els) => els.map((a) => a.getAttribute('href')));
+    check(hrefs.length > 0, `the footer has links (${hrefs.length})`);
+    const allowed = new Set([...Object.keys(footerPages), '/', '/admin']);
+    const unknown = hrefs.filter((h) => !allowed.has(h));
+    check(unknown.length === 0, `every footer link points at a real route (unknown: ${unknown.join(', ') || 'none'})`);
+
+    const fakeLabels = ['Our approach', 'Sources & attribution', 'Contributors', 'Contact', 'Collections', 'Beginners path', 'New additions', 'Series'];
+    const footerText = await page.$eval('footer', (el) => el.innerText);
+    const lingering = fakeLabels.filter((l) => footerText.includes(l));
+    check(lingering.length === 0, `no footer labels promise pages that do not exist (${lingering.join(', ') || 'none'})`);
+
+    for (const [href, expectation] of Object.entries(footerPages)) {
+      await page.goto(`${SITE}${href}`);
+      await page.waitForTimeout(350);
+      const body = await page.$eval('body', (el) => el.innerText);
+      const path = new URL(page.url()).pathname;
+      check(
+        path === href.split('?')[0],
+        `${href} opens that page instead of falling back to the landing route (${path})`,
+      );
+      check(body.includes(expectation.heading), `${href} renders the ${expectation.heading} page`);
+      if (expectation.chip) {
+        const chipOn = await page
+          .locator('button', { hasText: new RegExp(`^${expectation.chip}$`) })
+          .first()
+          .evaluate((el) => el.className.includes('bg-rose') || el.getAttribute('aria-pressed') === 'true')
+          .catch(() => false);
+        check(chipOn, `${href} marks the ${expectation.chip} filter as active`);
+      }
+    }
+  }
 
   console.log('\n--- 7. Mobile layout (390×844) ---');
   const mobile = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });

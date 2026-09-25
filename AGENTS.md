@@ -72,6 +72,10 @@ Details: `README.md` (overview), `docs/backend-architecture.md` (API + data mode
 **Data**
 - Never run the destructive demo seed (`npm run seed`) against a production database — it refuses,
   by design. Production reference data comes from `npm run seed:reference` (subjects + scholars only).
+- **A backup set is a secret and must never be committed**: `ops/backup.sh` writes a `pg_dump` (which
+  contains the scrypt hashes of the admin accounts) and the uploads archive outside the checkout, mode
+  0600; `.gitignore` also covers `backups/`. `ops/restore.sh` only ever touches a database that was
+  named explicitly on the command line — never add an "implicit target" shortcut to it.
 - `content_scholars` / `content_subjects` are join tables; orphans are a bug. `provider +
   externalIdentifier` is unique, so imports dedupe instead of duplicating.
 - Drafts must never appear on the public site: public endpoints force `status = published`.
@@ -104,6 +108,11 @@ npm run admin:password -- --username <name> --password '<pw>'   # revokes that a
 npm run admin:disable -- --username <name>
 npm run admin:enable  -- --username <name>
 npm run admin:list
+
+# backups / restore (Fase 5.1) — see docs/DEPLOYMENT.md § Backup en herstel
+DATABASE_URL=… UPLOADS_DIR=… BACKUP_DIR=… ops/backup.sh    # dump + uploads + manifest
+DATABASE_URL=… ops/restore-drill.sh                       # prove the newest set restores (safe)
+ops/restore.sh --dump <file> --database-url <url>         # real restore (explicit target)
 
 # tests
 cd server && npm run test:all    # audit, uploads, production readiness, env guards, youtube

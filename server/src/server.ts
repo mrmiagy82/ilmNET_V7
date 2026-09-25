@@ -39,6 +39,27 @@ function corsOrigins(): string[] {
   return raw.split(',').map((s) => s.trim()).filter(Boolean);
 }
 
+/**
+ * HSTS max-age in seconds (Fase 5.1). Default one year; `HSTS_MAX_AGE=0` switches the header off.
+ * The header is only sent on requests that really arrived over HTTPS (see the onSend hook).
+ */
+function hstsMaxAge(): number {
+  const fallback = 60 * 60 * 24 * 365;
+  const raw = process.env.HSTS_MAX_AGE?.trim();
+  if (!raw) return fallback;
+  const value = Number(raw);
+  return Number.isFinite(value) && value >= 0 ? Math.floor(value) : fallback;
+}
+
+/**
+ * Opt-in HTTP → HTTPS redirect (Fase 5.1). Enable with `FORCE_HTTPS=true` in production when a
+ * TLS-terminating reverse proxy forwards the original scheme in `x-forwarded-proto`; the proxy must
+ * set that header, otherwise this can only ever see `http` and would redirect in a loop.
+ */
+function forceHttpsEnabled(): boolean {
+  return isProduction() && process.env.FORCE_HTTPS?.trim().toLowerCase() === 'true';
+}
+
 /** Constant-time token comparison so the admin token cannot be probed byte by byte. */
 function tokenMatches(provided: string): boolean {
   if (!provided) return false;
@@ -91,12 +112,39 @@ export async function buildApp() {
   await app.register(sensible);
 
   // ── Security headers (no framing rules: the site is embedded in previews/iframes) ──
-  app.addHook('onSend', async (_req, reply, payload) => {
+  app.addHook('onSend', async (req, reply, payload) => {
     reply.header('x-content-type-options', 'nosniff');
+    // YouTube requires the Referer for embedded players (Fase 4.3.1): never weaken this value.
     reply.header('referrer-policy', 'strict-origin-when-cross-origin');
     reply.header('x-permitted-cross-domain-policies', 'none');
+    // HSTS (Fase 5.1) — only on a request that really arrived over HTTPS: direct TLS or a proxy
+    // that sets `x-forwarded-proto` (trustProxy). Over plain HTTP a browser ignores it anyway, so
+    // sending it would only be misleading. `includeSubDomains`/`preload` are deliberately NOT set:
+    // add them at the proxy once every subdomain is HTTPS-only.
+    const hsts = hstsMaxAge();
+    if (hsts > 0 && req.protocol === 'https') {
+      reply.header('strict-transport-security', `max-age=${hsts}`);
+    }
     return payload;
   });
+
+  // ── HTTP → HTTPS (opt-in, provider-agnostic) ──
+  // With FORCE_HTTPS=true (production only) every plain-HTTP request is answered with a 308 to the
+  // same URL over HTTPS — 308 keeps the method and body, so an admin POST is not turned into a GET.
+  // Health endpoints are exempt so a container/orchestrator that talks to the app socket over HTTP
+  // (server/Dockerfile HEALTHCHECK) keeps working. The proxy normally does this redirect; this is
+  // the in-app fallback for a proxy that only forwards.
+  if (forceHttpsEnabled()) {
+    app.addHook('onRequest', async (req, reply) => {
+      if (req.protocol === 'https') return;
+      const path = req.url.split('?')[0];
+      if (path === '/api/health' || path === '/api/v1/health') return;
+      const forwardedHost = (req.headers['x-forwarded-host'] as string | undefined)?.split(',')[0]?.trim();
+      const host = forwardedHost || req.headers.host;
+      if (!host) return;
+      return reply.code(308).redirect(`https://${host}${req.raw.url ?? req.url}`);
+    });
+  }
 
   // ── Admin protection (Fase 4.5) ──
   // Every write under /api/* and every request under /api/admin/* (including reads of drafts,
@@ -245,6 +293,10 @@ if (require.main === module) {
       app.log.info(`CORS origins: ${corsOrigins().join(', ')}`);
       app.log.info(
         `Admin protection: session sign-in enabled${adminToken() ? ' + legacy ADMIN_TOKEN fallback' : ' (no ADMIN_TOKEN set — development only)'}`,
+      );
+      app.log.info(
+        `TLS: ${hstsMaxAge() > 0 ? `HSTS max-age=${hstsMaxAge()}s on https requests` : 'HSTS disabled (HSTS_MAX_AGE=0)'}` +
+          ` · HTTP→HTTPS redirect: ${forceHttpsEnabled() ? 'on (FORCE_HTTPS)' : 'off (let the reverse proxy do it)'}`,
       );
       const build = frontendBuild();
       app.log.info(

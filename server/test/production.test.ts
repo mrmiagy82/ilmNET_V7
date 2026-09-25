@@ -9,6 +9,7 @@
  *  4. uploads: path traversal blocked, only image files, size/type limits enforced
  *  5. storage: UPLOADS_DIR override, health reports storage + admin protection
  *  6. deploy: fail-fast without ADMIN_TOKEN in production, frontend build served when present
+ *  7. TLS readiness (Fase 5.1): HSTS only over HTTPS, optional FORCE_HTTPS redirect
  */
 import fs from 'fs';
 import path from 'path';
@@ -314,6 +315,71 @@ async function main() {
     const secHeaders = await fetch(`${base}/api/health`);
     check(secHeaders.headers.get('x-content-type-options') === 'nosniff', 'API responses set X-Content-Type-Options: nosniff');
     check(Boolean(secHeaders.headers.get('referrer-policy')), 'API responses set a referrer policy');
+
+    console.log('\n--- 6b. TLS / HTTPS readiness (Fase 5.1) ---');
+    // A request that arrives over HTTPS (directly or through a TLS-terminating proxy that sets
+    // x-forwarded-proto) carries HSTS; a plain-HTTP request must not.
+    const secureReq = await fetch(`${base}/api/health`, {
+      headers: { host: 'ilmnet.example', 'x-forwarded-proto': 'https' },
+    });
+    const hsts = secureReq.headers.get('strict-transport-security') ?? '';
+    check(hsts.includes('max-age='), `https request carries HSTS (${hsts || 'missing'})`);
+    check(!/includeSubDomains/i.test(hsts), 'HSTS does not claim includeSubDomains before the subdomains are ready');
+    check(
+      secureReq.headers.get('referrer-policy') === 'strict-origin-when-cross-origin',
+      'referrer policy stays the YouTube-compatible value (Fase 4.3.1)',
+    );
+
+    const plainReq = await fetch(`${base}/api/health`, { headers: { host: 'ilmnet.example' } });
+    check(plainReq.headers.get('strict-transport-security') === null, 'plain http response carries no HSTS header');
+
+    const savedHsts = process.env.HSTS_MAX_AGE;
+    process.env.HSTS_MAX_AGE = '0';
+    const hstsDisabled = await fetch(`${base}/api/health`, {
+      headers: { host: 'ilmnet.example', 'x-forwarded-proto': 'https' },
+    });
+    check(hstsDisabled.headers.get('strict-transport-security') === null, 'HSTS_MAX_AGE=0 switches HSTS off');
+    process.env.HSTS_MAX_AGE = savedHsts;
+
+    // FORCE_HTTPS redirects plain HTTP (308 keeps method + body) and leaves health checks alone.
+    const savedForceHttps = process.env.FORCE_HTTPS;
+    process.env.FORCE_HTTPS = 'true';
+    const redirectApp = await buildApp();
+    const redirectBase = await redirectApp.listen({ port: 0, host: '127.0.0.1' });
+    try {
+      // `fetch` cannot override the Host header, so the proxy-supplied public host is tested the way a
+      // real proxy supplies it: through x-forwarded-host.
+      const httpGet = await fetch(`${redirectBase}/lectures?type=audio`, {
+        headers: { host: 'ilmnet.example', 'x-forwarded-host': 'ilmnet.example' },
+        redirect: 'manual',
+      });
+      check(httpGet.status === 308, `FORCE_HTTPS answers plain http with 308 (${httpGet.status})`);
+      check(
+        (httpGet.headers.get('location') ?? '') === 'https://ilmnet.example/lectures?type=audio',
+        `redirect uses the forwarded host and keeps path + query (${httpGet.headers.get('location')})`,
+      );
+      const httpGetDirect = await fetch(`${redirectBase}/books`, { headers: {}, redirect: 'manual' });
+      check(
+        (httpGetDirect.headers.get('location') ?? '') === `https://${new URL(redirectBase).host}/books`,
+        `redirect falls back to the host the request arrived on (${httpGetDirect.headers.get('location')})`,
+      );
+      const httpsGet = await fetch(`${redirectBase}/lectures`, {
+        headers: { host: 'ilmnet.example', 'x-forwarded-proto': 'https' },
+        redirect: 'manual',
+      });
+      check(httpsGet.status === 200, `https request is served, not redirected (${httpsGet.status})`);
+      const healthOverHttp = await fetch(`${redirectBase}/api/health`, {
+        headers: { host: 'ilmnet.example' },
+        redirect: 'manual',
+      });
+      check(
+        healthOverHttp.status === 200,
+        `health stays reachable over plain http for a container healthcheck (${healthOverHttp.status})`,
+      );
+    } finally {
+      await redirectApp.close();
+      process.env.FORCE_HTTPS = savedForceHttps;
+    }
 
     console.log('\n--- 7. Frontend hosting + JSON 404s ---');
     const buildIndex = path.resolve(process.cwd(), '..', 'dist', 'index.html');
