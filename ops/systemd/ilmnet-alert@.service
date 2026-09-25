@@ -1,0 +1,21 @@
+# ilmNet — alert template unit (Fase 5.6).
+#
+# Triggered by `OnFailure=` on another unit: the failing unit's name is passed as %i, so
+# `ilmnet-backup.service` failing runs `ilmnet-alert@ilmnet-backup.service.service`.
+#
+# Install alongside the other units:
+#   sudo install -m 0644 ops/systemd/ilmnet-alert@.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#
+# The alert environment file must exist because ops/alert.sh takes ALERT_WEBHOOK_URL / ALERT_MAIL_TO
+# from there — the same file the watchdog uses. Missing file = the message only lands in the journal.
+[Unit]
+Description=ilmNet alert for a failed unit (%i)
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/ilmnet
+EnvironmentFile=-/etc/ilmnet/healthcheck.env
+ExecStart=/opt/ilmnet/ops/alert.sh --subject "ilmNet unit failed: %i on $(hostname)" --body "systemd reports a failure for %i. Investigate with: systemctl status %i ; journalctl -u %i -n 100 --no-pager" --severity critical
+User=ilmnet
+Group=ilmnet

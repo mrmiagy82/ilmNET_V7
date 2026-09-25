@@ -1,6 +1,9 @@
 [Unit]
 Description=ilmNet backup (PostgreSQL dump + uploads archive + manifest)
 Documentation=file:/opt/ilmnet/docs/DEPLOYMENT.md
+# Fase 5.6: a nightly backup that fails silently is the worst failure mode of all — the alert unit
+# (ops/systemd/ilmnet-alert@.service) sends the failure to ALERT_WEBHOOK_URL / ALERT_MAIL_TO.
+OnFailure=ilmnet-alert@%n.service
 # Optional: only run when the database container is up (docker compose deployments).
 # Requires=postgres.service
 # After=postgres.service

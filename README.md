@@ -103,9 +103,12 @@ attribution (`createdBy`/`updatedBy`/`importJobId`) never leaves the admin endpo
 cannot be undone must name the record they destroy (`?confirm=<id|slug>`, typed in the CMS).
 
 Operational scripts live in [`ops/`](ops/README.md): `backup.sh` (database dump + uploads archive +
-manifest), `restore.sh` (explicit target, refuses destructive guesses) and `restore-drill.sh` (proves a
-backup set restores into a throwaway database). A nightly systemd timer is included. Backups and their
-restore drill are covered in [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) § Backup en herstel.
+manifest), `restore.sh` (explicit target, refuses destructive guesses), `restore-drill.sh` (proves a
+backup set restores into a throwaway database), `offsite-copy.sh` (copies the sets off the host and
+verifies them against the manifest), `healthcheck.sh` (watchdog for health, backup freshness and disk),
+`alert.sh` (webhook/mail alerts) and `deploy-check.sh` (post-deploy smoke test that also proves *which*
+release is live). Systemd timers/services and a logrotate example are included; what only the host can
+do is listed explicitly in [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) §9f.
 
 The full runbook lives in [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md): required environment variables,
 systemd/pm2 and Docker Compose setups, the production-safe seed (`npm run seed:reference`), health
@@ -132,9 +135,11 @@ pre-launch review of this codebase.
 
 ## Status
 
-Feature-complete for the current phase and verified end-to-end: 54 backend readiness checks (including
-TLS/HSTS behaviour), 25 upload/thumbnail checks, 13 env-hardening checks, 69 admin-authentication
-checks, 19 import-regression checks, 84 production e2e checks and 60 admin-auth e2e checks all pass,
-and the backup/restore drill succeeds against real data. Known scale limits (single-file bundle,
-100-item client pagination, `ILIKE` search) are listed in the Fase 3.9 review; what still has to happen
-on a real host is in `docs/CONTEXT.md` §8.14.
+Feature-complete for the current phase and verified end-to-end: 154 production-readiness checks
+(including TLS/HSTS, proxy trust, payload whitelists and the crawler surface), 30 upload/thumbnail
+checks, 13 env-hardening checks, 69 admin-authentication checks, 32 audit checks, 19 import-regression
+checks, 84 production e2e checks and 60 admin-auth e2e checks, and the backup/restore drill succeeds
+against real data — most recently **from an off-site copy** (Fase 5.6). Known scale limits (single-file
+bundle, 100-item client pagination, `ILIKE` search) are listed in the Fase 3.9 review; what still has to
+happen on a real host is in `docs/CONTEXT.md` §8.14 and the explicitly host-only checklist in
+`docs/DEPLOYMENT.md` §9f.

@@ -30,15 +30,15 @@ uncompressed (631 kB → 157 kB over the wire, −2,3 s on a 3G profile) (§7j).
 | | |
 | --- | --- |
 | Branch | `master` |
-| Codebase state described here | `7d090c7` (Fase 5.4) **plus** the Fase 5.5 changes in §7k — this document ships in the Fase 5.5 commit |
-| This document | updated in Fase 5.5; its own revision is visible with `git log -1 -- docs/CONTEXT.md` |
+| Codebase state described here | `dd33ea6` (Fase 5.5) **plus** the Fase 5.6 changes in §7l — this document ships in the Fase 5.6 commit |
+| This document | updated in Fase 5.6; its own revision is visible with `git log -1 -- docs/CONTEXT.md` |
 | Working tree | clean (verified against `origin/master`) |
 | Repository | `github.com/mrmiagy82/ilmNET_V7` |
 | Size | 69 source files, ~15.6k lines in `src/` + `server/src/`; the admin (`src/admin/`, 20 files, ~6.5k lines) is the largest area |
 | Build (git-ignored artefact) | single-file `dist/index.html` (657.57 kB raw — the `dist/index.html.gz` variant of 159.34 kB is served when the client accepts gzip). Since Fase 5.5 the four webfont families live next to it in `dist/fonts/` as 14 subset `.woff2` files (582 kB in total, of which a page downloads only the 5–10 subsets it uses) |
-| Phase state | Fase 5.5 complete: the public site now carries per-route titles/descriptions/Open Graph, a real 404 page, self-hosted fonts (no Google request), `robots.txt`/`sitemap.xml`/favicon/manifest, a skip link, and the security headers the app can honestly set (§7k). Fase 5.4 background (still valid): the public path was measured on a 20 000-record database and only the measured bottlenecks were changed — the list projection (media keys of `metadata` + card-shaped join rows), the series/collection filter (indexed equality instead of a nine-column ILIKE), the SPA fallback through the static handler, and a pre-compressed single-file bundle. Free-text search and pagination beyond 100 items are **measured and documented**, not changed: they need a trigram index / server-side paging (§7j, §8.16–§8.18) |
-| Roadmap | production finishing, UI/UX and performance toward the definitive live deployment (§9). Fase 5.4 (scale/speed) and 5.5 (polish/compliance) are done; what remains is host-side deployment work (§8.14) and, if wanted, the Fase 5.6 operations block (CI, staging, account UI) |
-| Open blockers | none in the repository. Host-side and not verifiable from the repo: terminating TLS, forwarding `X-Forwarded-Proto`, choosing `TRUST_PROXY` for the real topology, the nightly backup timer plus off-site copies, uptime/alerting, gzip for API JSON at the proxy, public-API rate limiting, and the `frame-ancestors`/CSP decision (§8.14, §8.19). Fase 5.5's own host-only list is in §7k. Data-safety wise nothing is open: the last low-priority item is the `__Host-` cookie prefix (§8.15) |
+| Phase state | **Fase 5.6 complete**: the operations layer is written down and testable from the repository — a watchdog (health, readiness, backup freshness, disk, optional database), alert delivery, an off-site copy script that verifies itself against the manifest, a post-deploy/rollback smoke test, release identity in `/api/health`, `LOG_LEVEL`, systemd units and a logrotate example. What remains for a host is listed verbatim in §7l and `docs/DEPLOYMENT.md` §9f. Fase 5.5 background (still valid): the public site now carries per-route titles/descriptions/Open Graph, a real 404 page, self-hosted fonts (no Google request), `robots.txt`/`sitemap.xml`/favicon/manifest, a skip link, and the security headers the app can honestly set (§7k). Fase 5.4 background (still valid): the public path was measured on a 20 000-record database and only the measured bottlenecks were changed — the list projection (media keys of `metadata` + card-shaped join rows), the series/collection filter (indexed equality instead of a nine-column ILIKE), the SPA fallback through the static handler, and a pre-compressed single-file bundle. Free-text search and pagination beyond 100 items are **measured and documented**, not changed: they need a trigram index / server-side paging (§7j, §8.16–§8.18) |
+| Roadmap | production finishing, UI/UX and performance toward the definitive live deployment (§9). Fase 5.4 (scale/speed), 5.5 (polish/compliance) and 5.6 (operations/monitoring) are done; what is left is host-side work (§8.14, `docs/DEPLOYMENT.md` §9f) and the optional follow-ups (CI, staging, account UI — §9) |
+| Open blockers | none in the repository. Host-side and not verifiable from the repo (Fase 5.6 turned as much of this as possible into scripts and documented steps, §7l): terminating TLS, forwarding `X-Forwarded-Proto`, choosing `TRUST_PROXY` for the real topology, the nightly backup timer plus off-site copies, uptime/alerting, gzip for API JSON at the proxy, public-API rate limiting, and the `frame-ancestors`/CSP decision (§8.14, §8.19). Fase 5.5's own host-only list is in §7k. Data-safety wise nothing is open: the last low-priority item is the `__Host-` cookie prefix (§8.15) |
 
 ## 2. Completed phases (from Git history)
 
@@ -67,7 +67,8 @@ uncompressed (631 kB → 157 kB over the wire, −2,3 s on a 3G profile) (§7j).
 | `504e353` | Fase 5.2 | deployment hardening: proxy trust (`TRUST_PROXY`), safe forwarded-host handling, boot guards, no public Postgres/API port, readiness probe (see §7h) |
 | `5b1372d` | Fase 5.3 | data & security hardening: legacy token off in production, whitelisted public payloads, confirmed destructive deletes, byte-verified uploads, no path leak in health (see §7i) |
 | `7d090c7` | Fase 5.4 | performance & scale: measured on 20 000 records — reduced list payload, index-backed series filter, SPA fallback via the static handler, pre-compressed bundle (see §7j) |
-| _this commit_ | Fase 5.5 | production polish: self-hosted fonts, per-route meta + Open Graph, 404 page, `robots.txt`/`sitemap.xml`/favicon/manifest, skip link, honest empty states, English-only public copy, security headers, root-absolute asset URLs (see §7k) |
+| `dd33ea6` | Fase 5.5 | production polish: API JSON compression, self-hosted fonts, per-route meta + Open Graph, 404 page, `robots.txt`/`sitemap.xml`/favicon/manifest, skip link, honest empty states, English-only public copy, security headers, root-absolute asset URLs (see §7k) |
+| _this commit_ | Fase 5.6 | operations & monitoring: watchdog (`healthcheck.sh`), alert delivery (`alert.sh`), off-site copy with manifest verification (`offsite-copy.sh`), post-deploy/rollback smoke test (`deploy-check.sh`), release identity + `LOG_LEVEL` in the API, systemd units + logrotate example, host-only checklist (see §7l) |
 
 Earlier work is documented per topic in `docs/FASE2A_ARCHIVE.md`, `docs/FASE2B_YOUTUBE.md`,
 `docs/FASE2C_PUBLIC_FRONTEND.md`, `docs/FASE2D_SEARCH_FILTERING.md`,
@@ -199,8 +200,17 @@ empty states, errors) live in the React components — there is no content layer
 - Uploads must live on a persistent volume (`UPLOADS_DIR`, e.g. `/var/lib/ilmnet/uploads`),
   otherwise images vanish on redeploy while the database keeps referencing them.
 - **Backups are part of the deployment, not an extra**: `ops/backup.sh` writes a `pg_dump` + uploads
-  archive + manifest, `ops/systemd/ilmnet-backup.timer` runs it nightly, and `ops/restore-drill.sh`
-  proves the set restores. Procedure and the recorded drill result: `docs/DEPLOYMENT.md` §6b, §7g.
+  archive + manifest, `ops/systemd/ilmnet-backup.timer` runs it nightly, `ops/offsite-copy.sh` copies the
+  sets off the host and verifies them against the manifest, and `ops/restore-drill.sh` proves the set
+  restores (Fase 5.6 ran that drill **from an off-site copy**). Procedure and results:
+  `docs/DEPLOYMENT.md` §6b, §7g, §7l.
+- **Monitoring is scripted, alerting has a real path (Fase 5.6)**: `ops/healthcheck.sh` is the watchdog
+  (deep health, readiness, uploads writability, backup freshness, disk, optional database), `ops/alert.sh`
+  delivers a failure to a webhook or mail (with the message copy on stderr), `ops/deploy-check.sh` proves
+  a deploy/rollback (11 checks + `--expect-commit`), and `/api/health` reports `version`, `commit` and
+  `uptime` so the release that answers is identifiable. `LOG_LEVEL` changes verbosity without a code
+  change. Units and a logrotate example ship in `ops/systemd/` and `ops/logrotate/`; the host-only list is
+  `docs/DEPLOYMENT.md` §9f.
 - Production reference data: `npm run seed:reference` (subjects + scholars only, never content).
   The destructive demo seed refuses to run in production.
   - `server/.env` in this repository is **development only** and stays untracked; in production the
@@ -265,8 +275,9 @@ empty states, errors) live in the React components — there is no content layer
 | --- | --- | --- |
 | `npx tsc --noEmit` (root + `server/`) | types | 0 errors (Fase 5.5) |
 | `npm run build` (root) | single-file production build + `dist/index.html.gz` (+ `dist/fonts/`, favicons, manifest) | 657.57 kB raw / 159.34 kB gzip, plus 14 font subsets (582 kB, only the used subsets are downloaded) — Fase 5.5 |
-| `cd server && npm run test:all` | audit (32), uploads (30), production readiness (**147**, incl. TLS/HSTS, proxy trust, boot guards, readiness, public payload, delete confirmation, magic bytes, admin posture, list-projection, gzip/304 of the SPA fallback, **robots/sitemap/404s/headers/API-JSON compression/font caching**), env hardening (13), youtube (+ Data API fallback), **auth (69)** | Fase 5.5: audit 32, uploads 30, production **147**, env 13, auth 69 all green (**291 ✅**); the youtube suite stops at its **live watch-page check** — this sandbox's YouTube access is throttled (302 → `/sorry`, §8.11), unrelated to the change. With YouTube reachable the total is 332 |
-| `ops/backup.sh` + `ops/restore-drill.sh` | database + uploads backup, then a restore into a throwaway database with count and checksum comparison | drill PASSED in Fase 5.1 (seven tables + two upload files, §7g) |
+| `cd server && npm run test:all` | audit (32), uploads (30), production readiness (**154**, incl. TLS/HSTS, proxy trust, boot guards, readiness, public payload, delete confirmation, magic bytes, admin posture, list-projection, gzip/304 of the SPA fallback, robots/sitemap/404s/headers/API-JSON compression/font caching, **release identity + `LOG_LEVEL`**), env hardening (13), youtube (+ Data API fallback), **auth (69)** | Fase 5.6: audit 32, uploads 30, production **154**, env 13, auth 69 all green (**298 ✅**); the youtube suite stops at its **live watch-page check** — this sandbox's YouTube access is throttled (302 → `/sorry`, §8.11), unrelated. With YouTube reachable the total is 339 |
+| `ops/backup.sh` + `ops/restore-drill.sh` | database + uploads backup, then a restore into a throwaway database with count and checksum comparison | PASSED in Fase 5.1 (seven tables + two upload files, §7g) and again in Fase 5.6, that time **from an off-site copy** made by `ops/offsite-copy.sh` (25/8/11 rows and 50+50 joins matching the manifest, §7l) |
+| `ops/healthcheck.sh` · `ops/alert.sh` · `ops/deploy-check.sh` | watchdog (health, readiness, backup freshness, disk, database), alert delivery to a webhook/mail, and an 11-check post-deploy/rollback proof | Fase 5.6: watchdog `OK (7 checks)` on a healthy host and exit 1 with an alert delivered on a dead API / missing backup; deploy check **11 passed, 0 failed** against the production build (§7l) |
 | `cd server && npm run test:imports` | live Archive.org + YouTube import regression | 19/19 whenever the provider answers; the live scrape check is the part that fails under Google's throttle (§8.11) |
 | `npm run test:e2e:production` | routes, embeds, **real YouTube playback**, error states, mobile, admin entry (login gate), **footer navigation (17 checks)** | 82/84 (re-run in Fase 5.5, unchanged): the two failing checks are the live playback ones — verified to fail identically in a **bare YouTube embed outside the app** (`yt-probe`), so this sandbox's YouTube playback path is blocked, not the site (§8.11) |
 | `npm run test:e2e` | waveform, thumbnails, admin upload flow | 27/27 |
@@ -964,6 +975,110 @@ per page load **260 939 → 36 299 B (−86,1 %)** and DCL/load **3 324 → 962 
 is the 3 324 ms figure. Deep links keep going through the static handler, so the frontend needed no change.
 
 
+## 7l. What Fase 5.6 (operations & monitoring) changed — and what only a host can do
+
+Instruction: read `AGENTS.md` and this file, check `git status`, audit the remaining operational points
+(backup timer/retention, off-site copies, restore drill, uptime monitoring, logging and error detection,
+deploy/rollback, database and disk monitoring, alerts, the health endpoints, and whether
+`docs/DEPLOYMENT.md` covers the operational steps), then **implement only what can be committed safely**
+and document the rest without pretending it ran. No new dependencies, no schema changes, no redesign.
+
+### Audited: what was already there
+
+- `ops/backup.sh` (dump + uploads + manifest with row counts and sha256, `RETENTION_DAYS`, a dump that
+  `pg_restore --list` accepts), `ops/systemd/ilmnet-backup.{service,timer}` (nightly 02:30,
+  `Persistent=true`), `ops/restore.sh` (explicit target, `--recreate` requires `--yes`) and
+  `ops/restore-drill.sh` (restores into a throwaway database and compares counts + checksums).
+- `GET /api/health` (deep: database + upload storage, 503 when either is unusable) and `GET /api/ready`
+  (cheap, database only), both public, both exempt from the `FORCE_HTTPS` redirect.
+- Troubleshooting: `docs/DEPLOYMENT.md` §7 (40+ symptom→cause rows).
+
+### Audited: what was genuinely missing
+
+| Gap | Evidence |
+| --- | --- |
+| **Nothing noticed a backup that stopped happening.** The timer could be off for a month and every check would still say the deployment is fine | `ops/backup.sh` reports its own run; there was no freshness check anywhere, and nothing in the repo referred to a backup alert |
+| **No alert path at all** | `grep -rn "alert\|monitoring\|uptime" docs/DEPLOYMENT.md` → 0 hits; a failing backup or a dead API only wrote to a log nobody reads |
+| **Off-site copies were one sentence** ("copy it afterwards with rsync/object storage of your choice") with no procedure, no verification and no way to prove a copy is complete | `docs/DEPLOYMENT.md` §6b before this phase |
+| **No disk or database monitoring** | `df`/`pg_database_size` appeared nowhere; a nearly-full disk is what makes Postgres and the backup fail at the worst moment |
+| **Logging had no guidance**: no rotation, no retention, no level override, no "what to grep" | no hits for `journald`/`logrotate`/`LOG_LEVEL` in any document |
+| **A deploy could not be verified.** `/api/health` reported `version: '1.0.0'` as a hard-coded string, and nothing reported *which commit* was live | `server/src/routes/health.ts` before this phase |
+| **No post-deploy/rollback step** beyond "restart and look at it" | `docs/DEPLOYMENT.md` §6 |
+| **No database/storage numbers in an alert** | same as the alert gap |
+
+### Changed (all of it runnable from the repository)
+
+1. **`ops/healthcheck.sh` — the watchdog.** Checks the deep health endpoint and readiness, uploads
+   writability (with a write probe), **backup freshness** (`BACKUP_MAX_AGE_HOURS`, default 30), free disk
+   space (`DISK_WARN_PERCENT`/`DISK_CRIT_PERCENT`, default 85/95) and optionally the database
+   (`SELECT 1` + size). Exit 0/1, `--quiet` for timers, `--strict`, `--base`. It sends an alert when
+   nothing is wrong? No — only when something is: alerts on failure, and it says so explicitly when no
+   channel is configured.
+2. **`ops/alert.sh` — delivery that cannot break the caller.** JSON POST to `ALERT_WEBHOOK_URL` (Slack,
+   Discord, Mattermost, ntfy, Healthchecks.io, Uptime Kuma, a relay) and/or `mail` to `ALERT_MAIL_TO`,
+   always a copy on stderr, credentials/tokens redacted out of the message, `--dry-run` to test the route
+   without starting an incident, exit 0 even when delivery fails (with the problem on stderr).
+3. **`ops/offsite-copy.sh` — leaving the host, verifiably.** rsync to another host or mount (`cp`
+   fallback for a local target), then **size + sha256 against the manifest**; refuses a target inside
+   `BACKUP_DIR` or the checkout and warns when the target is on the same device; `--latest`, `--delete`,
+   `--dry-run`; prints the drill/restore commands for the copy it just made.
+4. **`ops/deploy-check.sh` — post-deploy and post-rollback proof.** Eleven checks in one command:
+   readiness, deep health **with the release it reports**, the app shell, a deep link, `robots.txt`,
+   `sitemap.xml` (single origin), favicon, `/admin`, a missing file must be 404, and gzip on `/`, plus
+   `--expect-commit <sha>` to prove the release that answers is the release you shipped.
+5. **Release identity in the API.** `server/src/lib/release.ts`: `version` from `server/package.json`
+   (no more hard-coded string), `commit` from `GIT_COMMIT` (unset → `null`, never a guess) and `uptime`.
+   `/api/health` reports them and the boot log prints `Release: 1.0.0 (a1b2c3d) · log level: info`.
+6. **`LOG_LEVEL`** (`fatal|error|warn|info|debug|trace|silent`). An unknown value is refused with a
+   warning and the default is kept: a typo must not silently change what an operator believes is logged.
+7. **systemd/ops files**: `ilmnet-healthcheck.{service,timer}` (every 5 min), `healthcheck.env.example`,
+   `ilmnet-alert@.service` (the `OnFailure=` target, also added to the backup unit) and
+   `logrotate/ilmnet` for file-based logs.
+8. **Documentation**: `docs/DEPLOYMENT.md` gained §9 (*Monitoring, logging en alarmering*: watchdog,
+   alert channels, external uptime checks + dead-man's switch, logging/rotation/`LOG_LEVEL`/what to grep,
+   database- and disk monitoring, and **§9f: the host-only checklist**), an off-site + retention section
+   in §6b, release verification and honest rollback caveats in §6, `GIT_COMMIT`/`LOG_LEVEL` in §1, seven
+   new symptom rows in §7, and the new fields in §8. `ops/README.md`, `README.md` and `AGENTS.md` follow.
+
+### Verified in this sandbox (real runs, real database)
+
+| Step | Result |
+| --- | --- |
+| `ops/backup.sh` against the `ilmnet` database | 37 484-byte dump, 62 restorable objects, manifest written, uploads archived |
+| `ops/offsite-copy.sh --latest` to a target directory | rsync path **and** the `cp` fallback both verified size + sha256 against the manifest |
+| `ops/restore-drill.sh --dump <off-site copy>` | **PASSED** — restored from the *copy*: 25 contents, 8 scholars, 11 subjects, 50 + 50 join rows, 3 import jobs, all matching the manifest; the throwaway database was dropped afterwards |
+| `ops/healthcheck.sh` (healthy host) | `result: OK (7 checks)` — health, ready, uploads writable, backup 0 h old, two filesystems (23 %/27 %), database `SELECT 1` (size 8 598 kB) |
+| `ops/healthcheck.sh` (API dead / no backup set) | exit 1 with `FAIL health … HTTP 000` and `FAIL no backup set found … the timer has never run or writes elsewhere` |
+| Alert delivery | a local webhook receiver got both `critical` POSTs, with host, service, severity, timestamp and the failing lines |
+| `ops/alert.sh --dry-run` / without a channel | shows the exact payload; without a channel it exits 2 and says the stderr copy is the only one |
+| `ops/deploy-check.sh --expect-commit <sha>` against the production build | **11 passed, 0 failed, 0 warnings** |
+| Server suite | production readiness **154/154** (was 147; +7 for release identity and `LOG_LEVEL`), audit, uploads 30, env 13, auth 69 — all green |
+| `tsc --noEmit` (root + server), `npm run build` | clean; 657,57 kB / 159,34 kB gzip |
+| e2e `production` (re-run) | 82 ✅ / 2 ✗ — the two live YouTube-playback checks, environmental (§8.11) |
+
+Three real bugs were found by running the new scripts rather than by reading them: a `| head -1` after
+`grep` turned into exit 141 under `set -o pipefail` (fixed with `-m1`/`awk`), `grep -v` exiting 1 inside a
+command substitution killed the script through errexit (fixed with `|| true`), and
+`${DISK_PATHS:-"$A $B"}` expanded to a single word so the disk checks silently did nothing (fixed by
+building an array). All three are listed because they are exactly the kind of thing that makes a
+monitoring script useless without anyone noticing.
+
+### Host-only — documented, deliberately not claimed as done
+
+1. Install the timers/units and fill `/etc/ilmnet/{backup,healthcheck}.env` (systemd or cron).
+2. Choose and test an alert channel (`ALERT_WEBHOOK_URL`/`ALERT_MAIL_TO`) — the script is verified, the
+   operator's webhook is not.
+3. Create the external uptime check (and the dead-man's-switch ping) — `docs/DEPLOYMENT.md` §9c.
+4. Set `GIT_COMMIT` in the service environment so deploys/rollbacks are verifiable.
+5. Fill `BACKUP_DIR`/`OFFSITE_TARGET` for the real environment, wait for the first nightly run, then run
+   the drill **from the off-site copy**.
+6. Set journald/Docker log limits or install the logrotate config (§9d).
+7. Postgres' own health (`pg_stat_activity`, `max_connections`) stays a host/monitor decision: the
+   watchdog reports the database size and connectivity, not a full database-monitoring stack (§9e).
+
+That is the whole remaining operational surface: nothing in it is a code change, and every item has a
+command or a table in `docs/DEPLOYMENT.md` §9.
+
 ## 8. Known remaining issues (not blockers)
 
 From `docs/FASE3_9_CODEBASE_REVIEW.md` § Restrisico's plus the 3.9.1 report:
@@ -1014,15 +1129,16 @@ From `docs/FASE3_9_CODEBASE_REVIEW.md` § Restrisico's plus the 3.9.1 report:
 
 14. **Host-side items the repository cannot verify.** Fase 5.2 moved as much of this as possible into
     the code (defaults that trust nothing, an allowlisted redirect target, boot guards for the
-    dangerous combinations, a readiness probe, no published database/API port in compose), so what is
-    left is genuinely environmental: terminating TLS and renewing certificates; forwarding
-    `X-Forwarded-Proto` and choosing the real `TRUST_PROXY` value for that topology (a proxy that does
-    not forward the scheme makes `FORCE_HTTPS` unusable — the boot guard will tell you); the nightly
-    `ilmnet-backup.timer` running elsewhere than a test host; off-site copies; the monthly
-    `ops/restore-drill.sh`; rate limiting in front of the public API; uptime monitoring/alerting and a
-    resource/pool budget for the real traffic (audit I2, I9, L13). `docs/DEPLOYMENT.md` §5b/§5c/§6b
-    holds the exact commands and install steps, including the log lines and `curl` checks that prove
-    each one.
+    dangerous combinations, a readiness probe, no published database/API port in compose), and Fase 5.6
+    did the same for operations (watchdog, alerting, off-site copy, deploy check, release identity — all
+    scripts, timers and unit files are in the repo, §7l). What is left is genuinely environmental and
+    enumerated in **`docs/DEPLOYMENT.md` §9f**: installing the timers/units and filling the env files,
+    choosing + testing an alert channel, creating the external uptime check and dead-man's-switch ping,
+    setting `GIT_COMMIT`, filling `BACKUP_DIR`/`OFFSITE_TARGET` and drilling from the first off-site
+    copy, and setting log limits. Plus, unchanged from before: terminating TLS and renewing certificates;
+    forwarding `X-Forwarded-Proto` and choosing the real `TRUST_PROXY` value; rate limiting in front of
+    the public API; and a resource/pool budget for the real traffic (audit I2, I9, L13). §5b/§5c/§6b/§9
+    hold the exact commands, log lines and `curl` checks that prove each one.
 
 15. **The session cookie is not `__Host-`-prefixed** (Fase 5.3 reviewed and left this). The cookie is
     already `HttpOnly`, `Secure` and `SameSite=Lax`, and it is set with `Path=/` on the host itself —
@@ -1049,7 +1165,12 @@ From `docs/FASE3_9_CODEBASE_REVIEW.md` § Restrisico's plus the 3.9.1 report:
     (`connection_limit` in `DATABASE_URL`).
 
 
-19. **A privacy/contact page is still missing** (audit I5, partially closed in Fase 5.5). What the
+19. **The API log is the only place a 5xx is visible by default.** Fase 5.6 added `LOG_LEVEL`, the
+    watchdog and alerting, so a *host-level* failure page goes out — but there is still no error tracker
+    (Sentry/GlitchTip) and no per-endpoint metric. Decide when the site has real traffic: either add an
+    external error tracker in the frontend/API, or keep §9d's `grep` habits and watch `/api/health`.
+    Deliberately not solved with a dependency now.
+20. **A privacy/contact page is still missing** (audit I5, partially closed in Fase 5.5). What the
     repository can fix is done: the fonts are self-hosted, so a visitor's browser talks to no third party
     until they open a page with an embedded player, and the embedded YouTube player is the only
     third-party load (it also loads its own fonts inside its frame). The page itself needs the operator's
@@ -1058,12 +1179,12 @@ From `docs/FASE3_9_CODEBASE_REVIEW.md` § Restrisico's plus the 3.9.1 report:
     no analytics; that the admin session cookie exists only for signed-in operators; which third parties
     are contacted when a player is opened (YouTube, Archive.org, Google Books) and under which terms;
     how to request removal of a link. Linked from the footer once it exists.
-20. **An enforcing Content-Security-Policy needs a build change.** Fase 5.5 ships a report-only policy
+21. **An enforcing Content-Security-Policy needs a build change.** Fase 5.5 ships a report-only policy
     that matches the real dependencies. Enforcing it would require `script-src 'unsafe-inline'` because
     the single-file build inlines the app as an inline `<script>`; a real policy needs external, hashed
     bundles (which also re-opens the code-splitting question Fase 3.9 measured as pointless). One
     deliberate step, not a header flip.
-21. **`frame-ancestors`/`X-Frame-Options` and the CSP promotion belong to the host** (`docs/DEPLOYMENT.md`
+22. **`frame-ancestors`/`X-Frame-Options` and the CSP promotion belong to the host** (`docs/DEPLOYMENT.md`
     §5f). The app deliberately sends no framing rule: ilmNet is embeddable and embeds third parties
     itself; a preview pane or a link-preview card would break.
 
@@ -1087,6 +1208,13 @@ Fase 5.1 removed the three blockers that were verifiable in the repository; the 
   pre-compressed (631 → 157 kB, DCL 3 272 → 952 ms on 3G). Deliberately left as measured items:
   server-side pagination past 100 items (§8.2), the trigram index for free-text search (§8.16) and
   gzip for API JSON at the proxy (§8.17).
+- **Phase 5.6 — operations & monitoring (done, §7l).** The watchdog, alert delivery, off-site copies
+  with manifest verification, the post-deploy/rollback smoke test, release identity in `/api/health` and
+  `LOG_LEVEL` are in the repository and were run here (backup → off-site copy → drill from the copy;
+  watchdog healthy and failing; alerts delivered to a real webhook receiver). `docs/DEPLOYMENT.md` §9
+  holds the procedures and §9f the exact host-only list: install the timers, fill the env files, choose
+  and test an alert channel, create the external uptime check, set `GIT_COMMIT`, drill from the first
+  off-site copy, set log limits.
 - **Phase 5.5 — polish and compliance (done, §7k + §7j).** Self-hosted fonts (audit I5, the technical
   half), `robots.txt`/`sitemap.xml`/favicon/manifest/Open Graph (L9), per-route titles and descriptions,
   a real 404 page, a skip link, English-only public copy, honest empty states, the security headers the
@@ -1094,10 +1222,13 @@ Fase 5.1 removed the three blockers that were verifiable in the repository; the 
   owner, with the reason in §7k: an enforcing CSP (needs external bundles), `frame-ancestors`, and the
   privacy/contact page (needs the operator's identity — the checklist is now §8.19).
 
-**What is left after 5.5 is not code**: deploy on the real host (TLS, `PUBLIC_ORIGIN`, proxy trust,
-backups, monitoring — §8.14), submit the sitemap once DNS is live, then decide between the Fase 5.6
-operations block (CI, staging, account UI, §8.9) and the measured scale items (§8.16 trigram search,
-§8.2 pagination) when the library actually grows.
+**What is left is not code.** Everything the repository can express is expressed: deploy on the real
+host (TLS, `PUBLIC_ORIGIN`, proxy trust — §8.14), install the operational timers and channels
+(`docs/DEPLOYMENT.md` §9f), submit the sitemap once DNS is live. After that the open choices are
+priorities, not gaps: CI + staging (audit I9, §8.9), account UI/roles/2FA, and the measured scale items
+(§8.16 trigram search, §8.2 pagination) when the library actually grows. A first production deploy now
+has a checklist for every step, including the two that only a human can do: choosing an alert channel
+and restoring from an off-site copy once.
 
 TinyCMS is **not** on the roadmap: the name, the CMS framework and a content layer for website texts
 are scrapped permanently (Fase 4.2/4.5.1, §7d) and must never be reintroduced. The remaining

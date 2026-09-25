@@ -1,0 +1,17 @@
+# ilmNet — watchdog timer (Fase 5.6). Every 5 minutes, with a small random offset.
+#
+# The interval is the detection time: a 5-minute timer means a database outage or a dying disk is
+# noticed within ~5 minutes. Do not make it faster than the alerting channel can absorb.
+[Unit]
+Description=ilmNet watchdog every 5 minutes
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=5min
+AccuracySec=30s
+RandomizedDelaySec=30s
+Persistent=false
+Unit=ilmnet-healthcheck.service
+
+[Install]
+WantedBy=timers.target

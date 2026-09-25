@@ -19,6 +19,8 @@
  *  9. crawler surface & headers (Fase 5.5): /robots.txt and /sitemap.xml are real responses built
  *     from published rows only, the sitemap compresses and caches, a missing *file* is a 404 while a
  *     missing *page* still gets the app shell, and the security headers are the documented set
+ * 10. operations (Fase 5.6): the API reports the release it runs (version from server/package.json,
+ *     commit from GIT_COMMIT) and LOG_LEVEL changes the log level without breaking the boot
  */
 import fs from 'fs';
 import path from 'path';
@@ -33,6 +35,7 @@ import { request as httpRequest } from 'node:http';
 import { INTERNAL_CONTENT_KEYS, LIST_JOIN_SCHOLAR_KEYS, PUBLIC_CONTENT_KEYS } from '../src/lib/public-payload';
 import { adminAuthPosture, assertAdminAccessPossible, legacyAdminTokenEnabled } from '../src/lib/env';
 import { resetSeoCache } from '../src/routes/seo';
+import { releaseInfo, resetReleaseCache } from '../src/lib/release';
 import { gunzipSync } from 'node:zlib';
 
 // Fase 3.8.1: production refuses development/placeholder tokens, so the suite uses a
@@ -1136,6 +1139,54 @@ async function main() {
     restoreEnv('PUBLIC_ORIGIN', savedPublicOrigin);
     resetSeoCache();
   }
+
+  // ── 10. Operations: release identity + log level (Fase 5.6) ──
+  console.log('\n--- 10. Release identity + LOG_LEVEL (Fase 5.6) ---');
+  const pkgVersion: string = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', 'package.json'), 'utf8')).version;
+  check(
+    health.json.version === pkgVersion,
+    `health reports the version from server/package.json (${health.json.version}) instead of a hard-coded string`,
+  );
+  check(
+    health.json.commit === null,
+    `without GIT_COMMIT the API reports commit:null instead of guessing (${JSON.stringify(health.json.commit)})`,
+  );
+  check(typeof health.json.uptime === 'number' && health.json.uptime >= 0, 'health reports the process uptime (operators can spot a restart)');
+
+  const savedCommit = process.env.GIT_COMMIT;
+  const savedLogLevel = process.env.LOG_LEVEL;
+  try {
+    // A second app instance plays the role of a host that exports its commit and a quieter log level.
+    process.env.GIT_COMMIT = 'fase56test1234567890';
+    process.env.LOG_LEVEL = 'warn';
+    resetReleaseCache();
+    const opsApp = await buildApp();
+    const opsBase = await opsApp.listen({ port: 0, host: '127.0.0.1' });
+    check(
+      String((opsApp.log as any).level) === 'warn',
+      `LOG_LEVEL=warn is applied to the logger (${String((opsApp.log as any).level)})`,
+    );
+    const opsHealth: any = await fetch(`${opsBase}/api/health`).then((r) => r.json());
+    check(opsHealth.commit === 'fase56test1234567890', `GIT_COMMIT is reported by /api/health (${opsHealth.commit})`);
+
+    // An invalid level must not change the verbosity silently, and must not stop the boot.
+    process.env.LOG_LEVEL = 'chatty';
+    const badApp = await buildApp();
+    check(
+      String((badApp.log as any).level) === 'info',
+      `an unknown LOG_LEVEL falls back to the production default instead of being passed to pino (${String((badApp.log as any).level)})`,
+    );
+    await badApp.close();
+    await opsApp.close();
+  } finally {
+    restoreEnv('GIT_COMMIT', savedCommit);
+    restoreEnv('LOG_LEVEL', savedLogLevel);
+    resetReleaseCache();
+  }
+  check(
+    releaseInfo().commit === null,
+    'release info is read fresh after an env change (no stale commit is cached across apps)',
+  );
   } catch (e: any) {
     fail(`unexpected error: ${e?.stack ?? e?.message ?? e}`);
   } finally {

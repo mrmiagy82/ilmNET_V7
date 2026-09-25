@@ -30,6 +30,8 @@ een persistent uploads-volume en de volledige testset (server-suites + browser-e
 | `HSTS_MAX_AGE` | nee | HSTS-max-age in seconden (default 31536000 = 1 jaar). De header gaat **alleen** mee op requests die echt via HTTPS binnenkomen. `0` schakelt HSTS uit |
 | `FORCE_HTTPS` | nee | `true` (alleen productie): elk http-request krijgt een **308** naar https. Alleen aanzetten als de proxy `x-forwarded-proto` doorgeeft — zie §5b |
 | `ADMIN_ALLOW_LOCALHOST` | nee | Alleen dev: `false` dwingt het token ook op localhost af |
+| `GIT_COMMIT` | aanbevolen | De commit die je uitrolt, bv. `GIT_COMMIT=$(git rev-parse --short HEAD)` in de serviceomgeving. `GET /api/health` en de startlog rapporteren hem, zodat een deploy of rollback **aantoonbaar** is (`ops/deploy-check.sh --expect-commit <sha>`). Weglaten mag: dan zegt de API `commit: null` in plaats van te gokken |
+| `LOG_LEVEL` | nee | Logniveau van de API: `fatal\|error\|warn\|info\|debug\|trace\|silent`. Default `info` in productie, `debug` in development. Een onbekende waarde wordt geweigerd (met waarschuwing) — een typefout verandert de logging niet stil |
 | `SEED_ALLOW_RESET` | nee | Alleen bewust: laat de **destructieve** demo-seed in productie toe |
 
 Frontend-build (root `.env.example`): `VITE_API_URL` leeg laten in vorm A (zelfde origin).
@@ -209,6 +211,12 @@ curl -s https://ilmnet.example/api/ready    # status ready + database up (goedko
   #   ~31 kB op een bibliotheek van 20 000 records (was 239 kB); zie docs/CONTEXT.md §7j
   curl -sI https://ilmnet.example/fonts/inter-400-latin.woff2 | grep -i cache-control   # max-age=604800
   curl -sI https://ilmnet.example/ | grep -i cache-control                              # max-age=0 (deploy meteen zichtbaar)
+  ```
+- **Alles in één keer (Fase 5.6):**
+  ```bash
+  BASE_URL=https://ilmnet.example ops/deploy-check.sh --expect-commit "$(git rev-parse --short HEAD)"
+  #   ~11 checks: readiness, deep health + release, app-shell, diepe link, robots.txt, sitemap,
+  #   favicon, /admin, ontbrekend bestand = 404, gzip op /. Exit 1 zodra één check faalt.
   ```
 - Admin: `/admin` vraagt om gebruikersnaam + wachtwoord; na inloggen verschijnen drafts, imports en uploads (het dashboard toont de echte totalen).
 - Upload-test: voeg in het CMS een thumbnail toe, herlaad de pagina — het bestand moet daarna nog
@@ -508,8 +516,35 @@ een juridische blik — die horen niet in een codecommit. Inhoud-checklist: `doc
 
 Uploads staan buiten de image op een volume en blijven dus staan bij een redeploy; de database
 verwijst naar `/uploads/<bestand>` en de server controleert bij het opstarten of die bestanden er
-zijn. Rollback = vorige image/commit terugzetten en opnieuw starten; migraties zijn voorwaarts
-geschreven, dus draai geen `migrate reset` op productie.
+zijn.
+
+**Verifieer wat er live staat (Fase 5.6).** Zet `GIT_COMMIT` in de serviceomgeving en beide kanten
+vertellen hetzelfde verhaal: de startlog (`Release: 1.0.0 (a1b2c3d) · log level: info`) en
+`GET /api/health` (`version`, `commit`). Daarmee is een deploy of rollback aantoonbaar:
+
+```bash
+GIT_COMMIT=$(git rev-parse --short HEAD)        # in de serviceomgeving (systemd/docker)
+BASE_URL=https://ilmnet.example ops/deploy-check.sh --expect-commit "$GIT_COMMIT"
+```
+
+**Terugrollen.**
+
+```bash
+git checkout <vorige-commit> && npm ci && npm run build && (cd server && npm run build)
+systemctl restart ilmnet          # of: docker compose up -d --build
+BASE_URL=https://ilmnet.example ops/deploy-check.sh --expect-commit <vorige-commit>
+```
+
+- Migraties zijn **voorwaarts** geschreven: `migrate deploy` draaien hoort bij het uitrollen van een
+  nieuwe versie, en terugrollen naar een oudere commit herstelt de code, niet het schema. Draai nooit
+  `migrate reset` op productie.
+- Is er tussentijds een migratie gedraaid die gegevens heeft veranderd (kolom weg, tabel hernoemd) en
+  wil je écht terug: zet dan de **database** terug uit de backup van vóór die deploy
+  (`ops/restore.sh --recreate --yes`) en rol daarna de code terug. Doe dat alleen met een verse backup
+  en een geslaagde drill (§6b) — een halve rollback is erger dan geen.
+- Houd de vorige release bij de hand (release-directory + symlink, of de vorige image-tag): rollback
+  is dan een symlink/tag wissel plus herstart, geen rebuild.
+- Na elke rollback: `ops/deploy-check.sh` (11 checks) en één blik op `/api/health`.
 
 ---
 
@@ -562,10 +597,60 @@ Zonder systemd (cron):
 30 2 * * * cd /opt/ilmnet && set -a && . /etc/ilmnet/backup.env && set +a && ops/backup.sh >> /var/log/ilmnet-backup.log 2>&1
 ```
 
-**Buiten de host bewaren:** `BACKUP_DIR` hoort op een andere schijf dan de database, en de set hoort
-daarna gekopieerd te worden naar opslag buiten de server (rsync/object-storage naar keuze). Een
-back-up op dezelfde host beschermt niet tegen schijfuitval of een verkeerde `rm`. Versleutel de
-doelopslag: de dump bevat de scrypt-hashes van de beheerdersaccounts.
+**Retentie.** `RETENTION_DAYS` (default 14) ruimt binnen `BACKUP_DIR` de sets op die ouder zijn dan
+die grens — het script telt de verwijderde bestanden en logt ze. Kies de waarde zo dat je minstens
+één volledige week terug kunt: 14 dagen betekent twee weken historie, 30 dagen is voor de meeste
+bibliotheken ruim genoeg (de dump is klein: ~37 kB voor 25 records, ~2 MB op 20 000 records).
+Retentie geldt per map — de off-site kopie houdt **zijn eigen** retentie (zie hieronder); ruim daar
+nooit op door alleen de bron te wissen.
+
+**Buiten de host bewaren (off-site).** `BACKUP_DIR` hoort op een andere schijf dan de database, en de
+set moet daarna de host af. Dat is nu een script in plaats van een goede intentie:
+
+```bash
+BACKUP_DIR=/var/backups/ilmnet OFFSITE_TARGET=backup@backup-host:/srv/ilmnet \
+  ops/offsite-copy.sh --latest
+```
+
+Wat het doet en waarom:
+
+| | |
+| --- | --- |
+| Transport | `rsync` (standaard, ook voor `user@host:/pad`; `--checksum` verifieert de overdracht). Zonder rsync valt het script voor een **lokaal/mount** doel terug op `cp` — de sha256-controle hieronder is dan de garantie |
+| Verificatie | bij een lokaal doel vergelijkt het script na de kopie de bestandsgrootte **en** sha256 van dump + uploads met de waarden in het manifest; wijkt er iets af, dan faalt het script |
+| Veiligheid | het weigert een doel binnen `BACKUP_DIR` of binnen de repo-checkout, en waarschuwt wanneer het doel op dezelfde schijf/apparaat staat (dan is het geen off-site kopie) |
+| Terugzetten | het script print de commando's: eerst `ops/restore-drill.sh --dump <kopie>` **tegen de kopie zelf**, dan pas een echte restore |
+| `--delete` | alleen met een mirror-semantiek; standaard laat het bestaande sets op het doel staan |
+| `--dry-run` | laat zien wat er gekopieerd zou worden, zonder iets te versturen |
+
+**Off-site schedulen.** Zet de kopie achter de nachtelijke backup (bijvoorbeeld 03:15, zodat de
+dump van 02:30 zeker klaar is) en geef de unit dezelfde alert-route als de backup:
+
+```bash
+# /etc/systemd/system/ilmnet-offsite.service (of een cronregel)
+#   ExecStart=/opt/ilmnet/ops/offsite-copy.sh --latest
+#   EnvironmentFile=/etc/ilmnet/offsite.env      # BACKUP_DIR + OFFSITE_TARGET + OFFSITE_SSH_KEY
+#   OnFailure=ilmnet-alert@%n.service            # mail/webhook bij een mislukte kopie
+```
+
+Object storage in plaats van SSH (S3, Backblaze, Wasabi, Azure Blob …): laat `rclone`, `aws s3 sync`
+of de CLI van de provider hetzelfde manifest-gedreven set kopiëren — het manifest is wat een kopie
+verifieerbaar maakt, niet het transport.
+
+**Off-site is pas echt als je eruit hebt teruggezet.** Draai de drill dus tegen de kopie, niet alleen
+tegen de lokale map:
+
+```bash
+ops/restore-drill.sh --dump /mnt/offsite/ilmnet-db-<tijdstip>.dump \
+                     --uploads /mnt/offsite/ilmnet-uploads-<tijdstip>.tar.gz
+# (op de host die de kopie heeft; --drop-after ruimt de wegwerp-database daarna op)
+```
+
+Versleutel de doelopslag: de dump bevat de scrypt-hashes van de beheerdersaccounts, dus ook een
+off-site kopie is een geheim (`mode 0600`, versleutelde bucket of versleutelde schijf).
+
+**Zegt iemand dat de backup niet liep?** Dat is precies wat de watchdog controleert: hij faalt wanneer
+het nieuwste manifest ouder is dan `BACKUP_MAX_AGE_HOURS` (default 30) — zie §9.
 
 ### Terugzetten
 
@@ -642,6 +727,13 @@ config en het TLS-certificaat. Noteer die apart, zodat een herstel op een nieuwe
 | `FORCE_HTTPS=true needs a redirect target` bij het starten | Zet `PUBLIC_ORIGIN=https://<domein>` (aanbevolen) of zorg dat `CORS_ORIGIN`/`ALLOWED_HOSTS` de publieke host bevatten |
 | `TRUST_PROXY="2" looks like a hop count` | Gebruik een expliciet adres of CIDR in plaats van een aantal hops (§5c) |
 | Bezoekers worden naar een onverwachte host geredirect | Het log toont `Refused to redirect to a host that is not on the allowlist — using the canonical origin`. Zet `PUBLIC_ORIGIN` op het echte domein; dan kan het request het doel niet meer beïnvloeden |
+| `ops/deploy-check.sh` faalt op de sitemap ("mixes origins" of "PUBLIC_ORIGIN is not this deployment's origin") | De sitemap komt uit `PUBLIC_ORIGIN` (Fase 5.5). Staat die op een andere host dan waar je test — normaal op staging, fout in productie — zet dan `PUBLIC_ORIGIN` op de echte origin, of gebruik `--expect-sitemap-origin`. |
+| `ops/deploy-check.sh --expect-commit` faalt | De host draait een andere release, of `GIT_COMMIT` staat niet in de serviceomgeving (dan is `commit: null`). Zet `GIT_COMMIT=$(git rev-parse --short HEAD)` bij de deploy en herstart. |
+| Watchdog: "no backup set found in …" of "newest backup is Nh old" | De night-backup liep niet (timer uit, unit gefaald, verkeerde `BACKUP_DIR` in `/etc/ilmnet/healthcheck.env`). `systemctl status ilmnet-backup.timer` en `journalctl -u ilmnet-backup` vertellen waarom; `ops/backup.sh` handmatig draaien en daarna de drill (§6b). |
+| Watchdog: "uploads directory is not writable" | Het uploadvolume is niet gemount of de servicerechten zijn verkeerd — het CMS kan dan geen thumbnails opslaan. Controleer de mount en `UPLOADS_DIR`. |
+| Watchdog: "disk N% full" | Ruim oude back-ups op (retentie), of verklein de logrotatie (`ops/logrotate/ilmnet`), of vergroot het volume. Boven `DISK_CRIT_PERCENT` stopt Postgres met schrijven zodra de schijf vol is. |
+| `LOG_LEVEL` lijkt genegeerd | Er staat een onbekende waarde in de omgeving; de startlog zegt het ("is not a log level … using "info""). Geldige waarden: `fatal, error, warn, info, debug, trace, silent`. |
+| Geen alert ontvangen terwijl er iets faalde | Zonder `ALERT_WEBHOOK_URL`/`ALERT_MAIL_TO` logt de watchdog alleen (en zegt dat expliciet). Test de route met `ops/alert.sh --subject test --body "test"` (en `--dry-run` om te zien wat er verstuurd zou worden). |
 | Login-throttle grijpt te snel aan (alle beheerders lijken één IP) | `TRUST_PROXY` staat uit of is fout: de app ziet het proxy-adres als client. Zet het op het adres/CIDR van de proxy (§5c) en controleer met een mislukte login welk IP gelogd wordt |
 
 ---
@@ -652,10 +744,132 @@ Twee endpoints, met een bewust verschillend doel (Fase 5.2):
 
 | Endpoint | Wat het checkt | Antwoord | Gebruik |
 | --- | --- | --- | --- |
-| `GET /api/health` (alias `/api/v1/health`) | service + database + uploadopslag | **200** met `{ status, env, database, storage: { persistent, writable, files, bytes }, adminProtection }` · **503** als de database onbereikbaar is of het uploadvolume niet schrijfbaar. Sinds Fase 5.3 zit het **absolute pad** (`storage.dir`) er niet meer in: dit endpoint is publiek | de `HEALTHCHECK` van de Dockerfile en de handmatige verificatie: zegt of het **hele** deployment bruikbaar is |
+| `GET /api/health` (alias `/api/v1/health`) | service + database + uploadopslag | **200** met `{ status, version, commit, env, uptime, database, storage: { persistent, writable, files, bytes }, adminProtection }` · **503** als de database onbereikbaar is of het uploadvolume niet schrijfbaar. Sinds Fase 5.3 zit het **absolute pad** (`storage.dir`) er niet meer in: dit endpoint is publiek. Fase 5.6 voegde `version` (uit `server/package.json`), `commit` (uit `GIT_COMMIT`, anders `null`) en `uptime` toe — daarmee is een deploy/rollback te verifiëren zonder SSH | de `HEALTHCHECK` van de Dockerfile en de handmatige verificatie: zegt of het **hele** deployment bruikbaar is |
 | `GET /api/ready` (alias `/api/v1/ready`) | alleen de database-ping | **200** met `{ status: "ready", database: "up" }` · **503** met `status: "not_ready"` | readiness-probe van een load balancer/orchestrator: goedkoop, geen bestandsstatistieken |
 
 Beide zijn publiek (geen admin-referenties), read-only en uitgezonderd van de `FORCE_HTTPS`-redirect,
 zodat een probe op de app-socket over http blijft werken. Een **liveness**-probe hoort niet naar deze
 endpoints te kijken als de database erbij hoort: gebruik `/api/ready` voor "mag er verkeer naartoe" en
 herstart een container alleen op basis van `/api/health`-fouten die niet de database betreffen.
+
+## 9. Monitoring, logging en alarmering (Fase 5.6)
+
+Wat de repository kan leveren is er nu; wat alleen op de host kan, staat er expliciet bij. De regel is
+overal dezelfde: **een signaal dat niemand ziet is geen monitoring** — kies een kanaal, test het, en
+laat een stilte zelf een alarm zijn.
+
+### 9a. De watchdog (`ops/healthcheck.sh`)
+
+| Check | Faalt wanneer |
+| --- | --- |
+| `GET /api/health` | geen 200, of `status` is niet `ok` (database of uploadvolume onbruikbaar) |
+| `GET /api/ready` | geen 200 — dit is precies wat een load balancer ziet |
+| uploads-map | ontbreekt of is niet schrijfbaar (dan kan het CMS geen thumbnail opslaan) |
+| backup-freshness | het nieuwste manifest is ouder dan `BACKUP_MAX_AGE_HOURS` (default 30) of er is helemaal geen set — dit is de enige manier om een **stil** falende back-uptimer te zien |
+| schijfruimte | boven `DISK_WARN_PERCENT` (85, waarschuwing) of `DISK_CRIT_PERCENT` (95, fout) op de meegegeven paden |
+| database (optioneel) | `DATABASE_URL` gezet maar `SELECT 1` faalt; bij succes logt hij de databasegrootte |
+
+```bash
+# handmatig, één keer:
+BASE_URL=http://127.0.0.1:3001 BACKUP_DIR=/var/backups/ilmnet UPLOADS_DIR=/var/lib/ilmnet/uploads \
+DATABASE_URL="postgresql://ilmnet:…@localhost:5432/ilmnet" ops/healthcheck.sh
+#   → regels per check + "result: OK (7 checks)"; exit 0 gezond, 1 bij een fout, 2 bij een ontbrekend hulpmiddel
+
+# automatisch (elke 5 minuten):
+sudo install -m 0644 ops/systemd/ilmnet-healthcheck.service ops/systemd/ilmnet-healthcheck.timer /etc/systemd/system/
+sudo install -m 0644 ops/systemd/ilmnet-alert@.service /etc/systemd/system/
+sudo install -d -m 0750 /etc/ilmnet
+sudo install -m 0600 ops/systemd/healthcheck.env.example /etc/ilmnet/healthcheck.env
+sudo editor /etc/ilmnet/healthcheck.env        # URLs, paden, drempels, ALERT_WEBHOOK_URL
+sudo systemctl daemon-reload && sudo systemctl enable --now ilmnet-healthcheck.timer
+systemctl list-timers ilmnet-healthcheck.timer
+```
+
+Opties: `--quiet` (alleen bijzonderheden, voor de timer), `--strict` (een waarschuwing is óók exit 1),
+`--base https://ilmnet.example` (controleer de publieke site in plaats van de socket). Op een https-URL
+controleert hij ook de HSTS-header van de app.
+
+### 9b. Waar gaat een alert naartoe
+
+`ops/alert.sh` verstuurt één bericht naar alles wat geconfigureerd is en zet altijd een kopie op
+stderr (dus in journald/cron/docker-logs):
+
+1. `ALERT_WEBHOOK_URL` — JSON-POST: `{service, host, severity, subject, timestamp, body}`. Werkt met
+   Slack/Discord/Mattermost- of ntfy-webhooks, Healthchecks.io, Uptime Kuma, of een eigen relay.
+2. `ALERT_MAIL_TO` — via `mail` wanneer dat commando bestaat (lokale MTA).
+
+Eigenschappen die er bewust in zitten: het script faalt nooit de aanroeper (een alert mag geen unit
+laten falen), het saneert berichttekst (credentials in URL's en token-achtige strings worden geredigeerd,
+zodat een alert geen secret naar een chatkanaal lekt), `--dry-run` toont exact wat er verstuurd zou
+worden, en zonder kanaal zegt het expliciet dat de regel op stderr de enige kopie is.
+
+```bash
+# de route testen zonder een incident te beginnen:
+ops/alert.sh --subject "ilmNet testalarm" --body "Als je dit leest, werkt het kanaal." --dry-run
+ALERT_WEBHOOK_URL="https://hooks.example.com/…" ops/alert.sh --subject "test" --body "test"
+```
+
+`OnFailure=ilmnet-alert@%n.service` staat op de backup-unit en op de watchdog-unit: een unit die
+faalt (niet "een check die faalt" — dat is de normale uitkomst van een slechte dag) stuurt óók een
+bericht.
+
+### 9c. Uptime-monitoring buiten de host
+
+De watchdog bekijkt de host van binnenuit; als de host zelf weg is, meldt hij niets. Zet daarom
+daarnaast een externe check:
+
+| Doel | Waarom | Interval/drempel |
+| --- | --- | --- |
+| `https://<host>/api/ready` | echte beschikbaarheid van de API + database | 1 min, alert na 2 opeenvolgende fouten |
+| `https://<host>/api/health` | diepe check (database **en** uploadopslag), verwacht 200 + `status":"ok"` | 5 min |
+| `https://<host>/` | dat de site zelf rendert (vangt een kapotte build/proxy) | 5 min |
+| dead-man's switch (Healthchecks.io/Uptime Kuma ping-URL) | de **watchdog** pingt na elke geslaagde run; blijft de ping uit, dan is de host of de timer stuk — dit vangt ook "de monitoring zelf is dood" | 10 min |
+
+Waar je op let in `/api/health`: `status: ok` én `database: up` én `storage.writable: true`. `version`
+en `commit` horen de release te zijn die je hebt uitgerold (§6).
+
+### 9d. Logging
+
+- De API logt **JSON naar stdout** (pino), niveau `info` in productie, `debug` in development, te
+  overrulen met `LOG_LEVEL` (§1). Aanwezig via systemd → journald (`journalctl -u ilmnet -f`), via
+  Docker → de log driver, bij pm2 → `~/.pm2/logs`.
+- Wat er **niet** in staat: request-bodies (die kunnen admin-payloads bevatten) en de auth-headers
+  (`x-admin-token`, `authorization`, `x-admin-secret` zijn geredigeerd in `server.ts`).
+- Rotatie: journald heeft die niet nodig maar groeit onbeperkt — begrens hem
+  (`SystemMaxUse=500M` in `/etc/systemd/journald.conf` of periodiek `journalctl --vacuum-time=30d`).
+  Docker: `logging: { driver: json-file, options: { max-size: "50m", max-file: "5" } }`. Voor
+  bestandslogs (cron `>> /var/log/ilmnet-backup.log`, pm2) ligt er een voorbeeld klaar:
+  `sudo install -m 0644 ops/logrotate/ilmnet /etc/logrotate.d/ilmnet` (wekelijks, 8 generaties,
+  `maxsize 50M`, `compress`, mode 0640).
+- **Foutdetectie zonder externe tooling.** Grep op het niveau en de status die er echt toe doen:
+  ```bash
+  journalctl -u ilmnet --since "1 hour ago" | grep -E '"level":(50|60)'      # error/fatal
+  journalctl -u ilmnet --since today     | grep -c '"statusCode":5'          # 5xx-teller
+  journalctl -u ilmnet --since today     | grep -E 'Refused to redirect|\.env file may not|could not resolve host'
+  ```
+  Een 5xx-piek, een `Refused to redirect`-regel of een bootweigering zijn de patronen die een mens
+  moet zien; de watchdog dekt de rest af.
+
+### 9e. Database- en schijfmonitoring
+
+| Wat | Hoe | Wanneer actie |
+| --- | --- | --- |
+| Schijf (uploads, backups, Postgres-data) | `ops/healthcheck.sh` met `DISK_PATHS="/var/backups/ilmnet /var/lib/ilmnet/uploads /var/lib/postgresql"` | waarschuwing bij 85 %, fout bij 95 % — een volle schijf laat Postgres weigeren en de backup stuklopen |
+| Databasegrootte | de watchdog logt `pg_database_size` wanneer `DATABASE_URL` is gezet; `psql -tAc "SELECT pg_size_pretty(pg_database_size('ilmnet'))"` | groeit onverwacht snel → kijk naar een import die in een lus liep (`import_jobs`) |
+| Connecties/pool | `SELECT count(*) FROM pg_stat_activity;` tegenover Postgres' `max_connections` en Prisma's `connection_limit` (§5e, `docs/CONTEXT.md` §8.18) | bij `P2024`-timeouts: pool of gelijktijdigheid aanpassen, niet blind verhogen |
+| Back-upvolume | `df -h "$BACKUP_DIR"` + de freshness-check in de watchdog | ruimte vrijmaken vóór de volgende nacht |
+| Uploads-integriteit | bij elke start loopt `auditUploadReferences()` en logt ontbrekende bestanden (`Missing upload file(s) referenced by the database: …`) — dat is een early-warning voor een niet-gemount volume | mount herstellen; daarna `ops/deploy-check.sh` |
+
+### 9f. Wat alleen de host kan (en dus niet in deze repo is uitgevoerd)
+
+Deze lijst is bewust expliciet — er is niets van "gedaan alsof":
+
+1. de timer/units **installeren** (systemd of cron) en de env-bestanden in `/etc/ilmnet/` vullen;
+2. `ALERT_WEBHOOK_URL`/`ALERT_MAIL_TO` kiezen en één testbericht sturen;
+3. de externe uptime-check aanmaken (account bij een monitor, of een ping-URL voor de dead-man's switch);
+4. `GIT_COMMIT` in de serviceomgeving zetten zodat deploys verifieerbaar zijn;
+5. `BACKUP_DIR`+`OFFSITE_TARGET` van de echte omgeving invullen, de eerste nachtelijke run afwachten en
+   daarna de **drill vanaf de off-site kopie** draaien (§6b);
+6. logrotatie/journald-limieten instellen volgens §9d.
+
+Elk punt heeft hierboven een commando of een tabelrij; geen enkel punt is "vanzelf" goed.

@@ -27,6 +27,7 @@ import {
   touchAdminSession,
 } from './lib/auth';
 import { auditUploadReferences, ensureUploadsDir, getUploadsDir, isUploadsDirWritable, MAX_UPLOAD_BYTES } from './lib/storage';
+import { releaseLabel } from './lib/release';
 import {
   assertProxyConfiguration,
   forwardedHost,
@@ -69,6 +70,25 @@ const CSP_REPORT_ONLY = [
 ].join('; ');
 
 const gzipAsync = promisify(gzipCallback);
+
+/**
+ * Log level (Fase 5.6).
+ *
+ * Production logs at `info`, development at `debug`. A host may override that with `LOG_LEVEL`
+ * (`warn` to quieten a busy instance, `debug` while investigating an incident). An unknown value is
+ * refused with a warning instead of being passed to pino: a typo must not change the verbosity an
+ * operator believes they configured — and it must not crash the boot either.
+ */
+const LOG_LEVELS = ['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'];
+function logLevel(): string {
+  const fallback = isProduction() ? 'info' : 'debug';
+  const raw = process.env.LOG_LEVEL?.trim().toLowerCase();
+  if (!raw) return fallback;
+  if (LOG_LEVELS.includes(raw)) return raw;
+  // eslint-disable-next-line no-console
+  console.warn(`[ilmNet] LOG_LEVEL="${raw}" is not a log level (${LOG_LEVELS.join(', ')}) — using "${fallback}".`);
+  return fallback;
+}
 
 /**
  * Compress text responses (Fase 5.5).
@@ -177,7 +197,7 @@ export async function buildApp() {
 
   const app = Fastify({
     logger: {
-      level: isProduction() ? 'info' : 'debug',
+      level: logLevel(),
       // never log request bodies (they can contain admin payloads) and redact auth headers
       redact: ['req.headers["x-admin-token"]', 'req.headers.authorization', 'req.headers["x-admin-secret"]'],
     },
@@ -475,6 +495,7 @@ if (require.main === module) {
           ` · HTTP→HTTPS redirect: ${forceHttpsEnabled() ? `on (FORCE_HTTPS) → ${redirectTargetFor(null)?.origin ?? 'no target configured'}` : 'off (let the reverse proxy do it)'}`,
       );
       app.log.info(`Proxy trust: TRUST_PROXY ${trustProxyDescription()}`);
+      app.log.info(`Release: ${releaseLabel()} · log level: ${logLevel()} (LOG_LEVEL overrides the default)`);
       if (isProduction() && !trustProxyIsEnabled()) {
         app.log.info(
           'Client IP source: the socket address. Behind a reverse proxy every request therefore looks like ' +

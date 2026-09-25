@@ -1,0 +1,31 @@
+# ilmNet — watchdog unit (Fase 5.6). Runs ops/healthcheck.sh every few minutes through the timer.
+#
+#   sudo install -m 0644 ops/systemd/ilmnet-healthcheck.service /etc/systemd/system/
+#   sudo install -m 0644 ops/systemd/ilmnet-healthcheck.timer   /etc/systemd/system/
+#   sudo install -d -m 0750 /etc/ilmnet
+#   sudo install -m 0600 ops/systemd/healthcheck.env.example /etc/ilmnet/healthcheck.env
+#   sudo editor /etc/ilmnet/healthcheck.env
+#   sudo systemctl daemon-reload && sudo systemctl enable --now ilmnet-healthcheck.timer
+#
+# A failing check sends an alert through ops/alert.sh when ALERT_WEBHOOK_URL / ALERT_MAIL_TO are set
+# in that environment file; without them the result only lands in the journal (`journalctl -u
+# ilmnet-healthcheck`). OnFailure is a second safety net: if the unit itself dies (script error), the
+# alert unit runs.
+[Unit]
+Description=ilmNet watchdog (health, readiness, backup freshness, disk)
+Documentation=file:/opt/ilmnet/docs/DEPLOYMENT.md
+After=network-online.target
+OnFailure=ilmnet-alert@%n.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/ilmnet
+EnvironmentFile=/etc/ilmnet/healthcheck.env
+ExecStart=/opt/ilmnet/ops/healthcheck.sh --quiet
+# One host, one watchdog: /tmp state and no privilege beyond reading the API and the backup dir.
+User=ilmnet
+Group=ilmnet
+TimeoutStartSec=2min
+# A non-zero exit from the script (a failed check) is expected and already alerted on; do not turn it
+# into a unit failure that fires OnFailure a second time for the same reason.
+SuccessExitStatus=0 1 2

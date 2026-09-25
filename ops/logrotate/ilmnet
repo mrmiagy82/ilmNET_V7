@@ -1,0 +1,25 @@
+# ilmNet — logrotate example (Fase 5.6).
+#
+# Only needed when ilmNet writes to FILES. With systemd the API and the timers log to journald (no
+# rotation needed — cap it instead: `journalctl --vacuum-time=30d` or SystemMaxUse= in
+# /etc/systemd/journald.conf), and with Docker the log driver needs `max-size`/`max-file`
+# (docs/DEPLOYMENT.md §9). This file covers the cron/`>>` style logs:
+#
+#   sudo install -m 0644 ops/logrotate/ilmnet /etc/logrotate.d/ilmnet
+#   sudo logrotate --debug /etc/logrotate.d/ilmnet    # dry run: shows what it would do
+#
+# Fase 5.6: the JSON logs never contain request bodies and redact the auth headers (server.ts), so a
+# rotated log is safe to hand to an operator — but it does contain client IPs and admin usernames.
+# Keep mode 0640 and the retention window honest.
+
+/var/log/ilmnet-api.log /var/log/ilmnet-backup.log /var/log/ilmnet-healthcheck.log {
+    weekly
+    rotate 8
+    maxsize 50M
+    missingok
+    notifempty
+    compress
+    delaycompress
+    copytruncate
+    create 0640 ilmnet adm
+}

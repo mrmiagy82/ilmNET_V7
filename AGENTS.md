@@ -144,6 +144,12 @@ npm run admin:list
 DATABASE_URL=… UPLOADS_DIR=… BACKUP_DIR=… ops/backup.sh    # dump + uploads + manifest
 DATABASE_URL=… ops/restore-drill.sh                       # prove the newest set restores (safe)
 ops/restore.sh --dump <file> --database-url <url>         # real restore (explicit target)
+OFFSITE_TARGET=<host:/path|/mnt/x> ops/offsite-copy.sh --latest   # copy sets off this host (verifies sha256)
+
+# operations (Fase 5.6) — see docs/DEPLOYMENT.md §9
+BASE_URL=… BACKUP_DIR=… UPLOADS_DIR=… ops/healthcheck.sh  # watchdog: health, ready, backup age, disk
+BASE_URL=… ops/deploy-check.sh --expect-commit <sha>      # post-deploy / post-rollback smoke test
+ops/alert.sh --subject "test" --body "…" --dry-run        # alert route: webhook (ALERT_WEBHOOK_URL) / mail
 
 # tests
 cd server && npm run test:all    # audit, uploads, production readiness, env guards, youtube

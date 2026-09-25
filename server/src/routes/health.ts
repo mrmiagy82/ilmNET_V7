@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { prisma } from '../lib/prisma';
 import { uploadsHealth } from '../lib/storage';
 import { adminAuthPosture } from '../lib/env';
+import { releaseInfo } from '../lib/release';
 
 /**
  * Health and readiness endpoints.
@@ -19,6 +20,11 @@ import { adminAuthPosture } from '../lib/env';
  *
  *   Both are public (no admin credentials), read-only, and deliberately exempt from the
  *   `FORCE_HTTPS` redirect so a probe on the app socket keeps working over plain HTTP (Fase 5.2).
+ *
+ *   Fase 5.6: the deep check also reports the release it is running (`version` from
+ *   `server/package.json`, `commit` from `GIT_COMMIT` when the host sets it) and how long the process
+ *   has been up, so a deploy or a rollback can be verified against the thing that answers — instead of
+ *   assuming the right build is live. Still no host paths, no configuration values and no secrets.
  */
 export async function healthRoutes(app: FastifyInstance) {
   const deepHandler = async (reply: any) => {
@@ -30,11 +36,14 @@ export async function healthRoutes(app: FastifyInstance) {
       database = 'down';
     }
     const healthy = database === 'up' && storage.writable;
+    const release = releaseInfo();
     reply.code(healthy ? 200 : 503);
     return {
       status: healthy ? 'ok' : 'degraded',
       service: 'ilmnet-server',
-      version: '1.0.0',
+      // Fase 5.6: the real version from server/package.json, plus the commit the host deployed.
+      version: release.version,
+      commit: release.commit,
       env: process.env.NODE_ENV || 'development',
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
