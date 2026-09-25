@@ -178,6 +178,29 @@ async function main() {
   );
   check(afterEdit.series === 'E2E Series', `saving an edit keeps the series field (${afterEdit.series})`);
 
+  // ── 6b. Removing a record for good must be confirmed by name (Fase 5.3) ─────────────────────
+  await page.goto(`${SITE}/admin/lectures`, { waitUntil: 'networkidle' });
+  await page.fill('input[placeholder*="Search"]', title);
+  await page.waitForTimeout(600);
+  const removalRow = page.locator('tr', { hasText: title }).first();
+  await removalRow.locator('button[aria-label="Remove"]').click();
+  const dialog = page.locator('text=Remove this lecture?').first();
+  await dialog.waitFor({ timeout: 10000 });
+  const deleteButton = page.getByRole('button', { name: 'Delete for good' }).first();
+  const phraseInput = page.locator('[data-testid="confirm-phrase"]');
+  check(await phraseInput.count() === 1, 'the remove dialog asks for a typed confirmation');
+  check(await deleteButton.isDisabled(), 'the destructive button is disabled until the name is typed');
+  await phraseInput.fill('definitely-not-the-title');
+  await page.waitForTimeout(200);
+  check(await deleteButton.isDisabled(), 'a wrong phrase keeps the destructive button disabled');
+  await phraseInput.fill(title);
+  await page.waitForTimeout(200);
+  check(!(await deleteButton.isDisabled()), 'typing the exact title unlocks the destructive button');
+  await page.getByRole('button', { name: 'Cancel' }).first().click();
+  await page.waitForTimeout(300);
+  const stillThere = await api(`/api/admin/contents/${item.id}`).then((r) => r.status);
+  check(stillThere === 200, 'cancelling the dialog deletes nothing');
+
   // ── 7. A rejected session is an auth problem, never an empty library ────────────────────────
   const badContext = await browser.newContext({ viewport: { width: 1366, height: 900 } });
   await badContext.addCookies([tamperedCookieFor(SITE)]);
@@ -204,8 +227,12 @@ async function main() {
 
   // ── Cleanup ─────────────────────────────────────────────────────────────────────────────────
   for (const id of created.filter(Boolean)) {
-    const del = await api(`/api/admin/contents/${id}?hard=true`, { method: 'DELETE' });
-    check(del.status === 200, 'fixture removed again (hard delete through the admin API)');
+    // Fase 5.3: a hard delete must repeat the record (id or slug) in ?confirm= — the API refuses
+    // an unconfirmed destructive call, and this suite proves the confirmed path still works.
+    const unconfirmed = await api(`/api/admin/contents/${id}?hard=true`, { method: 'DELETE' });
+    check(unconfirmed.status === 400, `hard delete without confirmation is refused (${unconfirmed.status})`);
+    const del = await api(`/api/admin/contents/${id}?hard=true&confirm=${encodeURIComponent(id)}`, { method: 'DELETE' });
+    check(del.status === 200, 'fixture removed again (confirmed hard delete through the admin API)');
   }
   const leftover = (await api(`/api/admin/contents?limit=1&q=${encodeURIComponent(title)}`)).json.pagination.total;
   check(leftover === 0, 'no fixture left behind in the database');

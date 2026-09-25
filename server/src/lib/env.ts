@@ -147,6 +147,53 @@ export function fileProvidedKeys(keys: string[]): string[] {
   });
 }
 
+// ── Legacy admin token (Fase 5.3) ───────────────────────────────────────────────
+/**
+ * Is the legacy shared `ADMIN_TOKEN` accepted as an alternative to a signed-in operator?
+ *
+ * `ADMIN_LEGACY_TOKEN` is the switch. Unset it means: **enabled in development** (scripts, curl, the
+ * local test suites rely on it and never face the public internet) and **disabled in production**,
+ * where a single non-revocable string must not be a second key to every admin right (audit I6).
+ * A production host that really needs it for CI or a script opts in explicitly with
+ * `ADMIN_LEGACY_TOKEN=true` — and then the production rules for `ADMIN_TOKEN` apply unchanged
+ * (≥16 characters, no known/placeholder value). The value `'undefined'`/`'null'` counts as unset,
+ * because `process.env.X = undefined` stores the *string* "undefined".
+ */
+export function legacyAdminTokenEnabled(): boolean {
+  const raw = process.env.ADMIN_LEGACY_TOKEN?.trim().toLowerCase();
+  if (raw === 'true') return true;
+  if (raw === 'false') return false;
+  if (raw === 'undefined' || raw === 'null') return !isProduction();
+  return !isProduction();
+}
+
+/** Human readable description of the admin authentication posture (boot log + /api/health). */
+export function adminAuthPosture(): 'sessions' | 'sessions+legacy-token' {
+  return legacyAdminTokenEnabled() ? 'sessions+legacy-token' : 'sessions';
+}
+
+/**
+ * Would anybody be able to administer this deployment? Called once at boot, after the database is
+ * reachable. With the legacy token switched off, a deployment without a single active operator
+ * account has no way in: the CMS would be permanently unreachable and the only fix is SQL/CLI access
+ * on the host. Refusing to start makes that visible immediately instead of after a deploy.
+ *
+ * Pure function on purpose: the caller supplies the real account count, so the rule itself is
+ * testable without touching Prisma.
+ */
+export function assertAdminAccessPossible(input: {
+  mode: 'production' | 'development';
+  legacyTokenEnabled: boolean;
+  activeAccounts: number;
+}): void {
+  if (input.mode !== 'production' || input.legacyTokenEnabled || input.activeAccounts > 0) return;
+  throw new Error(
+    'No way in: the legacy ADMIN_TOKEN is disabled in production and the admin_users table has no active account. ' +
+      'Create one first (npm run admin:create -- --username <name> --password \'<password>\'), ' +
+      'or set ADMIN_LEGACY_TOKEN=true (with a strong ADMIN_TOKEN) if a script really needs the shared token.',
+  );
+}
+
 /** Deployment configuration present in the real process environment (not from a file). */
 function deploymentKeysFromProcess(): string[] {
   return DEPLOYMENT_KEYS.filter((key) => {

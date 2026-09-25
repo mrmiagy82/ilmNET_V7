@@ -269,6 +269,8 @@ export default function BooksPage() {
               ? `“${remove.title}” will leave the desk. The external file (${remove.sourceType ?? 'archive'}) is not deleted. The record is removed from the database for good — use Archive instead if you only want to hide it.`
               : ''
           }
+        confirmLabel="Delete for good"
+        requirePhrase={remove?.title}
         onCancel={() => setPending(null)}
         onConfirm={() => {
           if (pending) deleteBook(pending);

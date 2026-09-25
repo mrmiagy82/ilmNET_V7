@@ -293,6 +293,8 @@ export default function LecturesPage() {
             ? `“${remove.title}” will leave the desk. The ${lectureProvider(remove) === 'archive' ? 'Archive.org item' : `YouTube ${remove.sourceType === 'youtube-playlist' ? 'playlist' : 'video'}`} itself is not deleted. The record is removed from the database for good — use Archive instead if you only want to hide it.`
             : ''
         }
+        confirmLabel="Delete for good"
+        requirePhrase={remove?.title}
         onCancel={() => setPending(null)}
         onConfirm={() => {
           if (pending) deleteLecture(pending);

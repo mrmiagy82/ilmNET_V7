@@ -8,7 +8,7 @@ import sensible from '@fastify/sensible';
 import fastifyStatic from '@fastify/static';
 // Imported before ./lib/prisma on purpose: the snapshot of the real process environment has to be
 // taken before Prisma/dotenv can load a .env file (Fase 3.8.1).
-import { assertBootConfiguration, isProduction } from './lib/env';
+import { assertAdminAccessPossible, assertBootConfiguration, adminAuthPosture, isProduction, legacyAdminTokenEnabled } from './lib/env';
 import { prisma } from './lib/prisma';
 import { healthRoutes } from './routes/health';
 import { contentRoutes } from './routes/content';
@@ -94,10 +94,23 @@ export async function buildApp() {
   // Fase 3.8.1: refuses a production boot configured by a local .env file, an undeclared mode on a
   // host that carries deployment config, and development/placeholder admin tokens.
   assertBootConfiguration();
-  if (isProduction() && !adminToken()) {
-    throw new Error(
-      'ADMIN_TOKEN is required when NODE_ENV=production. The admin CMS (writes, draft listings, uploads) must never be exposed unprotected.',
-    );
+  // Fase 5.3 (audit I6): in production the legacy shared token is off unless a host opts in with
+  // `ADMIN_LEGACY_TOKEN=true`. When it is on, the token is the only way in for scripts and must meet
+  // the production rules; when it is off, an unused ADMIN_TOKEN is a lingering secret — say so.
+  if (isProduction()) {
+    if (legacyAdminTokenEnabled() && !adminToken()) {
+      throw new Error(
+        'ADMIN_LEGACY_TOKEN=true is set, but ADMIN_TOKEN is missing: the legacy token would authenticate nobody. ' +
+          'Provide a production-grade ADMIN_TOKEN (openssl rand -hex 32) or remove ADMIN_LEGACY_TOKEN to run sessions-only.',
+      );
+    }
+    if (!legacyAdminTokenEnabled() && adminToken()) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        '[ilmNet] ADMIN_TOKEN is set but the legacy token path is disabled in production (Fase 5.3). ' +
+          'Remove it from the service environment, or set ADMIN_LEGACY_TOKEN=true if a script really needs it.',
+      );
+    }
   }
   // Fase 5.2 — a redirect without a trusted proxy would loop, and a redirect without an allowlisted
   // host would let the request decide where visitors are sent.
@@ -185,11 +198,12 @@ export async function buildApp() {
     });
   }
 
-  // ── Admin protection (Fase 4.5) ──
+  // ── Admin protection (Fase 4.5, tightened in 5.3) ──
   // Every write under /api/* and every request under /api/admin/* (including reads of drafts,
   // import jobs and uploads) requires an authenticated operator. The order is:
   //   1. a valid **session cookie** (username/password sign-in) — carries an identity,
-  //   2. the legacy **ADMIN_TOKEN** header/bearer as a dual-mode fallback for scripts and CI,
+  //   2. the legacy **ADMIN_TOKEN** header/bearer — only while `ADMIN_LEGACY_TOKEN` leaves it
+  //      enabled (development by default, production only by explicit opt-in; audit I6),
   //   3. the localhost development bypass (non-production only; `ADMIN_ALLOW_LOCALHOST=false` off).
   // `/api/admin/login` and `/api/admin/logout` are reachable without credentials by design.
   app.decorateRequest('adminAuth', null);
@@ -231,13 +245,16 @@ export async function buildApp() {
       reply.header('set-cookie', clearedSessionCookieHeader());
     }
 
-    // 2) Legacy shared token (dual-mode; no identity attached)
-    const headerToken = (req.headers['x-admin-token'] as string) || (req.headers['x-admin-secret'] as string) || '';
-    const auth = (req.headers['authorization'] as string) || '';
-    const bearer = auth.startsWith('Bearer ') ? auth.slice(7) : '';
-    if (adminToken() && tokenMatches(headerToken || bearer)) {
-      req.adminAuth = { method: 'token', username: null, userId: null, sessionId: null };
-      return;
+    // 2) Legacy shared token (no identity attached). Fase 5.3: only while it is switched on, so a
+    //    production deployment that runs on accounts cannot be opened with a leaked string.
+    if (legacyAdminTokenEnabled()) {
+      const headerToken = (req.headers['x-admin-token'] as string) || (req.headers['x-admin-secret'] as string) || '';
+      const auth = (req.headers['authorization'] as string) || '';
+      const bearer = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+      if (adminToken() && tokenMatches(headerToken || bearer)) {
+        req.adminAuth = { method: 'token', username: null, userId: null, sessionId: null };
+        return;
+      }
     }
 
     return reply.code(401).send({
@@ -311,6 +328,11 @@ if (require.main === module) {
       await prisma.$connect();
       app.log.info('Database connected');
 
+      // Fase 5.3 (audit I6): with the legacy token switched off, at least one active operator
+      // account must exist — otherwise nobody could ever sign in to this deployment.
+      const activeAccounts = await prisma.adminUser.count({ where: { disabled: false } });
+      assertAdminAccessPossible({ mode: isProduction() ? 'production' : 'development', legacyTokenEnabled: legacyAdminTokenEnabled(), activeAccounts });
+
       if (!isUploadsDirWritable()) {
         app.log.error(`Uploads directory is not writable: ${getUploadsDir()} — custom thumbnails/cover uploads will fail.`);
       } else {
@@ -331,7 +353,10 @@ if (require.main === module) {
       app.log.info(`Server listening on http://${HOST}:${PORT} [${isProduction() ? 'production' : 'development'}]`);
       app.log.info(`CORS origins: ${corsOrigins().join(', ')}`);
       app.log.info(
-        `Admin protection: session sign-in enabled${adminToken() ? ' + legacy ADMIN_TOKEN fallback' : ' (no ADMIN_TOKEN set — development only)'}`,
+        `Admin protection: session sign-in enabled (${activeAccounts} active account${activeAccounts === 1 ? '' : 's'})` +
+          (legacyAdminTokenEnabled()
+            ? ` + legacy ADMIN_TOKEN fallback${adminToken() ? '' : ' (no token set — inactive)'}`
+            : ' · legacy ADMIN_TOKEN disabled'),
       );
       app.log.info(
         `TLS: ${hstsMaxAge() > 0 ? `HSTS max-age=${hstsMaxAge()}s on https requests` : 'HSTS disabled (HSTS_MAX_AGE=0)'}` +

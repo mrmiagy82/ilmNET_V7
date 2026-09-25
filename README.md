@@ -88,6 +88,12 @@ Health for orchestrators: `GET /api/health` is the deep check (database **and** 
 use. Deployment hardening — proxy trust, `X-Forwarded-*`, TLS/HSTS, the no-public-port compose setup —
 is described in [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) §5b/§5c.
 
+Admins sign in with a real account; the shared `ADMIN_TOKEN` is a script/CI fallback that is **off in
+production** unless `ADMIN_LEGACY_TOKEN=true` is set (§5d), and a production boot without accounts and
+without that opt-in refuses to start. Public API responses only contain presentation fields — internal
+attribution (`createdBy`/`updatedBy`/`importJobId`) never leaves the admin endpoints — and deletes that
+cannot be undone must name the record they destroy (`?confirm=<id|slug>`, typed in the CMS).
+
 Operational scripts live in [`ops/`](ops/README.md): `backup.sh` (database dump + uploads archive +
 manifest), `restore.sh` (explicit target, refuses destructive guesses) and `restore-drill.sh` (proves a
 backup set restores into a throwaway database). A nightly systemd timer is included. Backups and their

@@ -183,12 +183,20 @@ async function main() {
       const cardBlack = await card.locator('img[src*="archive.org/services/img"]').count();
       check(cardPlaceholder === 1 && cardBlack === 0, `episode card in ${collectionId ?? 'list'} shows the placeholder instead of the black Archive image`);
 
+      // The live data decides how the search renders this record: as a standalone card (its own slug
+      // link) or grouped into its series when a sibling shares the collection. Both renderings must
+      // show the ilmNet placeholder and never the black Archive.org services image — asserting on the
+      // slug link alone made this check depend on how many siblings the import happened to create.
       await page.goto(`${SITE}/#/lectures?q=${encodeURIComponent(blackThumbAudio.title.slice(0, 24))}`, { waitUntil: 'domcontentloaded' });
-      await page.waitForSelector(`a[href*="${blackThumbAudio.slug}"]`, { timeout: 15000 });
-      const singleCard = page.locator(`a[href*="${blackThumbAudio.slug}"]`).first();
-      const singlePlaceholder = await singleCard.locator('[data-testid="audio-placeholder"]').count();
-      const singleBlack = await singleCard.locator('img[src*="archive.org/services/img"]').count();
-      check(singlePlaceholder === 1 && singleBlack === 0, 'lectures list card shows the placeholder instead of the black Archive image');
+      await page.waitForTimeout(600); // the hash navigation re-renders the SPA: let it settle first
+      const seriesHref = blackThumbAudio.collectionIdentifier ? `series/${blackThumbAudio.collectionIdentifier}` : 'series/__no-collection__';
+      const recordLinks = await page.locator(`a[href*="${blackThumbAudio.slug}"], a[href*="${seriesHref}"]`).count();
+      const listPlaceholder = await page.locator('[data-testid="audio-placeholder"]').count();
+      const listBlack = await page.locator('img[src*="archive.org/services/img"]').count();
+      check(
+        recordLinks > 0 && listPlaceholder > 0 && listBlack === 0,
+        `lectures list renders the record with the placeholder instead of the black Archive image (${recordLinks} link(s), ${listPlaceholder} placeholder(s))`,
+      );
     } else {
       fail('no archive-black-thumbnail content available to verify the fallback');
     }
@@ -325,7 +333,8 @@ async function main() {
     await browser.close();
 
     for (const id of createdContentIds) {
-      await fetch(`${API}/api/admin/contents/${id}?hard=true`, { method: 'DELETE', headers: { 'x-admin-token': TOKEN } }).catch(() => {});
+      // Fase 5.3: hard delete requires the record to be named in ?confirm=<id|slug>.
+      await fetch(`${API}/api/admin/contents/${id}?hard=true&confirm=${encodeURIComponent(id)}`, { method: 'DELETE', headers: { 'x-admin-token': TOKEN } }).catch(() => {});
     }
     // remove every file this run uploaded (fixture + admin-form upload) so the workspace stays clean
     const leftovers = await fetch(`${API}/api/admin/uploads`, { headers: { 'x-admin-token': TOKEN } })

@@ -16,7 +16,8 @@ een persistent uploads-volume en de volledige testset (server-suites + browser-e
 | --- | --- | --- |
 | `DATABASE_URL` | ja | Postgres-URL, bv. `postgresql://user:pass@host:5432/ilmnet?schema=public` |
 | `NODE_ENV` | ja (prod) | `production` → admin-token verplicht, CORS-wildcard verboden, `secure`-cookies/fallbacks uit |
-| `ADMIN_TOKEN` | ja in prod | Uniek geheim, **minimaal 16 tekens** (gebruik `openssl rand -hex 32`). Dual-mode fallback naast de sessie-login: beschermt alle writes + alle `/api/admin/*` voor scripts/CI. Bekende dev-/voorbeeldwaarden worden in productie geweigerd |
+| `ADMIN_TOKEN` | alleen als `ADMIN_LEGACY_TOKEN=true` | Uniek geheim, **minimaal 16 tekens** (`openssl rand -hex 32`). Alleen de fallback voor scripts/CI naast de sessie-login; in productie staat dit pad **standaard uit** (Fase 5.3). Bekende dev-/voorbeeldwaarden worden geweigerd |
+| `ADMIN_LEGACY_TOKEN` | nee | `true`/`false`. Zonder waarde: **aan in development, uit in productie** (Fase 5.3). Op `true` in productie is `ADMIN_TOKEN` verplicht; op `false` moet er minstens één actief beheerdersaccount bestaan, anders weigert de server te starten |
 | `CORS_ORIGIN` | ja | Exacte browser-origin(s) die de API mogen aanroepen, kommagescheiden. `*` is verboden in prod |
 | `HOST` / `PORT` | nee | Default `0.0.0.0` / `3001` |
 | `UPLOADS_DIR` | sterk aanbevolen | Map voor custom thumbnails/covers — **op een persistent volume** |
@@ -172,11 +173,13 @@ npm run admin:enable  -- --username admin
   het loginscherm — zie §7.
 - Mislukte pogingen worden geremd: 5 per gebruikersnaam+IP en 20 per IP per 15 minuten → `429` met
   `Retry-After`.
+- Sinds Fase 5.3 is de oude `ADMIN_TOKEN` in productie **uit** tenzij je `ADMIN_LEGACY_TOKEN=true` zet;
+  zonder accounts én zonder token weigert de server te starten. Zie §5d.
 
 ## 5. Verificatie na elke deploy
 
 ```bash
-curl -s https://ilmnet.example/api/health   # status ok, database up, storage.writable true, adminProtection true
+curl -s https://ilmnet.example/api/health   # status ok, database up, storage.writable true, adminProtection "sessions" (of "sessions+legacy-token")
 curl -s https://ilmnet.example/api/ready    # status ready + database up (goedkope probe voor een load balancer)
 ```
 
@@ -330,6 +333,39 @@ curl -sI http://ilmnet.example/ | head -1        # 308 (of 301) — nooit naar e
 
 ---
 
+## 5d. Wie mag inloggen: sessies eerst, legacy-token standaard uit (Fase 5.3)
+
+Beheerders loggen in met gebruikersnaam + wachtwoord; de API zet een `HttpOnly`-sessiecookie. Daarnaast
+bestond de oude gedeelde `ADMIN_TOKEN` als "dual-mode" fallback voor scripts en CI. Zo'n string is één
+niet-intrekbare sleutel tot álle adminrechten, dus in productie staat dat pad sinds Fase 5.3 **uit**
+tenzij je het expliciet aanzet.
+
+| `ADMIN_LEGACY_TOKEN` | `ADMIN_TOKEN` | Gedrag in productie |
+| --- | --- | --- |
+| niet gezet | — | **Alleen sessies.** Een `ADMIN_TOKEN` in de omgeving is dan een rondslingerend geheim: de app waarschuwt bij het starten en negeert het |
+| `false` | — | Idem, expliciet. Er moet minstens één actief account bestaan, anders weigert de server te starten (anders kan niemand er ooit in) |
+| `true` | gezet (≥16 tekens, geen bekende waarde) | Token werkt naast sessies — voor CI/scripts die geen browser hebben |
+| `true` | leeg | Server weigert te starten (`ADMIN_LEGACY_TOKEN=true is set, but ADMIN_TOKEN is missing`) |
+
+```bash
+# Eenmalig op de host: het eerste account (daarna kan de CLI-token weg)
+cd server && npm run admin:create -- --username <naam> --password '<lang, uniek>'
+npm run admin:list            # controleer dat er een actief account staat
+
+# Controleren dat het legacy pad uit staat (dit hoort 401 te zijn)
+curl -s -o /dev/null -w '%{http_code}\n' -H "x-admin-token: $ADMIN_TOKEN" https://ilmnet.example/api/admin/contents
+```
+
+Het opstartlog zegt de effectieve postuur, bijvoorbeeld
+`Admin protection: session sign-in enabled (2 active accounts) · legacy ADMIN_TOKEN disabled`.
+`/api/health` herhaalt het zonder geheimen: `adminProtection: "sessions"` of `"sessions+legacy-token"`.
+
+**Wil je het token echt weg hebben:** `npm run admin:password`/`admin:disable` trekken sessies in, en
+het verwijderen van `ADMIN_TOKEN` uit de serviceomgeving (plus `ADMIN_LEGACY_TOKEN` weglaten) maakt het
+token per direct waardeloos. Roteren kan zonder uitval: eerst een nieuw account, dan het token weg.
+
+---
+
 ## 6. Updaten en terugrollen
 
 1. `git pull` → `npm ci` (root + server) → `npm run build` + `server: npm run build`.
@@ -442,13 +478,18 @@ config en het TLS-certificaat. Noteer die apart, zodat een herstel op een nieuwe
 
 | Symptoom | Oorzaak / oplossing |
 | --- | --- |
-| Server start niet, `ADMIN_TOKEN is required when NODE_ENV=production` | Token ontbreekt. Zet `ADMIN_TOKEN` in de echte omgeving (niet in een `.env` die per ongeluk meegaat). |
+| Server start niet met een boodschap over `ADMIN_TOKEN` | Sinds Fase 5.3 draait productie standaard op accounts. Alleen met `ADMIN_LEGACY_TOKEN=true` is `ADMIN_TOKEN` verplicht (en dan ≥16 tekens, geen bekende waarde) — zie §5d. |
 | `A .env file may not configure a production boot: …` | Er staat een (dev-)`.env` in de servermap die `NODE_ENV`/`ADMIN_TOKEN`/`CORS_ORIGIN` zou leveren. Verwijder het bestand van de productiehost of zet die variabelen in de serviceomgeving. |
 | `NODE_ENV is not set in the process environment, but deployment configuration was found there` | Je start met een echte `DATABASE_URL`/`ADMIN_TOKEN`/`CORS_ORIGIN`, maar zonder `NODE_ENV`. Zet `NODE_ENV=production` (deployment) of `NODE_ENV=development` (lokale run). |
 | `ADMIN_TOKEN is too short for production` / `ADMIN_TOKEN is a known development/example value` | Genereer een nieuw token: `openssl rand -hex 32`. |
 | `CORS_ORIGIN="*" is not allowed in production` | Zet de exacte publieke origin(s) in `CORS_ORIGIN`. |
 | `P1012` / `Environment variable not found: DATABASE_URL` | `DATABASE_URL` ontbreekt of is leeg in de procesomgeving. |
 | Admin geeft 401 | Niet (meer) ingelogd, of een verlopen/ingetrokken sessie: opnieuw inloggen. Bestaat er nog geen account, maak er dan een met `npm run admin:create` (een lege `admin_users`-tabel betekent dat elke login 401 geeft). |
+| `No way in: the legacy ADMIN_TOKEN is disabled in production and the admin_users table has no active account` | Er is geen account en het token staat uit: maak eerst een account (`npm run admin:create`), of zet voor CI/scripts `ADMIN_LEGACY_TOKEN=true` mét een sterk `ADMIN_TOKEN` (Fase 5.3, §5d). |
+| `ADMIN_TOKEN is set but the legacy token path is disabled in production` (waarschuwing) | Het token is genegeerd. Haal `ADMIN_TOKEN` uit de serviceomgeving, of zet `ADMIN_LEGACY_TOKEN=true` als een script het echt nodig heeft. |
+| `ADMIN_LEGACY_TOKEN=true is set, but ADMIN_TOKEN is missing` | Zet een productie-waardig `ADMIN_TOKEN` (`openssl rand -hex 32`) óf laat `ADMIN_LEGACY_TOKEN` weg om alleen op accounts te draaien. |
+| Upload geeft `415 … The uploaded bytes are not a supported image` | De bestandsinhoud is geen jpg/png/webp/gif/avif, ook al zegt de client iets anders (Fase 5.3 controleert de magic bytes). Converteer het bestand of kies een ander. |
+| `400 CONFIRM_REQUIRED` bij `DELETE …?hard=true` | Een hard delete moet de record noemen: `?hard=true&confirm=<id|slug>`. Wil je alleen verbergen, gebruik dan `DELETE` zónder `hard=true` (archiveert; terug te zetten). |
 | Login lukt, maar de CMS valt direct terug op het loginscherm | De sessiecookie is `Secure` en de site draait op platte `http://` (niet localhost). Zet TLS voor de reverse proxy of gebruik `https://`. |
 | `429 Too many sign-in attempts` | Throttle: 5 mislukte pogingen per gebruikersnaam+IP (20 per IP) per 15 minuten. Wacht het venster af of herstart de API (de teller is in-process). |
 | Wachtwoord vergeten / account kwijt | Op de server: `npm run admin:password -- --username <naam> --password '<nieuw>'` (trekt bestaande sessies in). |
@@ -474,7 +515,7 @@ Twee endpoints, met een bewust verschillend doel (Fase 5.2):
 
 | Endpoint | Wat het checkt | Antwoord | Gebruik |
 | --- | --- | --- | --- |
-| `GET /api/health` (alias `/api/v1/health`) | service + database + uploadopslag | **200** met `{ status, env, database, storage: { dir, persistent, writable, files, bytes }, adminProtection }` · **503** als de database onbereikbaar is of het uploadvolume niet schrijfbaar | de `HEALTHCHECK` van de Dockerfile en de handmatige verificatie: zegt of het **hele** deployment bruikbaar is |
+| `GET /api/health` (alias `/api/v1/health`) | service + database + uploadopslag | **200** met `{ status, env, database, storage: { persistent, writable, files, bytes }, adminProtection }` · **503** als de database onbereikbaar is of het uploadvolume niet schrijfbaar. Sinds Fase 5.3 zit het **absolute pad** (`storage.dir`) er niet meer in: dit endpoint is publiek | de `HEALTHCHECK` van de Dockerfile en de handmatige verificatie: zegt of het **hele** deployment bruikbaar is |
 | `GET /api/ready` (alias `/api/v1/ready`) | alleen de database-ping | **200** met `{ status: "ready", database: "up" }` · **503** met `status: "not_ready"` | readiness-probe van een load balancer/orchestrator: goedkoop, geen bestandsstatistieken |
 
 Beide zijn publiek (geen admin-referenties), read-only en uitgezonderd van de `FORCE_HTTPS`-redirect,

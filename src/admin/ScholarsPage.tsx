@@ -182,10 +182,11 @@ export default function ScholarsPage() {
           removeBlocked
             ? `“${remove?.name}” is attached to ${removeBlocked} lecture or book. Unlink them first.`
             : remove
-              ? `“${remove.name}” will be removed from the desk.`
+              ? `“${remove.name}” will be deleted for good — this cannot be undone.`
               : ''
         }
-        confirmLabel={removeBlocked ? 'Understood' : 'Remove'}
+        confirmLabel={removeBlocked ? 'Understood' : 'Delete for good'}
+        requirePhrase={removeBlocked ? undefined : remove?.name}
         onCancel={() => setPending(null)}
         onConfirm={() => {
           if (remove && !removeBlocked) deleteScholar(remove.id);

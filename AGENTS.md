@@ -57,6 +57,10 @@ Details: `README.md` (overview), `docs/backend-architecture.md` (API + data mode
   password and keeps nothing: the session lives in an `HttpOnly; Secure; SameSite=Lax` cookie, never
   in `localStorage`, `sessionStorage`, a `VITE_*` variable or the bundle (`VITE_ADMIN_TOKEN` is
   obsolete). `ADMIN_TOKEN` stays available **server-side** as a dual-mode fallback for scripts and CI.
+- **The legacy `ADMIN_TOKEN` is off in production by default (Fase 5.3).** Operators use accounts; the
+  shared token only exists for scripts/CI and requires `ADMIN_LEGACY_TOKEN=true` (plus `ADMIN_TOKEN`)
+  on a production host — without accounts *and* without the token the server refuses to boot. Never
+  re-enable it "for convenience", never log it, and never let it become the only way in.
 - Admin passwords are scrypt-hashed (`node:crypto`, ≥10 characters, no known defaults, never equal
   to the username); only the SHA-256 hash of a session token is stored. Accounts are managed on the
   server with `npm run admin:create|password|disable|enable|list` — never by writing rows by hand or
@@ -76,6 +80,15 @@ Details: `README.md` (overview), `docs/backend-architecture.md` (API + data mode
   `FORCE_HTTPS` exist for that reason — do not "simplify" them away (`docs/DEPLOYMENT.md` §5c).
 
 **Data**
+- **Public responses are positive lists.** `server/src/lib/public-payload.ts` decides what a visitor
+  may see: never `createdBy`, `updatedBy`, `importJobId` — and never unpublished content, not even
+  nested (a scholar page used to ship drafts). Add a field only by adding it there and to the tests;
+  the admin endpoints keep returning the full row (the CMS needs attribution).
+- **Destructive actions name their target.** A hard delete (`?hard=true`) and deleting a scholar or a
+  subject require `?confirm=<id|slug>`, and the CMS asks the operator to type the record's name first.
+  Archive is the reversible default — keep it that way.
+- **Uploads are recognised by their bytes** (`server/src/lib/image-type.ts`), not by the client's
+  `Content-Type`; the stored extension/mime come from the detected type. Never trust the header.
 - Never run the destructive demo seed (`npm run seed`) against a production database — it refuses,
   by design. Production reference data comes from `npm run seed:reference` (subjects + scholars only).
 - **A backup set is a secret and must never be committed**: `ops/backup.sh` writes a `pg_dump` (which

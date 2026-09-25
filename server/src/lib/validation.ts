@@ -12,12 +12,21 @@ export function normalizeProvider(p: string): string {
   return p;
 }
 
-// Media URLs may be: absolute http(s), our own uploaded /uploads/<file>, or an inline data: image
+// Media URLs may be: absolute http(s), our own uploaded /uploads/<file>, or an inline data: image.
+// Fase 5.3: the inline form is limited to the raster types the upload endpoint accepts — an
+// `image/svg+xml` (or any other `data:image/*`) data URI is a document that can carry script, and a
+// URL is stored in the database and rendered by the public site, so it must not be open-ended.
+export const RASTER_DATA_IMAGE = /^data:image\/(png|jpe?g|webp|gif|avif);base64,[A-Za-z0-9+/=]+$/;
 export const mediaUrlSchema = z
   .string()
   .max(300000)
-  .refine((v) => /^(https?:\/\/|\/uploads\/|data:image\/)/.test(v.trim()), {
-    message: 'Must be an absolute http(s) URL, an /uploads/<file> path or a data:image URI',
+  .refine((v) => {
+    const value = v.trim();
+    if (/^https?:\/\//.test(value) || value.startsWith('/uploads/')) return true;
+    return RASTER_DATA_IMAGE.test(value);
+  }, {
+    message:
+      'Must be an absolute http(s) URL, an /uploads/<file> path, or a base64 data URI of a raster image (png, jpeg, webp, gif, avif)',
   });
 
 export const createContentSchema = z.object({

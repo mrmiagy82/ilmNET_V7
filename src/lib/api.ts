@@ -214,8 +214,13 @@ export function createContent(payload: Record<string, any>) {
 export function patchContent(id: string, patch: Record<string, any>) {
   return apiFetch<Single<BackendContent>>(`/api/admin/contents/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(patch) });
 }
-export function deleteContent(id: string, hard = false) {
-  const qs = hard ? "?hard=true" : "";
+/**
+ * Remove content. Without `hard` the record is archived (reversible, the default).
+ * With `hard` the API also demands `confirm`, which must repeat the record's id or slug — Fase 5.3:
+ * an irreversible delete must name what it destroys, so a stray `hard=true` cannot erase a record.
+ */
+export function deleteContent(id: string, hard = false, confirm?: string) {
+  const qs = hard ? `?hard=true&confirm=${encodeURIComponent(confirm ?? id)}` : "";
   return apiFetch<{ data: any }>(`/api/admin/contents/${encodeURIComponent(id)}${qs}`, { method: "DELETE" });
 }
 export function publishContent(id: string) {
@@ -256,8 +261,9 @@ export function createScholar(payload: Record<string, any>) {
 export function patchScholar(id: string, patch: Record<string, any>) {
   return apiFetch<Single<BackendScholar>>(`/api/admin/scholars/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(patch) });
 }
-export function deleteScholar(id: string) {
-  return apiFetch<{ data: any }>(`/api/admin/scholars/${encodeURIComponent(id)}`, { method: "DELETE" });
+export function deleteScholar(id: string, confirm?: string) {
+  const qs = `?confirm=${encodeURIComponent(confirm ?? id)}`;
+  return apiFetch<{ data: any }>(`/api/admin/scholars/${encodeURIComponent(id)}${qs}`, { method: "DELETE" });
 }
 
 // ── Subjects ──
@@ -270,8 +276,9 @@ export function createSubject(payload: Record<string, any>) {
 export function patchSubject(id: string, patch: Record<string, any>) {
   return apiFetch<Single<BackendSubject>>(`/api/admin/subjects/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(patch) });
 }
-export function deleteSubject(id: string) {
-  return apiFetch<{ data: any }>(`/api/admin/subjects/${encodeURIComponent(id)}`, { method: "DELETE" });
+export function deleteSubject(id: string, confirm?: string) {
+  const qs = `?confirm=${encodeURIComponent(confirm ?? id)}`;
+  return apiFetch<{ data: any }>(`/api/admin/subjects/${encodeURIComponent(id)}${qs}`, { method: "DELETE" });
 }
 
 // ── Archive imports ──

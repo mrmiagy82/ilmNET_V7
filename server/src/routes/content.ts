@@ -8,6 +8,7 @@ import {
   updateContentSchema,
 } from '../lib/validation';
 import { toSlug, uniqueSlug } from '../utils/slug';
+import { publicContent, publicList } from '../lib/public-payload';
 
 function buildEmbedUrl(provider: string, sourceUrl: string, externalIdentifier?: string | null): string | null {
   const norm = normalizeProvider(provider);
@@ -173,8 +174,13 @@ export async function contentRoutes(app: FastifyInstance) {
       }),
     ]);
 
+    // Fase 5.3 (audit I8): the public endpoints get the positive-list payload — never the raw row
+    // with operator attribution (`createdBy`/`updatedBy`) or import bookkeeping (`importJobId`).
+    // The admin list keeps the full row because the CMS shows attribution.
+    const isPublic = forcedStatus === 'published';
+
     return {
-      data,
+      data: isPublic ? publicList(data, publicContent) : data,
       pagination: {
         page,
         limit,
@@ -202,7 +208,7 @@ export async function contentRoutes(app: FastifyInstance) {
         include: { scholars: { include: { scholar: true } }, subjects: { include: { subject: true } } },
       });
       if (!content) return reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'Content not found' } });
-      return { data: content };
+      return { data: publicContent(content) };
     });
   }
 
@@ -406,12 +412,32 @@ export async function contentRoutes(app: FastifyInstance) {
   for (const base of ['/api/admin/contents/:id']) {
     app.delete(base, async (req, reply) => {
       const { id } = req.params as { id: string };
-      const { hard } = req.query as { hard?: string };
+      const { hard, confirm } = req.query as { hard?: string; confirm?: string };
       const existing = await prisma.content.findFirst({ where: { OR: [{ id }, { slug: id }] } });
       if (!existing) return reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'Content not found' } });
 
       if (hard === 'true') {
+        // Fase 5.3 (audit I7): a hard delete erases the record and cannot be undone, so it needs an
+        // explicit confirmation that names the record — `?hard=true` alone is one typo away from
+        // destroying content. Archive (the default) keeps the row and hides it from the public site.
+        const supplied = (confirm ?? '').trim();
+        if (supplied !== existing.id && supplied !== existing.slug) {
+          return reply.code(400).send({
+            error: {
+              code: 'CONFIRM_REQUIRED',
+              message:
+                `Removing “${existing.title}” deletes the record for good and cannot be undone. ` +
+                'Repeat its id or slug in ?confirm=<id|slug> to proceed, or archive it instead (DELETE without hard=true).',
+            },
+          });
+        }
         await prisma.content.delete({ where: { id: existing.id } });
+        // The row — and with it createdBy/updatedBy — is gone after this, so the server log is the
+        // only remaining trace of who removed what. No credentials in the line, only the identity.
+        req.log.warn(
+          { operator: adminUsername(req), id: existing.id, slug: existing.slug, title: existing.title },
+          'Content hard-deleted',
+        );
         return { data: { id: existing.id, deleted: true, hard: true } };
       } else {
         const archived = await prisma.content.update({

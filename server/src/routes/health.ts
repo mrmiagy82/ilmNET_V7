@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { prisma } from '../lib/prisma';
 import { uploadsHealth } from '../lib/storage';
+import { adminAuthPosture } from '../lib/env';
 
 /**
  * Health and readiness endpoints.
@@ -39,13 +40,16 @@ export async function healthRoutes(app: FastifyInstance) {
       uptime: process.uptime(),
       database,
       storage: {
-        dir: storage.dir,
+        // Fase 5.3: the absolute directory is deliberately not published — this endpoint is public
+        // and a probe only needs to know whether uploads work (writable) and on which volume
+        // (persistent), not where the host keeps its files.
         persistent: storage.custom,
         writable: storage.writable,
         files: storage.files,
         bytes: storage.bytes,
       },
-      adminProtection: Boolean(process.env.ADMIN_TOKEN?.trim()),
+      // Honest, non-secret posture (Fase 5.3): `sessions` or `sessions+legacy-token`.
+      adminProtection: adminAuthPosture(),
     };
   };
 

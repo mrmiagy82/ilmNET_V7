@@ -5,14 +5,19 @@ Update it after every finished phase, commit, sanity check or significant discov
 Rules: only facts that are verifiable from the repository, Git history or existing docs — and
 **never** secrets, tokens or credentials.
 
-_Last updated: Fase 5.2 (deployment hardening: proxy trust, network exposure, readiness)._
+_Last updated: Fase 5.3 (data & security hardening: legacy token off by default, public payloads
+whitelisted, destructive deletes confirmed, uploads checked by magic bytes)._
 
 The last phases: Fase 5.1 closed the three blockers from the Fase 5 audit (backup + restore, honest
 footer links, TLS/HSTS with a provider-agnostic runbook, §7g). Fase 5.2 hardened the deployment
 itself: forwarded headers are only trusted when `TRUST_PROXY` names a proxy, the HTTP→HTTPS redirect
 can no longer be steered by a forged host, a `FORCE_HTTPS` misconfiguration is refused at boot,
 Postgres is no longer published by the compose file (which was not even valid YAML before), and the
-API gained a cheap readiness probe (§7h).
+API gained a cheap readiness probe (§7h). Fase 5.3 then closed the data-safety items of the audit
+(I6/I7/I8/L4): the legacy shared token is off in production by default, public responses are built
+from a positive list (no `createdBy`/`updatedBy`/`importJobId`, and no draft content on a scholar
+page), an irreversible delete must name its record in the API and in the CMS, and uploads are
+recognised by their magic bytes instead of the client's `Content-Type` (§7i).
 
 ---
 
@@ -21,15 +26,15 @@ API gained a cheap readiness probe (§7h).
 | | |
 | --- | --- |
 | Branch | `master` |
-| Codebase state described here | `a7d6865` (Fase 5.1) **plus** the Fase 5.2 changes in §7h — this document ships in the Fase 5.2 commit |
-| This document | updated in Fase 5.2; its own revision is visible with `git log -1 -- docs/CONTEXT.md` |
+| Codebase state described here | `504e353` (Fase 5.2) **plus** the Fase 5.3 changes in §7i — this document ships in the Fase 5.3 commit |
+| This document | updated in Fase 5.3; its own revision is visible with `git log -1 -- docs/CONTEXT.md` |
 | Working tree | clean (verified against `origin/master`) |
 | Repository | `github.com/mrmiagy82/ilmNET_V7` |
 | Size | 69 source files, ~15.6k lines in `src/` + `server/src/`; the admin (`src/admin/`, 20 files, ~6.5k lines) is the largest area |
 | Build (git-ignored artefact) | single-file `dist/index.html` (644.42 kB, 161.00 kB gzip, measured in Fase 4.5) |
-| Phase state | Fase 5.2 complete: the deployment is hardened in the repository — forwarded headers require an explicit `TRUST_PROXY`, the redirect target is allowlisted (`PUBLIC_ORIGIN`/`CORS_ORIGIN`/`ALLOWED_HOSTS`) and can no longer be forged, misconfigurations stop the boot, compose no longer publishes Postgres and binds the API to loopback, and `/api/ready` exists next to `/api/health` (§7h) |
-| Roadmap | production finishing, UI/UX and performance toward the definitive live deployment (§9) — the remaining deploy work is host-side (§8.14) |
-| Open blockers | none in the repository. Host-side and not verifiable from the repo: terminating TLS, forwarding `X-Forwarded-Proto`, choosing `TRUST_PROXY` for the real topology, the nightly backup timer plus off-site copies, uptime/alerting, and public-API rate limiting (§8.14) |
+| Phase state | Fase 5.3 complete: the audit's data-safety items are closed — production runs on accounts (the legacy `ADMIN_TOKEN` needs an explicit `ADMIN_LEGACY_TOKEN=true` and a production boot without accounts refuses to start), public endpoints answer with a positive list instead of the raw row, hard deletes and scholar/subject deletes require `?confirm=<id|slug>` (typed in the CMS), uploads are validated by magic bytes, and `/api/health` no longer publishes the upload path (§7i) |
+| Roadmap | production finishing, UI/UX and performance toward the definitive live deployment (§9). The audit's Fase 5.4 (scale/speed) and 5.5 (polish/compliance) work is next; the remaining deploy work is host-side (§8.14) |
+| Open blockers | none in the repository. Host-side and not verifiable from the repo: terminating TLS, forwarding `X-Forwarded-Proto`, choosing `TRUST_PROXY` for the real topology, the nightly backup timer plus off-site copies, uptime/alerting, and public-API rate limiting (§8.14). Data-safety wise nothing is open: the last low-priority item is the `__Host-` cookie prefix (§8.15) |
 
 ## 2. Completed phases (from Git history)
 
@@ -46,7 +51,7 @@ API gained a cheap readiness probe (§7h).
 | `f4aad03` | Fase 3.9.1 | honesty of counters, status and copy |
 | `2f16540` | Fase 3.10 | project context + agent continuity (`AGENTS.md`, this file) |
 | `45fc54a` | Fase 4 | admin CMS: archived status, real totals, honest admin states (see §7). Committed under the working name “TinyCMS”, which is scrapped since Fase 4.2 — do not reintroduce it (§7d) |
-| `5805520` | Fase 4.1 | admin authentication: real login gate on the existing `ADMIN_TOKEN` (see §7c — the gate stands, its token credential model was replaced in Fase 4.5, §7f) |
+| `5805520` | Fase 4.1 | admin authentication: real login gate on the existing `ADMIN_TOKEN` (see §7c — the gate stands, its token credential model was replaced in Fase 4.5, §7f, and that token is now off in production by default, §7i) |
 | `07ea4a9` | Fase 4.2 | admin CMS cleanup: no CMS naming, no unused admin helpers — functionality unchanged (see §7d) |
 | `dab8211` | Fase 4.3 | YouTube: optional official Data API for the import, verified public playback (see §7e) |
 | — (diagnosis only) | Fase 4.3.1 | YouTube “Error 153”: proven that the missing `Referer` is not lost in our code; no change, no commit (see §7e) |
@@ -55,7 +60,8 @@ API gained a cheap readiness probe (§7h).
 | `f030ef3` | Fase 4.5.1 | project context synchronized with the post-4.5 repository: roadmap, scrapped TinyCMS, test status and remaining issues |
 | — (audit only) | Fase 5 | production readiness audit; read-only, no commit — three blockers: no backup/restore, TLS not proven, footer linked to a single page |
 | `a7d6865` | Fase 5.1 | production blockers closed: `ops/` backup + restore + drill, honest footer navigation, TLS/HSTS support (see §7g) |
-| _this commit_ | Fase 5.2 | deployment hardening: proxy trust (`TRUST_PROXY`), safe forwarded-host handling, boot guards, no public Postgres/API port, readiness probe (see §7h) |
+| `504e353` | Fase 5.2 | deployment hardening: proxy trust (`TRUST_PROXY`), safe forwarded-host handling, boot guards, no public Postgres/API port, readiness probe (see §7h) |
+| _this commit_ | Fase 5.3 | data & security hardening: legacy token off in production, whitelisted public payloads, confirmed destructive deletes, byte-verified uploads, no path leak in health (see §7i) |
 
 Earlier work is documented per topic in `docs/FASE2A_ARCHIVE.md`, `docs/FASE2B_YOUTUBE.md`,
 `docs/FASE2C_PUBLIC_FRONTEND.md`, `docs/FASE2D_SEARCH_FILTERING.md`,
@@ -89,6 +95,15 @@ thumbnail policy: custom upload → provider image → ilmNet placeholder).
 **Admin routes** (all under `/admin`): index, `new`, `archive-import`, `youtube-import`, and
 `lectures|books|scholars|subjects` with `new` / `:id`. The admin store is mounted on the `/admin` routes only, so
 public pages never call admin endpoints.
+
+**Public payloads are positive lists (Fase 5.3).** `server/src/lib/public-payload.ts` names the fields
+a visitor may see (`PUBLIC_CONTENT_KEYS`, `PUBLIC_SCHOLAR_KEYS`, `PUBLIC_SUBJECT_KEYS`) and maps every
+public response through it, including nested join rows and the content embedded on a scholar page (only
+`status = published`). `createdBy`, `updatedBy`, `importJobId` and scholar/subject `metadata` stay
+server-side; `Content.metadata` **is** public because the public UI renders provider metadata from it
+(archive `available_media`, `tags`, `publisher`, `isbn`). The admin endpoints keep returning the raw row
+(the CMS shows attribution). Uploads are typed by their magic bytes (`server/src/lib/image-type.ts`), not
+by the multipart `Content-Type`.
 
 **API:** public reads `/api/contents`, `/api/v1/contents` (both force `status = published`),
 `/api/contents/:id|slug`, `/api/scholars`, `/api/subjects` (+ by id/slug), `/api/health`,
@@ -126,7 +141,8 @@ exists only in that cookie. `POST /api/admin/logout` destroys the session server
 cookie; `GET /api/admin/session` tells the gate who is calling (`session`, or `token` in the legacy
 fallback — with `user: null`, never an invented identity). The request hook in `server.ts` protects
 every `/api/admin/*` path and every write under `/api/*`: session cookie first, then the legacy
-`ADMIN_TOKEN` header/bearer (dual mode, for scripts and CI), then the non-production localhost
+`ADMIN_TOKEN` header/bearer (only while `ADMIN_LEGACY_TOKEN` leaves that path enabled — off in
+production since Fase 5.3, §7i), then the non-production localhost
 convenience; `/api/admin/login` and `/api/admin/logout` are the only admin paths reachable without
 credentials. Sessions are rolling (12 h default, `ADMIN_SESSION_TTL_MINUTES`, hard cap 30 days) and
 are revoked when a password changes or an account is disabled. Login attempts are throttled
@@ -149,8 +165,13 @@ empty states, errors) live in the React components — there is no content layer
 
 - The deployment runbook is `docs/DEPLOYMENT.md`: environment variables, systemd/pm2 and Docker
   Compose setups, the production-safe seed, health checks and rollback.
-- `GET /api/health` reports service + database + upload storage and returns **503** when the
-  database is unreachable or the upload volume is not writable — use it to verify a deployment.
+- `GET /api/health` reports service + database + upload storage (without paths or secrets) and returns
+  **503** when the database is unreachable or the upload volume is not writable — use it to verify a
+  deployment. `adminProtection` shows how the admin surface is guarded (`sessions`, or
+  `sessions+legacy-token` when a host opted back into the token, §7i).
+- **A production host must be able to sign someone in.** Accounts come from `npm run admin:create`;
+  the legacy `ADMIN_TOKEN` is off unless the host sets `ADMIN_LEGACY_TOKEN=true`. With neither, the
+  server refuses to start and says why (§7i, `docs/DEPLOYMENT.md` §5d).
 - Configuration comes from the process environment only. A `.env` file supplying `NODE_ENV`,
   `ADMIN_TOKEN`, `CORS_ORIGIN` or `ADMIN_ALLOW_LOCALHOST` makes a production boot **refuse to start**
   (Fase 3.8.1). Reference: `docs/FASE3_8_1_ENV_SECURITY.md`.
@@ -181,11 +202,24 @@ empty states, errors) live in the React components — there is no content layer
    and stores nothing (the session lives in an `HttpOnly` cookie); `VITE_*` values would be inlined
    into the public bundle, so no token or password may ever come from there. `VITE_ADMIN_TOKEN` is
    obsolete since Fase 4.5 — the API ignores browser tokens entirely.
-3. Every `/api/admin/*` request and every write requires either a valid session cookie or (dual
-   mode) the `ADMIN_TOKEN`, which must be at least 16 characters and non-guessable; anything else is
-   401. Passwords are scrypt-hashed (≥10 characters, no known defaults, never equal to the username);
-   only the SHA-256 hash of a session token is stored. `CORS_ORIGIN` lists exact origins — a wildcard
-   stops a production boot.
+3. Every `/api/admin/*` request and every write requires either a valid session cookie or — only while
+   `ADMIN_LEGACY_TOKEN` leaves it enabled — the `ADMIN_TOKEN`, which must be at least 16 characters and
+   non-guessable; anything else is 401. **In production the legacy token is off by default** (Fase 5.3):
+   a host that keeps using it for CI says so with `ADMIN_LEGACY_TOKEN=true`, and a boot with no active
+   account and no token is refused (`No way in`). Passwords are scrypt-hashed (≥10 characters, no known
+   defaults, never equal to the username); only the SHA-256 hash of a session token is stored.
+   `CORS_ORIGIN` lists exact origins — a wildcard stops a production boot.
+3b. **A public response is a positive list.** `server/src/lib/public-payload.ts` decides what leaves the
+   server: no `createdBy`/`updatedBy`/`importJobId`, no scholar/subject `metadata`, and unpublished
+   content never travels along (a scholar page used to include drafts). New columns are private until
+   they are added to that file *and* to the tests.
+3c. **Destructive actions must name their target.** `DELETE /api/admin/contents/:id?hard=true` (the
+   genuinely irreversible one) and the scholar/subject deletes require `?confirm=<id|slug>`; the CMS
+   makes the operator type the record's name first. Archive (DELETE without `hard=true`) is the
+   reversible default and stays that way.
+3d. **Uploads are recognised by their bytes** (`server/src/lib/image-type.ts`, JPEG/PNG/GIF/WebP/AVIF);
+   the detected type decides the stored extension and the reported mime, the client's header only shapes
+   the error message. The public health payload does not disclose the upload directory either.
 4. Public endpoints expose published content only; drafts stay invisible (verified in Fase 3.9,
    including detail pages and search).
 5. A rejected token must be reported as an authentication problem (401), not as “backend
@@ -208,14 +242,14 @@ empty states, errors) live in the React components — there is no content layer
 
 | Command | What it covers | Last verified result |
 | --- | --- | --- |
-| `npx tsc --noEmit` (root + `server/`) | types | 0 errors (Fase 5.1) |
-| `npm run build` (root) | single-file production build | 644.91 kB / 161.10 kB gzip (Fase 5.1) |
-| `cd server && npm run test:all` | audit, uploads (25), production readiness (**76**, incl. TLS/HSTS, proxy trust, boot guards, readiness), env hardening (13), youtube (+ Data API fallback), **auth (69)** | green in Fase 5.2 (exit 0; the live YouTube scrape check can still fail when Google throttles this IP — §8.11) |
+| `npx tsc --noEmit` (root + `server/`) | types | 0 errors (Fase 5.3) |
+| `npm run build` (root) | single-file production build | 645.98 kB / 161.40 kB gzip (Fase 5.3) |
+| `cd server && npm run test:all` | audit, uploads (**30**), production readiness (**103**, incl. TLS/HSTS, proxy trust, boot guards, readiness, public payload, delete confirmation, magic bytes, admin posture), env hardening (13), youtube (+ Data API fallback), **auth (69)** | green in Fase 5.3: exit 0, **288 ✅** (the live YouTube scrape check can still fail when Google throttles this IP — §8.11) |
 | `ops/backup.sh` + `ops/restore-drill.sh` | database + uploads backup, then a restore into a throwaway database with count and checksum comparison | drill PASSED in Fase 5.1 (seven tables + two upload files, §7g) |
 | `cd server && npm run test:imports` | live Archive.org + YouTube import regression | 19/19 whenever the provider answers; the live scrape check is the part that fails under Google's throttle (§8.11) |
-| `npm run test:e2e:production` | routes, embeds, **real YouTube playback**, error states, mobile, admin entry (login gate), **footer navigation (17 checks)** | 84/84 (Fase 5.1) |
+| `npm run test:e2e:production` | routes, embeds, **real YouTube playback**, error states, mobile, admin entry (login gate), **footer navigation (17 checks)** | 84/84 (Fase 5.1/5.3) |
 | `npm run test:e2e` | waveform, thumbnails, admin upload flow | 27/27 |
-| `npm run test:e2e:cms` | admin CMS: real totals, draft→published→archived→restored, collection round-trip, 401 honesty | 28/28 |
+| `npm run test:e2e:cms` | admin CMS: real totals, draft→published→archived→restored, collection round-trip, 401 honesty, **typed delete confirmation + `CONFIRM_REQUIRED`** | 34/34 (Fase 5.3) |
 | `npm run test:e2e:auth` | Fase 4.5 gate: username/password sign-in, 401s, cookie flags, deep link, refresh, tampered cookie, server-side logout, no credential in web storage, public site stays free | 60/60 |
 
 Browser specs take `SITE_URL`, `API_URL`, `ADMIN_TOKEN` (for their API fixtures) and sign the
@@ -223,22 +257,28 @@ browser in with `ADMIN_USERNAME`/`ADMIN_PASSWORD` (usernames default to `e2e-adm
 production suites and `media-e2e-admin` for the media suite; the **password has no default** — no
 credential is committed — so create the account with `npm run admin:create` and export
 `ADMIN_PASSWORD`); the server suite
-takes `TEST_ADMIN_TOKEN`. `tests/e2e/lib/admin-session.mjs` holds the shared sign-in helper (it logs
+takes `TEST_ADMIN_TOKEN`. The browser specs still send that token for their API fixtures, so a
+production server used for e2e needs `ADMIN_LEGACY_TOKEN=true` — that is the CI case §5d describes;
+`tests/e2e/lib/admin-session.mjs` holds the shared sign-in helper (it logs
 in over the API and hands the session cookie to the browser context — nothing is injected into
 JavaScript-visible storage). The server suite needs an explicit mode next to a deployment variable
 (`NODE_ENV=test ADMIN_TOKEN=… npm run test:all`) — a boot that sees `ADMIN_TOKEN` without `NODE_ENV`
 refuses to start (Fase 3.8.1). `test:e2e:auth` and `test:e2e:production` expect a production server
-(`NODE_ENV=production`, the same `ADMIN_TOKEN`, matching `CORS_ORIGIN`). Mutating suites clean up their
+(`NODE_ENV=production`, the same `ADMIN_TOKEN`, `ADMIN_LEGACY_TOKEN=true` to keep the fixture token
+working, matching `CORS_ORIGIN`). Mutating suites clean up their
 own records — verify afterwards, and never point them at a database whose content must be preserved.
 Known quirk: `test:imports` deliberately leaves the imported record in place (that is part of what it
 asserts), so run it against a throwaway database or remove the record afterwards.
 
-**State of these numbers (Fase 5.2):** measured in the same rebuilt sandbox (PostgreSQL 17.11, real
-Archive.org/YouTube imports: 8 books, 7 videos, 3 audio, 8 scholars, 11 subjects). The production
-readiness suite grew from 44 (Fase 4.5) to 54 (Fase 5.1) to **76** (Fase 5.2 — proxy trust, redirect
-allowlist, boot guards, readiness probe). The sandbox is ephemeral (dependencies, database and
-processes are not part of the snapshot): rebuild and re-run per `AGENTS.md` §4 before quoting these
-again.
+**State of these numbers (Fase 5.3):** measured in the same rebuilt sandbox (PostgreSQL 17.11, real
+Archive.org/YouTube imports: 25 published records — 8 books, 7 videos, 10 audio — plus 8 scholars and
+11 subjects, in both `ilmnet` and `ilmnet_prod`). The production readiness suite grew 44 (Fase 4.5) →
+54 (5.1) → 76 (5.2) → **103** (5.3: public payload, delete confirmation, magic-byte uploads, admin
+posture, and the health payload); uploads 25 → **30**. The sandbox is ephemeral (dependencies, database
+and processes are not part of the snapshot): rebuild and re-run per `AGENTS.md` §4 before quoting these
+again. The e2e suites were run against a production server on `:3101` whose `ADMIN_LEGACY_TOKEN=true`
+stands in for a CI host — the sessions-only posture is proven separately in the server suite and with
+real boots (see §7i).
 
 ## 7. What Fase 4 (the admin CMS) changed (so it is not re-broken)
 
@@ -584,6 +624,89 @@ allowlist, the boot guards, the `undefined` footgun and the readiness probe), en
 YouTube live, auth 69/69. `npm run build` unchanged at 644.91 kB / 161.10 kB gzip (no frontend code was
 touched). Compose validated as YAML with a parser.
 
+## 7i. What Fase 5.3 (data & security hardening) changed
+
+Fase 5.3 closed the data-safety items of the Fase 5 audit (I6, I7, I8, plus the health-payload leak)
+inside the existing architecture: **no new dependencies, no schema change, no redesign**. It touched
+the server (`lib/env.ts`, `lib/image-type.ts`, `lib/public-payload.ts`, `lib/validation.ts`,
+`server.ts`, `routes/{health,uploads,content,scholar,subject}.ts`), the admin frontend (`lib/api.ts`,
+`admin/ui.tsx` and the four list pages) and the tests. `src/admin/store.tsx` was deliberately left
+alone: `api.ts` defaults `confirm` to the record id, so existing callers keep working and a caller
+that already passes a phrase cannot be bypassed.
+
+**1. The legacy token is off in production (audit I6).** `ADMIN_LEGACY_TOKEN` is the explicit switch
+(`legacyAdminTokenEnabled()`): `true` = on, `false` = off, unset = **on in development, off in
+production**. The consequences are enforced in `assertAdminAccessPossible()` and `server.ts`:
+
+- `ADMIN_LEGACY_TOKEN=true` without a usable `ADMIN_TOKEN` refuses to boot
+  (`ADMIN_LEGACY_TOKEN=true is set, but ADMIN_TOKEN is missing: the legacy token would authenticate
+  nobody …`).
+- Production with no active `admin_users` row and the token off refuses to boot
+  (`No way in: the legacy ADMIN_TOKEN is disabled in production and the admin_users table has no
+  active account …`) — a documented, deliberate hard stop, because such a host could never sign in.
+- A production host that sets `ADMIN_TOKEN` without opting in gets a warning saying it is ignored
+  (`ADMIN_TOKEN is set but the legacy token path is disabled in production`), so a forgotten secret is
+  never silently useless.
+- The boot log now reports the posture with the account count: `Admin protection: session sign-in
+  enabled (N active account(s)) · legacy ADMIN_TOKEN fallback enabled/disabled`, and the auth hook only
+  accepts the token on the branch where it is enabled.
+- `GET /api/health` was reworded to carry **no secret material**: `adminProtection` is now the posture
+  string (`"sessions"` or `"sessions+legacy-token"`), and `storage.dir` — the absolute upload path —
+  was dropped from a public payload.
+
+**2. Public responses are positive lists (audit I8).** `server/src/lib/public-payload.ts` defines
+`PUBLIC_CONTENT_KEYS` / `PUBLIC_SCHOLAR_KEYS` / `PUBLIC_SUBJECT_KEYS` plus `INTERNAL_CONTENT_KEYS =
+[createdBy, updatedBy, importJobId, importJob]` and maps every public payload through them — list and
+detail alike, including the nested join rows (`scholars`, `subjects`, `contents`) and the content a
+scholar page embeds. It also fixed a real leak: the scholar detail used to return drafts. `Content.
+metadata` stays public on purpose (the public UI renders archive tags/publisher/ISBN from it), while
+scholar and subject `metadata` do not leave the server. The admin endpoints still return the raw row,
+so the CMS keeps showing attribution — and `production.test.ts` asserts both sides, with a
+`findKeysDeep` walk that fails on any internal key anywhere in a public response.
+
+**3. Irreversible deletes must name their target (audit I7).** `DELETE /api/admin/contents/:id?hard=true`
+now also needs `?confirm=<id|slug>` (`400 CONFIRM_REQUIRED` with a message naming the record); archiving
+(hard absent) stays the reversible default and is unchanged. Scholar and subject deletes take the same
+`confirm` (their `409 … linked to N contents. Unlink first.` guard was already correct and was **not**
+loosened — see the correction in §8.9-style audit note: the audit's I7 reading of those routes was
+wrong). A successful hard delete is logged at `warn` with operator, id, slug and title. In the CMS,
+`ConfirmDialog` gained a `requirePhrase` mode (`data-testid="confirm-phrase"`): the operator types the
+record's name and the destructive button stays disabled until it matches; `cms.spec.mjs` proves the
+disabled/enabled transition, a wrong phrase, and that cancelling deletes nothing.
+
+**4. Uploads are recognised by their bytes.** `server/src/lib/image-type.ts` sniffs the first 32 bytes
+for JPEG/PNG/GIF/WebP/AVIF (SVG is deliberately not accepted — it is a scriptable document; the CMS
+only ever renders a custom image thumbnail, so nothing needed it). `routes/uploads.ts` buffers the
+stream (`peekStream`), answers `400 EMPTY_FILE` for an empty body and `415 UNSUPPORTED_TYPE` when the
+bytes do not match a supported image, and stores `detected.ext` with the detected mime instead of
+trusting the multipart filename/type. Fixing this surfaced a real bug: `peekStream` only returned the
+overflow beyond the sniff window, so large uploads were stored truncated — it now returns every byte it
+buffered. `test/uploads.test.ts` covers PNG-as-JPEG, HTML-as-PNG (415), an empty upload and a real
+JPEG (201), and compares stored bytes with the sent bytes.
+
+**5. Logs and errors.** Re-verified rather than rewritten (the Fase 4.5/4.3 redaction already covered
+this): `pino` redacts the token and password paths, the rejected-login line logs `username`, `ip` and
+`reason` but never the password (`{"level":40,…,"reason":"bad_password","msg":"Admin sign-in
+rejected"}`), and a live check on the running production server found **0** occurrences of the admin
+token, of `x-admin-token`, and of a unique marker password in the log — including the request that
+used the token. Nothing new needed to change.
+
+**Verified in this phase.** `npx tsc --noEmit` clean in `./` and `./server`; `npm run build` exit 0
+(645.98 kB / 161.40 kB gzip); `cd server && npm run test:all` exit 0 with **288 checks** (audit,
+uploads 30, production readiness 103, env hardening 13, youtube, auth 69). Three real boots proved the
+posture: no account + token off → exit 1 with `No way in…`; `ADMIN_LEGACY_TOKEN=true` without a token →
+exit 1 with the missing-token message; an account present → boot with
+`session sign-in enabled (1 active account) + legacy ADMIN_TOKEN fallback`. End-to-end against a
+production server on `:3101` serving the real `dist/` with a real `ilmnet_prod` database: production
+**84**/84, admin-auth **60**/60, cms **34**/34, media **27**/27. The e2e suites talk to the API with the
+legacy token, so that server is started with `ADMIN_LEGACY_TOKEN=true` — a CI host is the one legitimate
+reason to keep the fallback, and §5d of `docs/DEPLOYMENT.md` says so explicitly.
+
+**Not changed on purpose:** no schema change and no new dependency (the sniffing is ~30 lines of
+`node:buffer`), the public site stays login-free, and the CMS keeps its neumorphic look. Follow-ups that
+were considered and left: the `__Host-` session cookie prefix (needs a code-level `Max-Age`/TTL review,
+§8.15), a public-API rate limit and the audit-log table (host/roadmap items, §8.4/§8.9).
+
 ## 8. Known remaining issues (not blockers)
 
 From `docs/FASE3_9_CODEBASE_REVIEW.md` § Restrisico's plus the 3.9.1 report:
@@ -638,6 +761,13 @@ From `docs/FASE3_9_CODEBASE_REVIEW.md` § Restrisico's plus the 3.9.1 report:
     holds the exact commands and install steps, including the log lines and `curl` checks that prove
     each one.
 
+15. **The session cookie is not `__Host-`-prefixed** (Fase 5.3 reviewed and left this). The cookie is
+    already `HttpOnly`, `Secure` and `SameSite=Lax`, and it is set with `Path=/` on the host itself —
+    so it is not exploitable by a sibling subdomain today. Moving to `__Host-ilmnet_session` is a
+    cheap extra layer but changes the cookie name (an existing session would have to sign in once
+    more) and needs one place to keep the `Max-Age`/expiry contract; do it together with any other
+    cookie change.
+
 ## 9. Next step
 
 No open blockers. Fase 4.5 replaced the shared token with real accounts, sessions and attribution
@@ -649,12 +779,10 @@ scrape check when Google throttles this IP (§8.11), which is external and passe
 **The roadmap is production finishing, UI/UX and performance toward the definitive live deployment.**
 Fase 5.1 removed the three blockers that were verifiable in the repository; the rest starts on the host.
 
-- **Phase 5.3 — data safety (next).** Fase 5.2 finished the repository-side work of the audit's
-  deployment items; what remains for a real host is environmental (§8.14): TLS, `TRUST_PROXY` for the
-  real topology, the backup timer + off-site copies, uptime monitoring and public-API rate limiting.
-  Then the data-safety items: Make the legacy `ADMIN_TOKEN` switchable off in production (audit I6),
-  ask before a hard delete (I7) and stop leaking `createdBy`/`updatedBy`/`metadata` in the public
-  payload (I8).
+- **Phase 5.3 — data safety (done, §7i).** The legacy token now needs `ADMIN_LEGACY_TOKEN=true` in
+  production (and its absence without an account stops the boot), public payloads are positive lists,
+  hard deletes must name their record, uploads are validated by magic bytes, and the health payload no
+  longer publishes the upload path.
 - **Phase 5.4 — scale and speed.** Server-side pagination and real totals on the public lists
   (§8.2/I10), a trigram index for the `ILIKE` search (§8.3/L1), cache headers (L3) and a performance
   budget next to the bundle measurement (L2/L12).

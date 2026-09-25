@@ -353,7 +353,8 @@ async function main() {
   check(realErrors.length === 0, `no unexpected console errors in the browser (${realErrors.slice(0, 2).join(' | ').slice(0, 120)})`);
 
   // cleanup: remove the record created for the missing-thumbnail check
-  for (const id of created) await api(`/api/admin/contents/${id}?hard=true`, { method: 'DELETE' });
+  // Fase 5.3: the hard delete requires ?confirm=<id|slug> (record-specific confirmation).
+  for (const id of created) await api(`/api/admin/contents/${id}?hard=true&confirm=${encodeURIComponent(id)}`, { method: 'DELETE' });
 
   await context.close();
   await browser.close();

@@ -2,23 +2,55 @@ import fs from 'fs';
 import path from 'path';
 import type { FastifyInstance } from 'fastify';
 import { pipeline } from 'stream/promises';
-import {
-  ALLOWED_IMAGE_MIME,
-  MAX_UPLOAD_BYTES,
-  ensureUploadsDir,
-  getUploadsDir,
-  listUploadFiles,
-} from '../lib/storage';
+import { Readable } from 'stream';
+import { MAX_UPLOAD_BYTES, ensureUploadsDir, getUploadsDir, listUploadFiles } from '../lib/storage';
+import { ACCEPTED_IMAGE_TYPES, IMAGE_SNIFF_BYTES, detectImageType } from '../lib/image-type';
 
 // Kept for backwards compatibility with existing imports (tests, docs).
 export const UPLOADS_DIR = getUploadsDir();
+
+/**
+ * Read the leading bytes of a stream without losing them: the returned `body` yields the peeked
+ * bytes again, followed by everything that is left, so the file can still be written in one pass
+ * (Fase 5.3 — the mime type is decided by the content, not by the client).
+ */
+async function peekStream(
+  stream: AsyncIterable<Buffer>,
+  max: number,
+): Promise<{ head: Buffer; body: Readable }> {
+  const iterator = stream[Symbol.asyncIterator]();
+  const chunks: Buffer[] = [];
+  let total = 0;
+  while (total < max) {
+    const { value, done } = await iterator.next();
+    if (done) break;
+    if (value?.length) {
+      chunks.push(value);
+      total += value.length;
+    }
+  }
+  const buffered = Buffer.concat(chunks);
+  const head = buffered.subarray(0, max);
+  async function* remainder(): AsyncGenerator<Buffer> {
+    // Everything that was read must reach the destination again — including the bytes that were
+    // only inspected. (Forgetting them truncated every stored image by the peek length.)
+    if (buffered.length) yield buffered;
+    for (;;) {
+      const { value, done } = await iterator.next();
+      if (done) return;
+      if (value?.length) yield value as Buffer;
+    }
+  }
+  return { head, body: Readable.from(remainder()) };
+}
 
 /**
  * Admin media uploads — used by the Admin CMS to attach a custom thumbnail / cover
  * to a Content record. The returned URL is stored in Content.thumbnailUrl / Content.coverUrl
  * and always takes priority over provider thumbnails on the public site.
  *
- * All endpoints live under /api/admin/uploads and are protected by the admin token hook.
+ * All endpoints live under /api/admin/uploads and are protected by the admin hook in `server.ts`
+ * (a signed-in operator's session cookie, plus the legacy token only when it is enabled).
  */
 export async function uploadRoutes(app: FastifyInstance) {
   ensureUploadsDir();
@@ -42,10 +74,24 @@ export async function uploadRoutes(app: FastifyInstance) {
       return reply.code(400).send({ error: { code: 'NO_FILE', message: 'No file uploaded — send multipart/form-data with field "file".' } });
     }
 
-    const ext = ALLOWED_IMAGE_MIME[file.mimetype];
-    if (!ext) {
+    // Fase 5.3: the declared Content-Type is a claim, the bytes are the fact. Read the head of the
+    // stream, recognise the format there, and only then decide the extension and the stored mime.
+    const { head, body } = await peekStream(file.file as AsyncIterable<Buffer>, IMAGE_SNIFF_BYTES);
+    if (!head.length) {
+      body.resume();
+      return reply.code(400).send({ error: { code: 'EMPTY_FILE', message: 'Uploaded file is empty.' } });
+    }
+    const detected = detectImageType(head);
+    if (!detected) {
+      // Drain and throw away what was already read so the request can be answered cleanly.
+      body.resume();
       return reply.code(415).send({
-        error: { code: 'UNSUPPORTED_TYPE', message: `Unsupported image type ${file.mimetype}. Allowed: jpg, png, webp, gif, avif.` },
+        error: {
+          code: 'UNSUPPORTED_TYPE',
+          message:
+            `The uploaded bytes are not a supported image (declared type: ${file.mimetype || 'none'}). ` +
+            `Allowed: ${ACCEPTED_IMAGE_TYPES.join(', ')}.`,
+        },
       });
     }
 
@@ -54,11 +100,11 @@ export async function uploadRoutes(app: FastifyInstance) {
     const base = (path.basename(file.filename || 'image', path.extname(file.filename || '')) || 'image')
       .replace(/[^a-zA-Z0-9._-]+/g, '-')
       .slice(0, 60);
-    const filename = `${base}-${stamp}${rand}${ext}`;
+    const filename = `${base}-${stamp}${rand}${detected.ext}`;
     const dest = path.join(ensureUploadsDir(), filename);
 
     try {
-      await pipeline(file.file, fs.createWriteStream(dest));
+      await pipeline(body, fs.createWriteStream(dest));
     } catch (e: any) {
       if (e?.code === 'FST_REQ_FILE_TOO_LARGE' || /file too large/i.test(e?.message ?? '')) {
         if (fs.existsSync(dest)) fs.unlinkSync(dest);
@@ -82,7 +128,8 @@ export async function uploadRoutes(app: FastifyInstance) {
         url: `/uploads/${filename}`,
         filename,
         bytes: stat.size,
-        mime: file.mimetype,
+        // The detected type, not the client's claim: `uploads.test.ts` and the CMS show this value.
+        mime: detected.mime,
       },
     });
   });

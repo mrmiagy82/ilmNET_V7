@@ -12,6 +12,10 @@
  *  7. TLS readiness (Fase 5.1) and proxy trust (Fase 5.2): HSTS only over HTTPS, forwarded
  *     headers only from a configured proxy, redirect target never taken from the request,
  *     readiness probe
+ *  8. data & security hardening (Fase 5.3): the public payload is a positive list (no createdBy /
+ *     updatedBy / importJobId, no draft content on a scholar page), destructive admin calls must
+ *     name what they destroy, uploads are recognised by their bytes, the legacy token is off by
+ *     default and health no longer publishes the upload path
  */
 import fs from 'fs';
 import path from 'path';
@@ -21,6 +25,9 @@ import { buildApp } from '../src/server';
 import { prisma } from '../src/lib/prisma';
 import { getUploadsDir, listUploadFiles, uploadsHealth } from '../src/lib/storage';
 import { trustProxyIsEnabled, trustProxySetting } from '../src/lib/proxy';
+import { hashPassword } from '../src/lib/auth';
+import { INTERNAL_CONTENT_KEYS, PUBLIC_CONTENT_KEYS } from '../src/lib/public-payload';
+import { adminAuthPosture, assertAdminAccessPossible, legacyAdminTokenEnabled } from '../src/lib/env';
 
 // Fase 3.8.1: production refuses development/placeholder tokens, so the suite uses a
 // production-grade value (a real deployment provides its own via the process environment).
@@ -43,6 +50,9 @@ const check = (cond: boolean, m: string) => (cond ? ok(m) : fail(m));
 async function prodApp() {
   process.env.NODE_ENV = 'production';
   process.env.ADMIN_TOKEN = TOKEN;
+  // Fase 5.3: in production the legacy token is off unless a host opts in. This suite plays the role
+  // of a script/CI host that still drives the API with a token (section 6e proves the other posture).
+  process.env.ADMIN_LEGACY_TOKEN = 'true';
   process.env.CORS_ORIGIN = 'https://ilmnet.example,https://www.ilmnet.example';
   const app = await buildApp();
   const address = await app.listen({ port: 0, host: '127.0.0.1' });
@@ -82,6 +92,18 @@ function restoreEnv(key: string, value: string | undefined): void {
   else process.env[key] = value;
 }
 
+/** Every key (with its path) found anywhere in a JSON value — used to prove nothing internal leaks. */
+function findKeysDeep(value: any, keys: string[], path = ''): string[] {
+  if (Array.isArray(value)) return value.flatMap((v, i) => findKeysDeep(v, keys, `${path}[${i}]`));
+  if (value && typeof value === 'object') {
+    return Object.entries(value).flatMap(([k, v]) => [
+      ...(keys.includes(k) ? [`${path}${path ? '.' : ''}${k}`] : []),
+      ...findKeysDeep(v, keys, `${path}${path ? '.' : ''}${k}`),
+    ]);
+  }
+  return [];
+}
+
 async function main() {
   const { app, base } = await prodApp();
   const createdIds: string[] = [];
@@ -91,8 +113,15 @@ async function main() {
     const health = await raw('GET', `${base}/api/health`);
     check(health.status === 200, `health is public (${health.status})`);
     check(health.json.database === 'up', 'health reports database up');
-    check(health.json.storage?.writable === true, `health reports writable storage (${health.json.storage?.dir})`);
-    check(health.json.adminProtection === true, 'health reports admin protection enabled');
+    check(health.json.storage?.writable === true, 'health reports writable storage');
+    check(
+      health.json.storage?.dir === undefined,
+      `health does not publish the upload directory of the host (${JSON.stringify(health.json.storage ?? {})})`,
+    );
+    check(
+      health.json.adminProtection === 'sessions+legacy-token',
+      `health reports the admin posture honestly (${health.json.adminProtection})`,
+    );
 
     const adminRead = await raw('GET', `${base}/api/admin/contents`);
     check(adminRead.status === 401, `GET /api/admin/contents without token → 401 (got ${adminRead.status})`);
@@ -271,8 +300,8 @@ async function main() {
     // missing entirely, or — when a development .env is present — because that file may not
     // configure a production boot (Fase 3.8.1).
     check(
-      /ADMIN_TOKEN is required|\.env file may not configure a production boot/i.test(refuseMessage),
-      `production boot without ADMIN_TOKEN is refused (${refuseMessage.slice(0, 60)}…)`,
+      /ADMIN_TOKEN is missing|\.env file may not configure a production boot/i.test(refuseMessage),
+      `production boot with the legacy token enabled but no ADMIN_TOKEN is refused (${refuseMessage.slice(0, 60)}…)`,
     );
     process.env.ADMIN_TOKEN = savedToken;
 
@@ -566,6 +595,249 @@ async function main() {
     readyShape === 'database,service,status,timestamp',
     `readiness stays a cheap probe, not the deep health payload (${readyShape})`,
   );
+
+  console.log('\n--- 6e. Data & security hardening (Fase 5.3) ---');
+  {
+    const stamp = Date.now().toString(36);
+    const account = `prod-53-${stamp}`;
+    const password = `prod-53-suite-password-${stamp}`;
+    const fixtureTitle = `Fase 5.3 payload fixture ${stamp}`;
+    const draftTitle = `Fase 5.3 draft fixture ${stamp}`;
+    const user = await prisma.adminUser.create({
+      data: { username: account, passwordHash: await hashPassword(password), role: 'admin' },
+    });
+    let scholarId: string | null = null;
+    let subjectId: string | null = null;
+    const contentIds: string[] = [];
+    try {
+      // ── A real operator session, while the legacy token path is switched off ──
+      const savedLegacy = process.env.ADMIN_LEGACY_TOKEN;
+      process.env.ADMIN_LEGACY_TOKEN = 'false';
+      const noLegacyApp = await buildApp();
+      const noLegacyBase = await noLegacyApp.listen({ port: 0, host: '127.0.0.1' });
+      try {
+        const withToken = await fetch(`${noLegacyBase}/api/admin/contents`, {
+          headers: { host: 'ilmnet.example', 'x-admin-token': TOKEN },
+        });
+        check(
+          withToken.status === 401,
+          `with ADMIN_LEGACY_TOKEN=false the shared token is refused (${withToken.status})`,
+        );
+        const healthNoLegacy = await fetch(`${noLegacyBase}/api/health`, { headers: { host: 'ilmnet.example' } });
+        const healthJson: any = await healthNoLegacy.json().catch(() => ({}));
+        check(healthJson.adminProtection === 'sessions', `health reports sessions-only (${healthJson.adminProtection})`);
+
+        const login = await fetch(`${noLegacyBase}/api/admin/login`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', host: 'ilmnet.example' },
+          body: JSON.stringify({ username: account, password }),
+        });
+        const cookie = (login.headers.get('set-cookie') ?? '').split(';')[0];
+        check(login.status === 200 && cookie.startsWith('ilmnet_admin_session='), `a real account can still sign in (${login.status})`);
+
+        // ── Fixtures through the session: createdBy is a real operator name ──
+        const sessionHeaders = { 'content-type': 'application/json', host: 'ilmnet.example', cookie };
+        const scholarRes = await fetch(`${noLegacyBase}/api/admin/scholars`, {
+          method: 'POST',
+          headers: sessionHeaders,
+          body: JSON.stringify({ name: `Payload Scholar ${stamp}` }),
+        });
+        scholarId = (await scholarRes.json().catch(() => ({})))?.data?.id ?? null;
+        const subjectRes = await fetch(`${noLegacyBase}/api/admin/subjects`, {
+          method: 'POST',
+          headers: sessionHeaders,
+          body: JSON.stringify({ name: `Payload Subject ${stamp}`, group: 'Belief' }),
+        });
+        subjectId = (await subjectRes.json().catch(() => ({})))?.data?.id ?? null;
+        check(Boolean(scholarId && subjectId), 'session writes create the fixture scholar + subject');
+
+        const baseContent = {
+          type: 'audio',
+          provider: 'archive',
+          sourceUrl: `https://archive.org/details/fase53-${stamp}`,
+          externalIdentifier: `fase53-${stamp}`,
+          scholarIds: scholarId ? [scholarId] : [],
+          subjectIds: subjectId ? [subjectId] : [],
+        };
+        const publishedRes = await fetch(`${noLegacyBase}/api/admin/contents`, {
+          method: 'POST',
+          headers: sessionHeaders,
+          body: JSON.stringify({ ...baseContent, title: fixtureTitle, status: 'published' }),
+        });
+        const published = (await publishedRes.json().catch(() => ({})))?.data;
+        const draftRes = await fetch(`${noLegacyBase}/api/admin/contents`, {
+          method: 'POST',
+          headers: sessionHeaders,
+          body: JSON.stringify({ ...baseContent, title: draftTitle, externalIdentifier: `fase53-draft-${stamp}` }),
+        });
+        const draft = (await draftRes.json().catch(() => ({})))?.data;
+        check(
+          publishedRes.status === 201 && draftRes.status === 201 && published?.createdBy === account,
+          `session writes are attributed to the operator (createdBy=${published?.createdBy})`,
+        );
+        if (published?.id) contentIds.push(published.id);
+        if (draft?.id) contentIds.push(draft.id);
+
+        // ── Public payload: positive list, no operator attribution, no import bookkeeping ──
+        const listRes = await fetch(`${noLegacyBase}/api/contents?q=${encodeURIComponent(fixtureTitle)}&limit=5`);
+        const listJson: any = await listRes.json();
+        const row = listJson?.data?.[0];
+        const expectedKeys = [...PUBLIC_CONTENT_KEYS].sort().join(',');
+        check(published?.id === row?.id && listJson?.data?.length === 1, 'the public list returns the published fixture');
+        check(
+          Object.keys(row ?? {}).sort().join(',') === expectedKeys,
+          `the public content payload carries exactly the public fields (${Object.keys(row ?? {}).sort().join(',')})`,
+        );
+        const leaked = findKeysDeep(row, INTERNAL_CONTENT_KEYS as unknown as string[]);
+        check(leaked.length === 0, `no internal field leaks in the public list payload (${leaked.join(', ') || 'none'})`);
+        check(
+          row?.scholars?.[0]?.scholar?.metadata === undefined && row?.subjects?.[0]?.subject?.metadata === undefined,
+          'nested scholar/subject metadata stays server-side',
+        );
+
+        const detailRes = await fetch(`${noLegacyBase}/api/contents/${encodeURIComponent(published?.slug ?? '')}`);
+        const detailJson: any = await detailRes.json();
+        check(
+          detailRes.status === 200 && findKeysDeep(detailJson?.data, INTERNAL_CONTENT_KEYS as unknown as string[]).length === 0,
+          'the public detail payload leaks no internal field either',
+        );
+
+        // The admin payload keeps attribution — the CMS shows it.
+        const adminRow = await fetch(`${noLegacyBase}/api/admin/contents/${published?.id}`, {
+          headers: { host: 'ilmnet.example', cookie },
+        });
+        const adminJson: any = await adminRow.json();
+        check(
+          adminJson?.data?.createdBy === account && adminJson?.data?.updatedBy === account,
+          'the admin payload still carries createdBy/updatedBy (the CMS needs attribution)',
+        );
+
+        // ── A scholar page must not show drafts ──
+        const scholarDetail = await fetch(`${noLegacyBase}/api/scholars/${encodeURIComponent(scholarId ?? '')}`);
+        const scholarJson: any = await scholarDetail.json();
+        const linked = scholarJson?.data?.contents ?? [];
+        check(
+          linked.length === 1 && linked.every((j: any) => j?.content?.status === 'published'),
+          `the public scholar page lists only published content (${linked.length} linked, ${linked.map((j: any) => j?.content?.status).join('/') || 'none'})`,
+        );
+        check(
+          linked.every((j: any) => findKeysDeep(j?.content, INTERNAL_CONTENT_KEYS as unknown as string[]).length === 0),
+          'linked content on a scholar page carries no internal fields',
+        );
+        const publicSubjects = await fetch(`${noLegacyBase}/api/subjects`);
+        const subjectsJson: any = await publicSubjects.json();
+        check(
+          Array.isArray(subjectsJson?.data) && subjectsJson.data.every((s: any) => s.metadata === undefined),
+          'public subjects never expose their metadata',
+        );
+
+        // ── Destructive actions need a record-specific confirmation ──
+        const unconfirmed = await fetch(`${noLegacyBase}/api/admin/contents/${published?.id}?hard=true`, {
+          method: 'DELETE',
+          headers: { host: 'ilmnet.example', cookie },
+        });
+        const unconfirmedJson: any = await unconfirmed.json().catch(() => ({}));
+        const stillThere = await prisma.content.findUnique({ where: { id: published?.id } });
+        check(
+          unconfirmed.status === 400 && unconfirmedJson?.error?.code === 'CONFIRM_REQUIRED' && Boolean(stillThere),
+          `hard delete without confirmation is refused and changes nothing (${unconfirmed.status} ${unconfirmedJson?.error?.code})`,
+        );
+        const wrongConfirm = await fetch(`${noLegacyBase}/api/admin/contents/${published?.id}?hard=true&confirm=not-this-one`, {
+          method: 'DELETE',
+          headers: { host: 'ilmnet.example', cookie },
+        });
+        check(wrongConfirm.status === 400, `hard delete with a wrong confirmation is refused (${wrongConfirm.status})`);
+
+        // The reversible path (archive) is the default and needs no confirmation.
+        const archived = await fetch(`${noLegacyBase}/api/admin/contents/${draft?.id}`, {
+          method: 'DELETE',
+          headers: { host: 'ilmnet.example', cookie },
+        });
+        const archivedRow = await prisma.content.findUnique({ where: { id: draft?.id } });
+        check(
+          archived.status === 200 && archivedRow?.status === 'archived',
+          `DELETE without hard=true archives the record instead of deleting it (${archivedRow?.status})`,
+        );
+
+        const confirmed = await fetch(
+          `${noLegacyBase}/api/admin/contents/${published?.id}?hard=true&confirm=${encodeURIComponent(published?.slug ?? '')}`,
+          { method: 'DELETE', headers: { host: 'ilmnet.example', cookie } },
+        );
+        const gone = await prisma.content.findUnique({ where: { id: published?.id } });
+        check(confirmed.status === 200 && gone === null, `a confirmed hard delete removes the record (${confirmed.status})`);
+
+        // A linked scholar/subject is refused outright — the guard runs before any confirmation.
+        const scholarLinked = await fetch(`${noLegacyBase}/api/admin/scholars/${scholarId}?confirm=${encodeURIComponent(scholarId ?? '')}`, {
+          method: 'DELETE',
+          headers: { host: 'ilmnet.example', cookie },
+        });
+        check(scholarLinked.status === 409, `a scholar that is still linked to content is refused (${scholarLinked.status})`);
+        const subjectLinked = await fetch(`${noLegacyBase}/api/admin/subjects/${subjectId}?confirm=${encodeURIComponent(subjectId ?? '')}`, {
+          method: 'DELETE',
+          headers: { host: 'ilmnet.example', cookie },
+        });
+        check(subjectLinked.status === 409, `a subject that is still linked to content is refused (${subjectLinked.status})`);
+
+        // Unlink the fixtures (the draft is archived, not deleted), then require a confirmation.
+        await prisma.contentSubject.deleteMany({ where: { subjectId: subjectId ?? '' } });
+        await prisma.contentScholar.deleteMany({ where: { scholarId: scholarId ?? '' } });
+        const scholarUnconfirmed = await fetch(`${noLegacyBase}/api/admin/scholars/${scholarId}`, {
+          method: 'DELETE',
+          headers: { host: 'ilmnet.example', cookie },
+        });
+        check(scholarUnconfirmed.status === 400, `deleting an unlinked scholar without confirmation is refused (${scholarUnconfirmed.status})`);
+        const subjectUnconfirmed = await fetch(`${noLegacyBase}/api/admin/subjects/${subjectId}`, {
+          method: 'DELETE',
+          headers: { host: 'ilmnet.example', cookie },
+        });
+        check(subjectUnconfirmed.status === 400, `deleting an unlinked subject without confirmation is refused (${subjectUnconfirmed.status})`);
+        const scholarDeleted = await fetch(`${noLegacyBase}/api/admin/scholars/${scholarId}?confirm=${encodeURIComponent(scholarId ?? '')}`, {
+          method: 'DELETE',
+          headers: { host: 'ilmnet.example', cookie },
+        });
+        const subjectDeleted = await fetch(`${noLegacyBase}/api/admin/subjects/${subjectId}?confirm=${encodeURIComponent(subjectId ?? '')}`, {
+          method: 'DELETE',
+          headers: { host: 'ilmnet.example', cookie },
+        });
+        check(
+          scholarDeleted.status === 200 && subjectDeleted.status === 200,
+          `confirmed deletions of scholar/subject succeed (${scholarDeleted.status}/${subjectDeleted.status})`,
+        );
+        scholarId = null;
+        subjectId = null;
+      } finally {
+        restoreEnv('ADMIN_LEGACY_TOKEN', savedLegacy);
+        await noLegacyApp.close();
+      }
+
+      // ── The boot rule that protects a sessions-only deployment ──
+      let noWayIn = '';
+      try {
+        assertAdminAccessPossible({ mode: 'production', legacyTokenEnabled: false, activeAccounts: 0 });
+      } catch (e: any) {
+        noWayIn = e?.message ?? '';
+      }
+      check(/No way in/.test(noWayIn), 'a production boot without accounts and without the token is refused');
+      let withAccount = '';
+      try {
+        assertAdminAccessPossible({ mode: 'production', legacyTokenEnabled: false, activeAccounts: 1 });
+      } catch (e: any) {
+        withAccount = e?.message ?? '';
+      }
+      check(withAccount === '', 'the same rule accepts a deployment that has an active account');
+      check(
+        legacyAdminTokenEnabled() === true && adminAuthPosture() === 'sessions+legacy-token',
+        'the running suite host has the legacy token enabled explicitly (ADMIN_LEGACY_TOKEN=true)',
+      );
+    } finally {
+      // Fixtures always leave: content first (join rows cascade), then the reference data and account.
+      await prisma.content.deleteMany({ where: { id: { in: contentIds } } }).catch(() => {});
+      await prisma.content.deleteMany({ where: { title: { startsWith: 'Fase 5.3 ' } } }).catch(() => {});
+      if (scholarId) await prisma.scholar.delete({ where: { id: scholarId } }).catch(() => {});
+      if (subjectId) await prisma.subject.delete({ where: { id: subjectId } }).catch(() => {});
+      await prisma.adminUser.deleteMany({ where: { username: account } }).catch(() => {});
+    }
+  }
 
   console.log('\n--- 7. Frontend hosting + JSON 404s ---');
     const buildIndex = path.resolve(process.cwd(), '..', 'dist', 'index.html');

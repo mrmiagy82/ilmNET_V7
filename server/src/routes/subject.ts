@@ -1,7 +1,9 @@
 import { FastifyInstance } from 'fastify';
 import { prisma } from '../lib/prisma';
+import { adminUsername } from '../lib/auth';
 import { createSubjectSchema, updateSubjectSchema } from '../lib/validation';
 import { toSlug, uniqueSlug } from '../utils/slug';
+import { publicList, publicSubject } from '../lib/public-payload';
 
 /**
  * Subjects (shelves). Public reads only ever return published subjects and accept
@@ -13,7 +15,8 @@ export async function subjectRoutes(app: FastifyInstance) {
   for (const base of ['/api/subjects', '/api/v1/subjects']) {
     app.get(base, async () => {
       const subjects = await prisma.subject.findMany({ where: { status: 'published' }, orderBy: { name: 'asc' } });
-      return { data: subjects };
+      // Fase 5.3 (audit I8): positive-list payload — `metadata` (operator-extensible) stays private.
+      return { data: publicList(subjects, publicSubject) };
     });
   }
   for (const base of ['/api/subjects/:id', '/api/v1/subjects/:id']) {
@@ -23,7 +26,7 @@ export async function subjectRoutes(app: FastifyInstance) {
         where: { status: 'published', OR: [{ id }, { slug: id }] },
       });
       if (!subject) return reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'Subject not found' } });
-      return { data: subject };
+      return { data: publicSubject(subject) };
     });
   }
 
@@ -98,13 +101,25 @@ export async function subjectRoutes(app: FastifyInstance) {
   // ── Delete (refuses while still linked to content) ──
   app.delete('/api/admin/subjects/:id', async (req, reply) => {
     const { id } = req.params as { id: string };
+    const { confirm } = req.query as { confirm?: string };
     const existing = await prisma.subject.findFirst({ where: { OR: [{ id }, { slug: id }] } });
     if (!existing) return reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'Subject not found' } });
     const linked = await prisma.contentSubject.count({ where: { subjectId: existing.id } });
     if (linked > 0) {
       return reply.code(409).send({ error: { code: 'CONFLICT', message: `Subject is linked to ${linked} contents. Unlink first.` } });
     }
+    // Fase 5.3 (audit I7): deleting a shelf is irreversible — require the record to be named.
+    const supplied = (confirm ?? '').trim();
+    if (supplied !== existing.id && supplied !== existing.slug) {
+      return reply.code(400).send({
+        error: {
+          code: 'CONFIRM_REQUIRED',
+          message: `Removing “${existing.name}” cannot be undone. Repeat the id or slug in ?confirm=<id|slug> to proceed.`,
+        },
+      });
+    }
     await prisma.subject.delete({ where: { id: existing.id } });
+    req.log.warn({ operator: adminUsername(req), id: existing.id, slug: existing.slug }, 'Subject deleted');
     return { data: { id: existing.id, deleted: true } };
   });
 }

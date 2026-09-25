@@ -1,4 +1,4 @@
-import { useEffect, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react';
+import { useEffect, useState, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react';
 import { Link } from 'react-router-dom';
 import type { PublishStatus } from './data';
 
@@ -405,11 +405,20 @@ export function ErrorBanner({ message }: { message: string | null }) {
   );
 }
 
+/**
+ * Confirmation dialog for destructive admin actions.
+ *
+ * Fase 5.3: for an irreversible action pass `requirePhrase` (the record's name). The confirm button
+ * then stays disabled until the operator types that name exactly — the same rule the API enforces
+ * (`?confirm=<id|slug>`), so a mis-click cannot delete a lecture, a scholar or a shelf. Actions that
+ * only hide a record (archive) keep the plain one-click dialog.
+ */
 export function ConfirmDialog({
   open,
   title,
   body,
   confirmLabel = 'Remove',
+  requirePhrase,
   onCancel,
   onConfirm,
 }: {
@@ -417,9 +426,18 @@ export function ConfirmDialog({
   title: string;
   body: string;
   confirmLabel?: string;
+  /** When set, the operator must type this text before the confirm button unlocks. */
+  requirePhrase?: string;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
+  const [typed, setTyped] = useState('');
+
+  useEffect(() => {
+    if (!open) return;
+    setTyped('');
+  }, [open, requirePhrase]);
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -430,17 +448,36 @@ export function ConfirmDialog({
   }, [open, onCancel]);
 
   if (!open) return null;
+  const phraseOk = !requirePhrase || typed.trim() === requirePhrase.trim();
   return (
     <div className="fixed inset-0 z-[70] grid place-items-center px-4">
       <button aria-label="Close" className="absolute inset-0 bg-[#26241f]/35" onClick={onCancel} />
       <div className="bg-cream neu-float relative w-full max-w-[440px] rounded-[28px] p-7">
         <h3 className="font-display text-ink text-[1.35rem] font-extrabold tracking-tight">{title}</h3>
         <p className="text-ink-soft mt-3 text-[0.95rem] leading-relaxed">{body}</p>
+        {requirePhrase && (
+          <div className="mt-5">
+            <label className="text-ink-muted text-[0.78rem] font-semibold" htmlFor="confirm-phrase">
+              Type “{requirePhrase}” to confirm
+            </label>
+            <input
+              id="confirm-phrase"
+              data-testid="confirm-phrase"
+              value={typed}
+              onChange={(e) => setTyped(e.target.value)}
+              autoComplete="off"
+              className="border-sand bg-cream text-ink mt-2 w-full rounded-[16px] border px-4 py-2.5 text-[0.92rem] outline-none"
+            />
+          </div>
+        )}
         <div className="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
           <GhostButton onClick={onCancel}>Cancel</GhostButton>
           <button
             onClick={onConfirm}
-            className="bg-rose text-cream rounded-[18px] px-6 py-3 text-[0.94rem] font-semibold shadow-[8px_10px_22px_rgba(204,58,99,0.26)]"
+            disabled={!phraseOk}
+            className={`bg-rose text-cream rounded-[18px] px-6 py-3 text-[0.94rem] font-semibold shadow-[8px_10px_22px_rgba(204,58,99,0.26)] ${
+              phraseOk ? '' : 'cursor-not-allowed opacity-45'
+            }`}
           >
             {confirmLabel}
           </button>

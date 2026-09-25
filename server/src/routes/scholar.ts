@@ -1,7 +1,9 @@
 import { FastifyInstance } from 'fastify';
 import { prisma } from '../lib/prisma';
+import { adminUsername } from '../lib/auth';
 import { createScholarSchema, updateScholarSchema } from '../lib/validation';
 import { toSlug, uniqueSlug } from '../utils/slug';
+import { publicContent, publicList, publicScholar } from '../lib/public-payload';
 
 export async function scholarRoutes(app: FastifyInstance) {
   // Public reads expose published scholars only; the admin grid gets every status.
@@ -12,7 +14,8 @@ export async function scholarRoutes(app: FastifyInstance) {
         orderBy: { name: 'asc' },
         include: { specialty: true },
       });
-      return { data: scholars };
+      // Fase 5.3 (audit I8): positive-list payload — `metadata` (operator-extensible) stays private.
+      return { data: publicList(scholars, publicScholar) };
     });
   }
   app.get('/api/admin/scholars', async () => {
@@ -28,10 +31,22 @@ export async function scholarRoutes(app: FastifyInstance) {
       const { id } = req.params as { id: string };
       const scholar = await prisma.scholar.findFirst({
         where: { status: 'published', OR: [{ id }, { slug: id }] },
-        include: { specialty: true, contents: { include: { content: true } } },
+        include: {
+          specialty: true,
+          // Fase 5.3: only published content may travel along — the previous `content: true` include
+          // shipped drafts and archived records (and their internal fields) to every visitor.
+          contents: { where: { content: { status: 'published' } }, include: { content: true } },
+        },
       });
       if (!scholar) return reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'Scholar not found' } });
-      return { data: scholar };
+      const payload = publicScholar(scholar)!;
+      payload.contents = publicList(scholar.contents, (join: any) => ({
+        contentId: join?.contentId ?? null,
+        scholarId: join?.scholarId ?? null,
+        role: join?.role ?? null,
+        content: publicContent(join?.content),
+      }));
+      return { data: payload };
     });
   }
   app.get('/api/admin/scholars/:id', async (req, reply) => {
@@ -119,13 +134,25 @@ export async function scholarRoutes(app: FastifyInstance) {
 
     app.delete(base, async (req, reply) => {
       const { id } = req.params as { id: string };
+      const { confirm } = req.query as { confirm?: string };
       const existing = await prisma.scholar.findFirst({ where: { OR: [{ id }, { slug: id }] } });
       if (!existing) return reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'Scholar not found' } });
       const linked = await prisma.contentScholar.count({ where: { scholarId: existing.id } });
       if (linked > 0) {
         return reply.code(409).send({ error: { code: 'CONFLICT', message: `Scholar is linked to ${linked} contents. Unlink first.` } });
       }
+      // Fase 5.3 (audit I7): deleting a scholar is irreversible — require the record to be named.
+      const supplied = (confirm ?? '').trim();
+      if (supplied !== existing.id && supplied !== existing.slug) {
+        return reply.code(400).send({
+          error: {
+            code: 'CONFIRM_REQUIRED',
+            message: `Removing “${existing.name}” cannot be undone. Repeat the id or slug in ?confirm=<id|slug> to proceed.`,
+          },
+        });
+      }
       await prisma.scholar.delete({ where: { id: existing.id } });
+      req.log.warn({ operator: adminUsername(req), id: existing.id, slug: existing.slug }, 'Scholar deleted');
       return { data: { id: existing.id, deleted: true } };
     });
   }
