@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Mark, Wordmark } from '../components/Brand';
+import { BrandLogo } from '../components/Brand';
 import { useAdminAuth } from './auth';
 
 /**
@@ -24,15 +24,12 @@ export default function AdminLogin() {
   return (
     <div className="bg-cream text-ink min-h-screen font-sans" data-testid="admin-login">
       <div className="mx-auto flex min-h-screen max-w-[520px] flex-col justify-center px-5 py-12">
-        <div className="flex items-center gap-2.5">
-          <span className="bg-cream neu-raised-sm grid h-11 w-11 place-items-center rounded-[14px]">
-            <Mark className="h-6 w-6" />
-          </span>
-          <span>
-            <Wordmark />
-            <span className="text-ink-muted mt-1 block text-[0.68rem] font-semibold tracking-[0.18em] uppercase">
-              Admin sign-in
-            </span>
+        {/* The package prescribes the stacked logo for centered/vertical placements — this is the only
+            one in the app. 128 px wide, well above the package's 80 px minimum. */}
+        <div className="flex flex-col items-center">
+          <BrandLogo variant="stacked" className="w-32" label="IlmNet" />
+          <span className="text-ink-muted mt-3 block text-[0.68rem] font-semibold tracking-[0.18em] uppercase">
+            Admin sign-in
           </span>
         </div>
 

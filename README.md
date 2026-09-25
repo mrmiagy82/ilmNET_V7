@@ -90,6 +90,10 @@ the production suite reports 149/154; `docs/CONTEXT.md` §6 (*Test-data conditio
 
 ## Production
 
+The official IlmNet brand package lives in [`brand/`](brand/ASSET_MANIFEST.txt) (source of truth) and its
+production files in `public/brand/` — the logo variants, the favicon/app-icon set and the CSS/JSON colour
+tokens. `src/components/Brand.tsx` renders them (`<picture>`, WebP → PNG); no logo is drawn in code.
+
 `npm run build` produces the single-file `dist/index.html` **plus** `dist/index.html.gz`; the API serves
 the compressed variant whenever the browser accepts gzip (631 kB → 157 kB, measured on a 3G profile).
 Next to it, `dist/fonts/` holds the 14 self-hosted font subsets (Inter + Plus Jakarta Sans, latin and

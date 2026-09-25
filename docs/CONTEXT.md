@@ -5,10 +5,9 @@ Update it after every finished phase, commit, sanity check or significant discov
 Rules: only facts that are verifiable from the repository, Git history or existing docs — and
 **never** secrets, tokens or credentials.
 
-_Last updated: Fase 5.6.1 (audit fixes after the Fase 5.1–5.6 end-audit: the restore drill can no
-longer pass without comparing anything, the alert payload escapes every value, the watchdog reports the
-release and never hides a failure behind `--quiet`, the search fields have real accessible names, and
-the HSTS/test-data claims are corrected — §7m)._
+_Last updated: Fase 6.0 (brand implementation: the supplied IlmNet brand package replaces the
+code-drawn wordmark and the self-made favicon set, the official colour tokens are applied where they
+belong, and the delivered social card is deliberately **not** published — §7n)._
 
 The last phases: Fase 5.1 closed the three blockers from the Fase 5 audit (backup + restore, honest
 footer links, TLS/HSTS with a provider-agnostic runbook, §7g). Fase 5.2 hardened the deployment
@@ -32,14 +31,15 @@ uncompressed (631 kB → 157 kB over the wire, −2,3 s on a 3G profile) (§7j).
 | | |
 | --- | --- |
 | Branch | `master` |
-| Codebase state described here | `dd33ea6` (Fase 5.5) + Fase 5.6 (§7l) + Fase 5.6.1 (§7m) — this document ships in the Fase 5.6.1 commit |
+| Codebase state described here | `dd33ea6` (Fase 5.5) + Fase 5.6 (§7l) + Fase 5.6.1 (§7m) + Fase 6.0 (§7n) — this document ships in the Fase 6.0 commit |
 | This document | updated in Fase 5.6; its own revision is visible with `git log -1 -- docs/CONTEXT.md` |
 | Working tree | clean (verified against `origin/master`) |
 | Repository | `github.com/mrmiagy82/ilmNET_V7` |
-| Size | 77 files under `src/` + `server/src/` (76 of them `.ts`/`.tsx`, 17 158 lines; `find src server/src -type f \| wc -l`); the admin (`src/admin/`, 20 files, 6 572 lines) is the largest area |
-| Build (git-ignored artefact) | single-file `dist/index.html` (657.81 kB raw / 657 806 B — the `dist/index.html.gz` variant of 159.38 kB (163 210 B) is served when the client accepts gzip; measured after the Fase 5.6.1 build). Since Fase 5.5 the four webfont families live next to it in `dist/fonts/` as 14 subset `.woff2` files (582 kB in total, of which a page downloads only the 5–10 subsets it uses) |
+| Size | 77 files under `src/` + `server/src/` (76 of them `.ts`/`.tsx`, 17 186 lines; `find src server/src -type f \| wc -l`); the admin (`src/admin/`, 20 files, 6 572 lines) is the largest area. Brand assets: 25 files / 1,1 MB in `public/brand/`, copied verbatim from `brand/` (32 files) per `brand/ASSET_MANIFEST.txt` |
+| Build (git-ignored artefact) | single-file `dist/index.html` (657.84 kB raw / 657 837 B) plus `dist/brand/` with the official logo/icon files; the `dist/index.html.gz` variant of 159.69 kB (163 527 B) is served when the client accepts gzip (measured after the Fase 6.0 build). Since Fase 5.5 the four webfont families live next to it in `dist/fonts/` as 14 subset `.woff2` files (582 kB in total, of which a page downloads only the 5–10 subsets it uses) |
 | Phase state | **Fase 5.6 complete**: the operations layer is written down and testable from the repository — a watchdog (health, readiness, backup freshness, disk, optional database), alert delivery, an off-site copy script that verifies itself against the manifest, a post-deploy/rollback smoke test, release identity in `/api/health`, `LOG_LEVEL`, systemd units and a logrotate example. What remains for a host is listed verbatim in §7l and `docs/DEPLOYMENT.md` §9f. Fase 5.5 background (still valid): the public site now carries per-route titles/descriptions/Open Graph, a real 404 page, self-hosted fonts (no Google request), `robots.txt`/`sitemap.xml`/favicon/manifest, a skip link, and the security headers the app can honestly set (§7k). Fase 5.4 background (still valid): the public path was measured on a 20 000-record database and only the measured bottlenecks were changed — the list projection (media keys of `metadata` + card-shaped join rows), the series/collection filter (indexed equality instead of a nine-column ILIKE), the SPA fallback through the static handler, and a pre-compressed single-file bundle. Free-text search and pagination beyond 100 items are **measured and documented**, not changed: they need a trigram index / server-side paging (§7j, §8.16–§8.18). Fase 5.6.1 closed the four operational defects and the accessibility defect that the Fase 5.1–5.6 end-audit reproduced, plus the documentation claims that were wrong (§7m) |
-| Roadmap | production finishing, UI/UX and performance toward the definitive live deployment (§9). Fase 5.4 (scale/speed), 5.5 (polish/compliance), 5.6 (operations/monitoring) and 5.6.1 (audit fixes) are done; what is left is host-side work (§8.14, `docs/DEPLOYMENT.md` §9f) and the optional follow-ups (CI, staging, account UI — §9) |
+| Roadmap | production finishing, UI/UX and performance toward the definitive live deployment (§9). Fase 5.4 (scale/speed), 5.5 (polish/compliance), 5.6 (operations/monitoring), 5.6.1 (audit fixes) and 6.0 (brand implementation) are done; what is left is host-side work (§8.14, `docs/DEPLOYMENT.md` §9f) and the optional follow-ups (CI, staging, account UI — §9) |
+| Brand | **Fase 6.0**: the brand package (`brand/`, committed in `f5fcad6`) is implemented per `brand/ASSET_MANIFEST.txt` — the official logo assets in the UI, the official icon set as favicon/app icons, the official tokens for `theme-color`/`theme_color` and new `@theme` variables. No vector master and no `.ico` exist in the package, so none was invented (§7n) |
 | Open blockers | none in the repository. Host-side and not verifiable from the repo (Fase 5.6 turned as much of this as possible into scripts and documented steps, §7l): terminating TLS, forwarding `X-Forwarded-Proto`, choosing `TRUST_PROXY` for the real topology, the nightly backup timer plus off-site copies, uptime/alerting, gzip for API JSON at the proxy, public-API rate limiting, and the `frame-ancestors`/CSP decision (§8.14, §8.19). Fase 5.5's own host-only list is in §7k. Data-safety wise nothing is open: the last low-priority item is the `__Host-` cookie prefix (§8.15) |
 
 ## 2. Completed phases (from Git history)
@@ -71,7 +71,9 @@ uncompressed (631 kB → 157 kB over the wire, −2,3 s on a 3G profile) (§7j).
 | `7d090c7` | Fase 5.4 | performance & scale: measured on 20 000 records — reduced list payload, index-backed series filter, SPA fallback via the static handler, pre-compressed bundle (see §7j) |
 | `dd33ea6` | Fase 5.5 | production polish: API JSON compression, self-hosted fonts, per-route meta + Open Graph, 404 page, `robots.txt`/`sitemap.xml`/favicon/manifest, skip link, honest empty states, English-only public copy, security headers, root-absolute asset URLs (see §7k) |
 | `0011ac6` | Fase 5.6 | operations & monitoring: watchdog (`healthcheck.sh`), alert delivery (`alert.sh`), off-site copy with manifest verification (`offsite-copy.sh`), post-deploy/rollback smoke test (`deploy-check.sh`), release identity + `LOG_LEVEL` in the API, systemd units + logrotate example, host-only checklist (see §7l) |
-| _this commit_ | Fase 5.6.1 | audit fixes from the Fase 5.1–5.6 end-audit: the restore drill refuses to pass without a comparison, `alert.sh` escapes every JSON value, the watchdog reports the release and prints failures even with `--quiet`, the systemd unit no longer treats a script error as success, `SearchBar` has a real accessible name, and the wrong HSTS/`archive.*`/test-data claims are corrected (see §7m) |
+| `f5fcad6` | — | the delivered brand package (32 files under `brand/`), uploaded through the GitHub UI |
+| _this commit_ | Fase 6.0 | brand implementation: the official logo assets replace the code-drawn mark and wordmark, the official icon set replaces the self-made favicon, official colour tokens in `index.html`/`manifest.webmanifest`/`@theme`, the social card deliberately not published (§7n) |
+| `b07703e` | Fase 5.6.1 | audit fixes from the Fase 5.1–5.6 end-audit: the restore drill refuses to pass without a comparison, `alert.sh` escapes every JSON value, the watchdog reports the release and prints failures even with `--quiet`, the systemd unit no longer treats a script error as success, `SearchBar` has a real accessible name, and the wrong HSTS/`archive.*`/test-data claims are corrected (see §7m) |
 
 Earlier work is documented per topic in `docs/FASE2A_ARCHIVE.md`, `docs/FASE2B_YOUTUBE.md`,
 `docs/FASE2C_PUBLIC_FRONTEND.md`, `docs/FASE2D_SEARCH_FILTERING.md`,
@@ -184,6 +186,21 @@ mounts anything, and a refresh re-verifies. Writes are attributed: `Content.crea
 and `ImportJob.createdBy` carry the signed-in username (`null` when the caller was the legacy token or
 the localhost bypass — attribution never invents a name). The public site needs no login at all.
 
+**Branding (Fase 6.0).** The official brand package lives in `brand/` (source) and its production files in
+`public/brand/{logo,icon,favicon,og,social}/` — copied verbatim, never redrawn. `src/components/Brand.tsx`
+exports one component, `BrandLogo`, which renders a delivered file inside a `<picture>` (WebP first, PNG
+fallback) with the file's real `width`/`height` attributes and the aspect ratio on the wrapper; the size
+comes from a Tailwind class (`h-9 sm:h-10`, `w-32`, `h-11`). The header and footer use the **primary**
+logo (the widest supplied wordmark: 40 px tall = exactly the package's 120 px desktop minimum, 36 px =
+108 px on small screens), the admin sign-in screen the **stacked** one, the admin sidebar the
+**small-scale** one and compact chrome the **icon-only** one. The old hand-drawn `Mark`/`Wordmark` SVG are
+gone, as is the self-made `favicon.svg`/`favicon.ico`/`icon-192`/`icon-512` set — the package has no SVG
+master and no `.ico`, and inventing one is out of scope. Colour: `#A2AB73` and `#CC3A63` were already
+`--color-olive` and `--color-rose`; the official tokens `--color-brand-bg #f3ebdd`, `--color-surface
+#ffffff` and `--color-charcoal #1f2933` are added to `@theme`, and `theme-color`/`theme_color` now carry
+`#F3EBDD`. The existing cream/sand surfaces and the `--color-ink` text colour were **not** recoloured: that
+is a redesign, not a brand implementation.
+
 **Style.** Neumorphic/spatial UI with the cream/olive/rose palette; no religious symbols or
 decorative clichés; the public site is free and needs no login. Fixed website texts (headings, labels,
 empty states, errors) live in the React components — there is no content layer or CMS for UI strings.
@@ -280,13 +297,13 @@ empty states, errors) live in the React components — there is no content layer
 | --- | --- | --- |
 | `npx tsc --noEmit` (root + `server/`) | types | 0 errors (Fase 5.5) |
 | `npm run build` (root) | single-file production build + `dist/index.html.gz` (+ `dist/fonts/`, favicons, manifest) | 657.57 kB raw / 159.34 kB gzip, plus 14 font subsets (582 kB, only the used subsets are downloaded) — Fase 5.5 |
-| `cd server && npm run test:all` | audit (32), uploads (30), production readiness (**154**, incl. TLS/HSTS, proxy trust, boot guards, readiness, public payload, delete confirmation, magic bytes, admin posture, list-projection, gzip/304 of the SPA fallback, robots/sitemap/404s/headers/API-JSON compression/font caching, **release identity + `LOG_LEVEL`**), env hardening (13), **`ops` script regression (21, §7m)**, youtube (+ Data API fallback), **auth (69)** | Fase 5.6.1, with published content in the database: audit 32, uploads 30, production **154**, env 13, ops **21**, youtube 14+ cases, auth 69 — **all green, exit 0** (**319 ✅**). Needs content: on a reference-only database the production suite reports **149/154** (§ *Test-data condition*) |
+| `cd server && npm run test:all` | audit (32), uploads (30), production readiness (**163**, incl. TLS/HSTS, proxy trust, boot guards, readiness, public payload, delete confirmation, magic bytes, admin posture, list-projection, gzip/304 of the SPA fallback, robots/sitemap/404s/headers/API-JSON compression/font caching, **release identity + `LOG_LEVEL`**, **the official brand/icon set + manifest tokens (Fase 6.0)**), env hardening (13), **`ops` script regression (21, §7m)**, youtube (+ Data API fallback), **auth (69)** | Fase 6.0, with published content in the database: audit 32, uploads 30, production **163**, env 13, ops **21**, youtube 14+ cases, auth 69 — **all green, exit 0** (**328 ✅**). Needs content: on a reference-only database the production suite reports **158/163** (§ *Test-data condition*) |
 | `ops/backup.sh` + `ops/restore-drill.sh` | database + uploads backup, then a restore into a throwaway database with count and checksum comparison | PASSED in Fase 5.1 (seven tables + two upload files, §7g) and again in Fase 5.6, that time **from an off-site copy** made by `ops/offsite-copy.sh` (25/8/11 rows and 50+50 joins matching the manifest, §7l) |
 | `ops/healthcheck.sh` · `ops/alert.sh` · `ops/deploy-check.sh` | watchdog (health, readiness, **the release the API reports**, backup freshness, disk, database), alert delivery to a webhook/mail, and an eleven-check post-deploy/rollback proof | Fase 5.6.1: watchdog `result: OK (8 checks)` on a healthy host, **0 bytes** on a healthy `--quiet` run and exit 1 with its FAIL lines + release on stderr on a failing one; the 21-check `ops` regression in the server suite covers the payload escaping, the release line, `--quiet`, the unit's exit codes and the manifest guard (§7m); deploy check **11 passed, 0 failed** against the production build (§7l) |
 | `cd server && npm run test:imports` | live Archive.org + YouTube import regression | 19/19 whenever the provider answers; the live scrape check is the part that fails under Google's throttle (§8.11) |
-| `npm run test:e2e:production` | routes, embeds, **real YouTube playback**, error states, mobile, admin entry (login gate), footer navigation (17 checks), **accessible names for the search fields (9 checks, Fase 5.6.1)** | Fase 5.6.1: **93/93** (84 + 9) against the production build with 25 published records. Needs published content — a YouTube video, an `RenewingOurIntentions` audio record, an Archive book, a scholar and a subject — and stops at the first missing fixture on an empty library. YouTube throttling can turn the two live-playback checks red (§8.11) |
+| `npm run test:e2e:production` | routes, embeds, **real YouTube playback**, error states, mobile, admin entry (login gate), footer navigation (17 checks), **accessible names for the search fields (9, Fase 5.6.1)** and **the official brand assets incl. deep links and mobile (33, Fase 6.0)** | Fase 6.0: **135/135** against the production build with 25 published records. Needs published content — a YouTube video, an `RenewingOurIntentions` audio record, an Archive book, a scholar and a subject — and stops at the first missing fixture on an empty library. YouTube throttling can turn the two live-playback checks red (§8.11) |
 | `npm run test:e2e` | waveform, thumbnails, admin upload flow | 27/27 in Fase 5.6; **21/27** in Fase 5.6.1 — all six red checks read the live archive.org stream (playback position, waveform frames/heights), and archive.org itself answered 302 → **500** on the file and **502** on `/metadata` from this sandbox at that moment: external availability (§8.14), not the site |
-| `npm run test:e2e:cms` | admin CMS: real totals, draft→published→archived→restored, collection round-trip, 401 honesty, **typed delete confirmation + `CONFIRM_REQUIRED`** | 34/34 (Fase 5.3), re-run 34/0 in Fase 5.6.1 |
+| `npm run test:e2e:cms` | admin CMS: real totals, draft→published→archived→restored, collection round-trip, 401 honesty, **typed delete confirmation + `CONFIRM_REQUIRED`**, **brand assets in the signed-in CMS (5, Fase 6.0)** | **39/39** (Fase 6.0; was 34) |
 | `npm run test:e2e:auth` | Fase 4.5 gate: username/password sign-in, 401s, cookie flags, deep link, refresh, tampered cookie, server-side logout, no credential in web storage, public site stays free | 60/60, re-run 60/0 in Fase 5.6.1 |
 
 Browser specs take `SITE_URL`, `API_URL`, `ADMIN_TOKEN` (for their API fixtures) and sign the
@@ -310,9 +327,10 @@ asserts), so run it against a throwaway database or remove the record afterwards
 **Test-data condition (Fase 5.6.1).** Two suites need *published content* in the target database and do
 not create it themselves, so a green run says as much about the data as about the code:
 
-- `cd server && npm run test:all` → the production suite reports **149/154** on a database that only has
-  the reference seed: 2 checks need a published record and 3 compare gzip on a response that stays below
-  the 1 kB compression threshold while the library is empty. With content present it is **154/154**.
+- `cd server && npm run test:all` → the production suite reports **158/163** on a database that only has
+  the reference seed: the same five checks as before (2 need a published record, 3 compare gzip on a
+  response that stays below the 1 kB threshold while the library is empty). With content present it is
+  **163/163**.
 - `npm run test:e2e:production` → its fixtures are real records (a YouTube video, an
   `RenewingOurIntentions` Archive audio item, an Archive book, a scholar, a subject); on an empty library
   it stops at the first missing fixture.
@@ -952,8 +970,10 @@ search term") was also shown when the library itself was empty. That was fixed i
   request before you press play). The page itself needs the operator's identity, address and legal review,
   none of which the repository contains — and inventing them would be exactly the fake content this project
   forbids. Checklist for that page is in the Fase 5.5 report.
-- **No default social card.** `og:image` appears only where a real thumbnail exists; a designed 1200×630
-  default is an asset, not a code change.
+- **No default social card — now for a measured reason.** `og:image` appears only where a real thumbnail
+  exists. Fase 6.0 added the missing asset (`brand/ilmnet-og-1200x630.png`), but that export has its payoff
+  line clipped by the 1200×630 crop, so publishing it would put a visibly broken card on every share. It
+  is deliberately **not** wired up (§7n); a clean re-export switches it on in one line.
 - **The 100-item list cap and the counters** (§8.2, measured in Fase 5.4) and **the free-text search**
   (§8.16) stay as they are — measured items, not polish.
 
@@ -1138,6 +1158,79 @@ redesign, no TinyCMS.
 - **P8** — the 53 MB `opencode-*.tar.gz` blob stays in the Git history (removing it needs a rewrite); **P9** the dead exports in `ui.tsx`/`thumbnail.ts`/`api.ts` and `src/admin/data.ts`; **P10** `docs/backend-architecture.md` is still a pre-implementation design dossier while `AGENTS.md` calls it the API reference; **P11/P13** the README status line and the ops usage blocks.
 - Not re-opened: the 100-item list cap, the `ILIKE` search (measured, with the pg_trgm recipe in §5e), the non-enforcing CSP, `frame-ancestors` and the `__Host-` cookie prefix.
 
+## 7n. What Fase 6.0 (brand implementation) changed — and what was deliberately not used
+
+Instruction: implement the delivered brand package (`brand/`, see `ASSET_MANIFEST.txt`) in the existing app
+**without redesigning it**, using only assets that are technically fit for production, without inventing
+missing brand assets, and keeping every existing test green.
+
+### Decisions carried out
+
+- **Colour truth = `brand/brand-tokens.json` + `brand-tokens.css`.** `#A2AB73` and `#CC3A63` were already
+  `--color-olive`/`--color-rose`; `--color-brand-bg #f3ebdd`, `--color-surface #ffffff` and
+  `--color-charcoal #1f2933` were added to the Tailwind `@theme`, and `theme-color`/`theme_color` now use
+  the official `#F3EBDD` (was `#f6f1e7`/`#fff7eb`). The cream/sand surfaces and `--color-ink` were **not**
+  recoloured — that would be a redesign.
+- **Official name `IlmNet`**, `Net` in clay pink — exactly what the delivered wordmark shows; the
+  code-drawn wordmark (which coloured `Net` olive) is gone.
+- **Official assets only.** `src/components/Brand.tsx` renders the supplied files through one `BrandLogo`
+  component (`<picture>`: WebP → PNG, real `width`/`height`, aspect ratio on the wrapper so a height *or*
+  a width class both work). Usage follows the package: **primary** in the header (40 px = the 120 px
+  minimum; 36 px = 108 px on mobile) and footer (32 px = 96 px), **stacked** on the admin sign-in screen
+  (128 px), **small-scale** in the admin sidebar (44 px = 82 px), **icon-only** in compact chrome and the
+  admin gate. No variant was drawn, recoloured or re-proportioned.
+- **Icon set = the delivered favicon files**: 16/32/48/64 PNG in `index.html`, `apple-touch-icon.png`, and in
+  `manifest.webmanifest` the 48/192/512 PNG with the official `#F3EBDD` background/theme colour. The
+  self-made `favicon.svg`, `favicon.ico`, `icon-192.png` and `icon-512.png` were removed: the package ships
+  **no** SVG master and **no** `.ico`, and inventing either was explicitly out of scope. `ops/deploy-check.sh`,
+  `docs/DEPLOYMENT.md` and the production suite now check `/brand/favicon/favicon-32.png` instead of
+  `/favicon.ico`.
+- **Real bug found and fixed while verifying:** with the size class on the `<img>` inside a `<picture>`, the
+  browser ignored the height (the shrink-to-fit parent set the intrinsic width) and rendered the logo 450 px
+  wide at 40 px tall — stretched. The aspect ratio now sits on the wrapper, and a Playwright assertion
+  guards the rendered width (~120 px, never the intrinsic 450 px) plus the mobile height.
+
+### Implemented, in exact files
+
+| Asset(s) | Where |
+| --- | --- |
+| `logo/ilmnet-logo-primary-light.{webp,png}` | `Nav.tsx` (header 36/40 px), `SiteFooter.tsx` (32 px) |
+| `logo/ilmnet-logo-stacked.{webp,png}` | `AdminLogin.tsx` (128 px — the package's centered placement) |
+| `logo/ilmnet-logo-small-scale.{webp,png}` | `AdminLayout.tsx` sidebar (44 px = 82 px wide) |
+| `logo/ilmnet-logo-icon-only.{webp,png}` | `AdminLayout.tsx` mobile top bar, `AdminGate.tsx` loading screen |
+| `favicon/favicon-{16,32,48,64}.png`, `apple-touch-icon.png`, `android-chrome-{192,512}.png` | `index.html`, `public/manifest.webmanifest` |
+| `brand-tokens.*` | `src/index.css` (`@theme`), `index.html` (`theme-color`), `manifest.webmanifest` (`theme_color`, `background_color`) |
+
+### Deliberately NOT used (with the reason)
+
+| Asset / variant | Why not |
+| --- | --- |
+| `og/ilmnet-og-1200x630.png` | The payoff line under the logo is **clipped by the 1200×630 crop** (only the tops of the letters remain). Publishing it would put a broken-looking card on every share, so `og:image` still falls back to per-page thumbnails. One clean re-export switches it on in one line. |
+| `logo/ilmnet-logo-horizontal.*` | 1.86:1 — it needs 43 px of height for the package's 80 px minimum and 65 px for the 120 px desktop minimum, which does not fit the existing 40 px header. The primary variant is 3:1 and reaches 120 px at exactly 40 px, so the header uses that. |
+| `logo/ilmnet-logo-primary-dark.*`, `monochrome-dark`, `monochrome-light` | The UI has no dark or single-colour surface; the package lists them for exactly that case. |
+| `icon/ilmnet-icon.{webp,png}` (1024 px) | No spot needs a photo-sized icon — the app icons are the delivered favicon set, as the package prescribes. |
+| `social/ilmnet-profile-1080.png` | There is no social profile in this repository. |
+| `FINAL_APPROVED_LOGO_SYSTEM_REFERENCE.png`, `ASSET_MANIFEST.txt`, `BRAND_IMPLEMENTATION.md` | Reference only; the manifest and the markdown stay in `brand/` as the source of truth. |
+| A `.svg` master, a `.ico`, any redraw or "cleaned" export | Not delivered, and inventing brand assets was explicitly out of scope. The package's own note says a true vector master has not been supplied. |
+
+**Known imperfection of a delivered file (used as delivered):** `ilmnet-logo-primary-light.png` carries a
+faint remnant of the payoff line in its bottom 1–2 pixel rows, visible only at ≥4× magnification (the WebP
+differs from the PNG on <0.1 % of pixels; `small-scale` is the cleanest file but is below the package's
+120 px minimum at header height). It is used unchanged — editing a supplied brand asset would violate "do
+not alter proportions, colors, spacing".
+
+### Verified after the change
+
+| Step | Result |
+| --- | --- |
+| `tsc --noEmit` (root + `server/`) | 0 errors |
+| `npm run build` | 657 837 B raw / 163 527 B pre-compressed; `dist/brand/` carries the official files |
+| `cd server && npm run test:all` (25 published records) | audit 32 · uploads 30/0 · production **163/0** (+9 brand/icon-manifest checks) · env 13/0 · ops 21/0 · youtube ✅ · auth 69/0 — exit 0 |
+| `npm run test:e2e:production` | **135/135** (+33 brand) — header 120×40 desktop / 108×36 mobile, footer 96×32, deep links, admin, no overflow |
+| `npm run test:e2e:cms` | **39/39** (+5) — the signed-in sidebar shows the small-scale logo at 82×44 with WebP |
+| `npm run test:e2e:auth` · `npm run test:e2e` (media) | 60/0 · **27/27** (the archive.org stream answered this time) |
+| `ops/deploy-check.sh` on the production build | **10 passed, 0 failed**, including `/brand/favicon/favicon-32.png → 200 (image/png)` (11 with HSTS over https) |
+
 ## 8. Known remaining issues (not blockers)
 
 From `docs/FASE3_9_CODEBASE_REVIEW.md` § Restrisico's plus the 3.9.1 report:
@@ -1274,6 +1367,12 @@ Fase 5.1 removed the three blockers that were verifiable in the repository; the 
   holds the procedures and §9f the exact host-only list: install the timers, fill the env files, choose
   and test an alert channel, create the external uptime check, set `GIT_COMMIT`, drill from the first
   off-site copy, set log limits.
+- **Phase 6.0 — brand implementation (done, §7n).** The delivered brand package is in the app: official
+  logo assets in the header/footer/admin (WebP with PNG fallback), the official icon set as favicon, app
+  icons and manifest icons, the official `#F3EBDD` as browser/manifest theme colour and the official tokens
+  in `@theme`. The code-drawn mark/wordmark and the self-made favicon files are gone. Deliberately unused:
+  the clipped OG export, the horizontal (too wide for the 40 px header), the dark/monochrome variants (no
+  dark surface), the 1024 px icon, the profile image, and any SVG/.ico that the package does not contain.
 - **Phase 5.6.1 — audit fixes (done, §7m).** The Fase 5.1–5.6 end-audit reproduced four operational
   defects (a drill that could pass without comparing anything, an alert whose JSON broke on a quote in
   the subject, a watchdog that could never report the release, and a failing `--quiet` run that left an

@@ -18,7 +18,8 @@
  *     default and health no longer publishes the upload path
  *  9. crawler surface & headers (Fase 5.5): /robots.txt and /sitemap.xml are real responses built
  *     from published rows only, the sitemap compresses and caches, a missing *file* is a 404 while a
- *     missing *page* still gets the app shell, and the security headers are the documented set
+ *     missing *page* still gets the app shell, the security headers are the documented set, and the
+ *     shipped icon set is the official brand package (Fase 6.0)
  * 10. operations (Fase 5.6): the API reports the release it runs (version from server/package.json,
  *     commit from GIT_COMMIT) and LOG_LEVEL changes the log level without breaking the boot
  */
@@ -1052,10 +1053,46 @@ async function main() {
         `a missing file is a real 404 instead of index.html (${asset} → ${res.status})`,
       );
     }
-    for (const asset of ['/favicon.svg', '/favicon.ico', '/apple-touch-icon.png', '/manifest.webmanifest', '/icon-512.png']) {
+    // Fase 6.0: the icon set is the official brand package (brand/ASSET_MANIFEST.txt) — 16/32/48/64,
+    // apple-touch, the two Android sizes, the logo assets the UI uses, and the manifest that points at
+    // them. The old self-drawn favicon.svg/favicon.ico are gone, by design.
+    for (const asset of [
+      '/brand/favicon/favicon-16.png',
+      '/brand/favicon/favicon-32.png',
+      '/brand/favicon/favicon-48.png',
+      '/brand/favicon/favicon-64.png',
+      '/brand/favicon/apple-touch-icon.png',
+      '/brand/favicon/android-chrome-192.png',
+      '/brand/favicon/android-chrome-512.png',
+      '/brand/logo/ilmnet-logo-primary-light.webp',
+      '/brand/logo/ilmnet-logo-primary-light.png',
+      '/manifest.webmanifest',
+    ]) {
       const res = await fetch(`${base}${asset}`);
-      check(res.status === 200, `the shipped icon/manifest set is served (${asset} → ${res.status})`);
+      check(res.status === 200, `the shipped brand/icon set is served (${asset} → ${res.status})`);
     }
+    const manifest = (await fetch(`${base}/manifest.webmanifest`).then((r) => r.json())) as {
+      icons: { src: string; sizes: string }[];
+      theme_color: string;
+    };
+    check(
+      manifest.icons.every((i) => i.src.startsWith('/brand/favicon/')),
+      `the web app manifest points at the official brand icons (${manifest.icons.map((i) => i.sizes).join(', ')})`,
+    );
+    check(
+      manifest.theme_color.toLowerCase() === '#f3ebdd',
+      `the manifest carries the official brand token as its theme colour (${manifest.theme_color})`,
+    );
+    const home = await fetch(`${base}/`);
+    const homeHtml = await home.text();
+    check(
+      homeHtml.includes('theme-color" content="#F3EBDD"'),
+      'index.html carries the official brand token as its theme colour',
+    );
+    check(
+      homeHtml.includes('/brand/favicon/favicon-32.png') && !homeHtml.includes('/favicon.ico'),
+      'index.html links the official favicon and no longer the removed /favicon.ico',
+    );
 
     const headers = await fetch(`${base}/`);
     const policy = headers.headers.get('permissions-policy') ?? '';

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Mark } from '../components/Brand';
+import { BrandLogo } from '../components/Brand';
 import { useAdminAuth } from './auth';
 import AdminLogin from './AdminLogin';
 import { usePageMeta } from '../lib/usePageMeta';
@@ -21,9 +21,8 @@ export default function AdminGate({ children }: { children: ReactNode }) {
     return (
       <div className="bg-cream text-ink min-h-screen font-sans" data-testid="admin-gate-checking">
         <div className="mx-auto flex min-h-screen max-w-[420px] flex-col items-center justify-center gap-4 px-6 text-center">
-          <span className="bg-cream neu-raised-sm grid h-12 w-12 place-items-center rounded-[16px]">
-            <Mark className="h-6 w-6" />
-          </span>
+          {/* Icon-only variant: the package's "small spaces" case, on the centered loading screen. */}
+          <BrandLogo variant="iconOnly" className="h-12" label="IlmNet" />
           <p className="font-display text-ink text-[1.15rem] font-extrabold">Checking your admin session…</p>
           <p className="text-ink-muted text-[0.88rem]">
             Your session is verified against the API before any part of the CMS is loaded.

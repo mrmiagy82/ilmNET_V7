@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
-import { Mark, Wordmark } from '../components/Brand';
+import { BrandLogo } from '../components/Brand';
 import { useAdmin } from './store';
 import { useAdminAuth } from './auth';
 import { Toast } from './ui';
@@ -105,14 +105,11 @@ export default function AdminLayout() {
       <div className="lg:grid lg:grid-cols-[268px_1fr]">
         <aside className="bg-sand hidden min-h-screen flex-col px-4 py-6 lg:flex lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto">
           <Link to="/admin" className="mb-6 flex items-center gap-2.5 px-2">
-            <span className="bg-cream neu-raised-sm grid h-10 w-10 place-items-center rounded-[14px]">
-              <Mark className="h-6 w-6" />
-            </span>
-            <span>
-              <Wordmark />
-              <span className="text-ink-muted mt-1 block text-[0.68rem] font-semibold tracking-[0.18em] uppercase">
-                Admin
-              </span>
+            {/* Small-scale variant (simplified for small sizes); 44 px tall = 82 px wide, above the
+                package's 80 px minimum. The "Admin" label is UI copy, not part of the logo. */}
+            <BrandLogo variant="smallScale" className="h-11" label="IlmNet admin" />
+            <span className="text-ink-muted block text-[0.68rem] font-semibold tracking-[0.18em] uppercase">
+              Admin
             </span>
           </Link>
 
@@ -173,12 +170,9 @@ export default function AdminLayout() {
         <div className="min-w-0">
           <header className="bg-sand/80 sticky top-0 z-40 flex items-center justify-between px-4 py-3 backdrop-blur-xl lg:hidden">
             <Link to="/admin" className="flex items-center gap-2">
-              <span className="bg-cream neu-raised-sm grid h-9 w-9 place-items-center rounded-[12px]">
-                <Mark className="h-5 w-5" />
-              </span>
-              <span className="font-display text-ink text-[1.05rem] font-extrabold tracking-tight">
-                ilmNet <span className="text-ink-muted font-semibold">Admin</span>
-              </span>
+              {/* Compact bar: the icon-only variant (the package's "small spaces" case). */}
+              <BrandLogo variant="iconOnly" className="h-8" label="" />
+              <span className="text-ink-muted font-display text-[1.05rem] font-semibold tracking-tight">Admin</span>
             </Link>
             <div className="flex items-center gap-2">
               <Link to="/admin/archive-import" className="bg-olive text-cream grid h-10 w-10 place-items-center rounded-[14px] shadow-[6px_8px_16px_rgba(140,150,100,0.28)]">

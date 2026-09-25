@@ -15,7 +15,8 @@
 #   4. /lectures     → 200 (deep link: the SPA fallback works, a refresh on a subpage survives)
 #   5. /robots.txt   → 200 + Disallow: /admin
 #   6. /sitemap.xml  → 200 + XML, and at least one <loc> on the base origin
-#   7. /favicon.ico  → 200 with an image content type
+#   7. /brand/favicon/favicon-32.png → 200 with an image content type  (Fase 6.0: the official
+#      IlmNet icon set; the package ships no .ico, so the old check on /favicon.ico was replaced)
 #   8. /admin        → 200 HTML (the CMS gate answers; signing in is the operator's step)
 #   9. /<random>.png → 404 (a missing *file* is not answered with the app shell and HTTP 200)
 #  10. gzip          → / sends `content-encoding: gzip` when the client accepts it (Fase 5.4/5.5)
@@ -156,12 +157,12 @@ else
   fail "/sitemap.xml → HTTP $CODE"
 fi
 
-# ── 7. favicon ──────────────────────────────────────────────────────────────
-RESP="$(fetch_head "$BASE_URL/favicon.ico" identity)"; CODE="$(status_of "$RESP")"; CT="$(header_of "$RESP" content-type)"
+# ── 7. favicon (official brand icon) ────────────────────────────────────────
+RESP="$(fetch_head "$BASE_URL/brand/favicon/favicon-32.png" identity)"; CODE="$(status_of "$RESP")"; CT="$(header_of "$RESP" content-type)"
 if [[ "$CODE" == "200" ]] && [[ "$CT" == image/* ]]; then
-  pass "/favicon.ico → 200 ($CT)"
+  pass "/brand/favicon/favicon-32.png → 200 ($CT)"
 else
-  fail "/favicon.ico → HTTP $CODE with content-type \"$CT\""
+  fail "/brand/favicon/favicon-32.png → HTTP $CODE with content-type \"$CT\""
 fi
 
 # ── 8. admin gate ───────────────────────────────────────────────────────────

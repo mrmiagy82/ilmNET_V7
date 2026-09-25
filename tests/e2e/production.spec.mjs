@@ -344,7 +344,114 @@ async function main() {
   check(navButtons > 0, `mobile navigation controls are present and tappable (${navButtons} buttons)`);
   await mobile.close();
 
-  console.log('\n--- 8. Accessible names for the search fields (Fase 5.6.1) ---');
+  console.log('\n--- 8b. Official brand assets (Fase 6.0) ---');
+// The package's production files (brand/ASSET_MANIFEST.txt) are the only branding in the UI: every
+// visible mark is one of the delivered raster assets, served as WebP with a PNG fallback.
+const brandProbe = await page.goto(`${SITE}/`);
+const brandHtml = await brandProbe.text();
+check(brandHtml.includes('/brand/favicon/favicon-32.png'), 'index.html links the official 32px favicon');
+check(brandHtml.includes('content="#F3EBDD"'), 'index.html carries the official brand token as theme-color');
+check(!brandHtml.includes('/favicon.ico') && !brandHtml.includes('/favicon.svg'), 'the old self-drawn favicons are gone from the document head');
+
+for (const [path, label] of [['/', 'home'], ['/lectures', 'lectures'], ['/books', 'books'], ['/scholars', 'scholars']]) {
+  await page.goto(`${SITE}${path}`);
+  await page.waitForTimeout(600);
+  const brand = await page.evaluate(() => {
+    const imgs = [...document.querySelectorAll('img[src*="/brand/"]')];
+    return imgs.map((i) => ({
+      src: i.getAttribute('src'),
+      webp: i.closest('picture')?.querySelector('source[type="image/webp"]')?.getAttribute('srcset') ?? null,
+      w: i.getAttribute('width'),
+      h: i.getAttribute('height'),
+      rendered: i.getBoundingClientRect().width,
+      loaded: i.complete && i.naturalWidth > 0,
+      alt: i.getAttribute('alt'),
+    }));
+  });
+  const logo = brand[0];
+  check(Boolean(logo), `${label}: the official logo asset is rendered (${brand.length} brand image(s))`);
+  check(
+    Boolean(logo?.loaded) && logo?.rendered > 60,
+    `${label}: the logo loads and keeps its proportions (${logo?.rendered.toFixed(0)}px wide, natural ${logo?.loaded})`,
+  );
+  check(
+    Boolean(logo?.webp) && (logo?.src ?? '').endsWith('.png'),
+    `${label}: WebP is offered first with the PNG as fallback (${logo?.webp} / ${logo?.src})`,
+  );
+  check(
+    Number(logo?.w) > 0 && Number(logo?.h) > 0,
+    `${label}: width/height are set, so the logo cannot shift the layout (${logo?.w}x${logo?.h})`,
+  );
+  check(
+    logo.rendered > 100 && logo.rendered < 160,
+    `${label}: the logo is rendered at its intended size, not at the file's intrinsic width (${logo.rendered.toFixed(0)}px)`,
+  );
+  check(
+    logo?.src?.includes('ilmnet-logo-primary-light'),
+    `${label}: the header uses the primary logo variant — the one that reaches the package's 120px minimum at 40px height (${logo?.src})`,
+  );
+  check(!/Ilm/i.test(logo?.alt ?? 'x'), `${label}: the logo is decorative inside the named header link (alt="${logo?.alt}")`);
+}
+
+// Deep link + footer + admin must carry the same branding, not a fallback.
+for (const [path, expectation] of [
+  [`/lectures/${video.slug}`, 'primary'],
+  [`/subjects/${subjects[0].slug}`, 'primary'],
+]) {
+  await page.goto(`${SITE}${path}`);
+  await page.waitForTimeout(600);
+  const srcs = await page.$$eval('img[src*="/brand/"]', (els) => els.map((e) => e.getAttribute('src')));
+  check(
+    srcs.some((s) => s.includes(expectation)),
+    `deep link ${path} renders the official ${expectation} logo (${srcs.length} brand image(s))`,
+  );
+}
+
+await page.goto(`${SITE}/`);
+await page.waitForTimeout(600);
+const footerLogos = await page.$$eval('footer img[src*="/brand/"], footer img', (els) =>
+  els.map((e) => ({ src: e.getAttribute('src'), alt: e.getAttribute('alt'), loaded: e.complete && e.naturalWidth > 0 })),
+);
+const footerLogo = (await page.$$eval('footer a[href="/"] img', (els) =>
+  els.map((e) => ({ src: e.getAttribute('src'), alt: e.getAttribute('alt'), loaded: e.complete && e.naturalWidth > 0 })),
+)).filter((i) => i.src?.includes('/brand/'))[0];
+check(Boolean(footerLogo?.loaded), `the footer brand logo loads (${footerLogo?.src ?? 'missing'})`);
+check(footerLogo?.alt === 'IlmNet', `the footer logo carries the official name as its alt text ("${footerLogo?.alt}")`);
+
+const adminBrand = await page.goto(`${SITE}/admin`).then(() => page.waitForTimeout(900)).then(() =>
+  page.evaluate(() => {
+    const imgs = [...document.querySelectorAll('img[src*="/brand/"]')];
+    return imgs.map((i) => ({ src: i.getAttribute('src'), alt: i.getAttribute('alt'), loaded: i.complete && i.naturalWidth > 0 }));
+  }),
+);
+check(
+  adminBrand.length > 0 && adminBrand.every((i) => i.loaded),
+  `the admin sign-in screen shows the official stacked logo (${adminBrand.map((i) => i.src?.split('/').pop()).join(', ') || 'none'})`,
+);
+
+// Mobile: same assets, nothing overflowing, favicon links intact.
+const brandMobile = await browser.newContext({ viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true });
+const brandMPage = await brandMobile.newPage();
+for (const path of ['/', '/lectures']) {
+  await brandMPage.goto(`${SITE}${path}`);
+  await brandMPage.waitForTimeout(500);
+  const info = await brandMPage.evaluate(() => {
+    const logo = document.querySelector('img[src*="/brand/"]');
+    const r = logo?.getBoundingClientRect();
+    return {
+      width: r?.width ?? 0,
+      height: r?.height ?? 0,
+      loaded: logo ? logo.complete && logo.naturalWidth > 0 : false,
+      overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    };
+  });
+  check(info.loaded && info.width >= 80, `${path} on mobile: the logo is ≥80px wide per the package minimum (${info.width.toFixed(0)}px)`);
+  check(info.height > 30 && info.height < 48, `${path} on mobile: the logo keeps its 36px header height (${info.height.toFixed(0)}px tall)`);
+  check(info.overflow <= 2, `${path} on mobile: the logo causes no horizontal overflow (${info.overflow}px)`);
+}
+await brandMobile.close();
+
+console.log('\n--- 8. Accessible names for the search fields (Fase 5.6.1) ---');
 // The end-audit measured one unnamed input on each of these routes: a placeholder is a hint, not an
 // accessible name, so a screen reader announced "edit text" with no label.
 for (const path of ['/lectures', '/books', '/scholars']) {

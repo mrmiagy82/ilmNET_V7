@@ -5,32 +5,26 @@
   "start_url": "/",
   "scope": "/",
   "display": "browser",
-  "background_color": "#fff7eb",
-  "theme_color": "#fff7eb",
+  "background_color": "#F3EBDD",
+  "theme_color": "#F3EBDD",
   "icons": [
     {
-      "src": "/favicon.svg",
-      "type": "image/svg+xml",
-      "sizes": "any",
+      "src": "/brand/favicon/favicon-48.png",
+      "type": "image/png",
+      "sizes": "48x48",
       "purpose": "any"
     },
     {
-      "src": "/icon-192.png",
+      "src": "/brand/favicon/android-chrome-192.png",
       "type": "image/png",
       "sizes": "192x192",
       "purpose": "any"
     },
     {
-      "src": "/icon-512.png",
+      "src": "/brand/favicon/android-chrome-512.png",
       "type": "image/png",
       "sizes": "512x512",
       "purpose": "any"
-    },
-    {
-      "src": "/icon-512.png",
-      "type": "image/png",
-      "sizes": "512x512",
-      "purpose": "maskable"
     }
   ]
 }

@@ -138,6 +138,15 @@
   --color-line: #e7dbc5;
   --color-night: #1f1d19;
 
+  /* Official IlmNet brand tokens (brand/brand-tokens.css + brand-tokens.json, Fase 6.0).
+     Sage (#A2AB73) and clay pink (#CC3A63) are already the exact values of --color-olive and
+     --color-rose. `surface` (#FFFFFF) and `charcoal` (#1F2933) are the two official values the current
+     UI does not use yet: the cream/sand surfaces and the --color-ink text colour are part of the
+     existing design, and recolouring the interface is explicitly out of scope for this phase. */
+  --color-brand-bg: #f3ebdd;
+  --color-surface: #ffffff;
+  --color-charcoal: #1f2933;
+
   --font-display: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
 }

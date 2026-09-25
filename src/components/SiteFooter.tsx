@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Mark, Wordmark } from './Brand';
+import { BrandLogo } from './Brand';
 
 /**
  * Footer navigation — Fase 5.1.
@@ -34,11 +34,10 @@ export default function SiteFooter() {
     <footer className="border-line/80 border-t px-5 pt-16 pb-12 sm:px-6">
       <div className="mx-auto grid max-w-[1180px] gap-12 md:grid-cols-[1.2fr_repeat(3,0.8fr)]">
         <div>
-          <Link to="/" className="flex items-center gap-2.5">
-            <span className="bg-sand neu-raised-sm grid h-10 w-10 place-items-center rounded-[14px]">
-              <Mark className="h-6 w-6" />
-            </span>
-            <Wordmark />
+          {/* The footer link has no aria-label, so the logo carries the name itself (alt="IlmNet").
+              32 px tall = 96 px wide, above the package's 80 px minimum for small placements. */}
+          <Link to="/" className="flex items-center">
+            <BrandLogo variant="primary" className="h-8" />
           </Link>
           <p className="text-ink-muted mt-5 max-w-[30ch] text-[0.92rem] leading-[1.65]">
             A curated library for Islamic knowledge — quiet, structured and built to last.

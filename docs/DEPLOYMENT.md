@@ -197,7 +197,7 @@ curl -s https://ilmnet.example/api/ready    # status ready + database up (goedko
   ```bash
   curl -s https://ilmnet.example/robots.txt   # Allow: / · Disallow: /admin · Disallow: /api/ · Sitemap: <PUBLIC_ORIGIN>/sitemap.xml
   curl -s https://ilmnet.example/sitemap.xml  # alleen gepubliceerde items, absolute URL's op de canoniche origin
-  curl -sI https://ilmnet.example/favicon.ico | head -1        # 200 image/…
+  curl -sI https://ilmnet.example/brand/favicon/favicon-32.png | head -1   # 200 image/png
   curl -s -o /dev/null -w '%{http_code}\n' https://ilmnet.example/geen-pagina.png   # 404 (geen index.html)
   ```
   Een ontbrekende **pagina** geeft nog steeds 200 + de app (de client toont zelf de 404-pagina); een

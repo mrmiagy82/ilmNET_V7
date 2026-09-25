@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Mark, Wordmark } from './Brand';
+import { BrandLogo } from './Brand';
 
 const links = [
   { label: 'Lectures', to: '/lectures' },
@@ -31,11 +31,10 @@ export default function Nav() {
           scrolled ? 'bg-cream/85 neu-raised-sm backdrop-blur-xl' : 'bg-transparent'
         }`}
       >
-        <Link to="/" className="flex items-center gap-2.5" aria-label="ilmNet home">
-          <span className="bg-sand neu-raised-sm grid h-10 w-10 place-items-center rounded-[14px]">
-            <Mark className="h-6 w-6" />
-          </span>
-          <Wordmark />
+        <Link to="/" className="flex items-center" aria-label="IlmNet home">
+          {/* brand/BRAND_IMPLEMENTATION.md: primary logo for the main header; 36 px tall on small
+              screens (108 px wide) and 40 px on desktop (exactly the 120 px minimum width). */}
+          <BrandLogo variant="primary" className="h-9 sm:h-10" label="" />
         </Link>
 
         <div className="hidden items-center gap-1 md:flex">
