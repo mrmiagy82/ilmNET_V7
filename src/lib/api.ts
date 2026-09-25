@@ -313,6 +313,10 @@ export type YouTubePreviewResponse = {
   isSingleItem: boolean;
   provider: 'youtube';
   kindsSummary: Record<string, number>;
+  /** 'api' = official Data API via the server-side key, 'page' = public YouTube pages. */
+  metadataSource?: 'api' | 'page';
+  /** Non-fatal findings from the importer (never contains the API key). */
+  warnings?: string[];
 };
 export function previewYouTube(sourceUrl: string) {
   return apiFetch<YouTubePreviewResponse>(`/api/admin/imports/youtube/preview`, {

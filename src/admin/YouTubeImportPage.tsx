@@ -71,6 +71,8 @@ export default function YouTubeImportPage() {
         provider: 'youtube',
         kindsSummary: res.kindsSummary,
         collectionTitle: (res as any).collectionTitle,
+        metadataSource: res.metadataSource,
+        warnings: res.warnings,
       };
       setResult(mapped);
       setJobId(res.jobId);
@@ -218,11 +220,11 @@ export default function YouTubeImportPage() {
               <TextInput value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://www.youtube.com/watch?v=..." inputMode="url" />
             </Field>
             {providerNote && <p className={`mt-3 text-[0.82rem] font-medium ${providerNote.includes('failed') || providerNote.includes('Duplicates') ? 'text-rose' : 'text-olive-deep'}`}>{providerNote}</p>}
-            {loading && <p className="text-ink-muted mt-3 text-[0.82rem]">Fetching YouTube metadata — watch page scrape + oEmbed, playlist via lockupViewModel (max 100, dedup), 7s timeout per request…</p>}
+            {loading && <p className="text-ink-muted mt-3 text-[0.82rem]">Fetching YouTube metadata — official Data API when the server has YOUTUBE_API_KEY, otherwise the public watch/playlist pages (max 100, dedup), 7s timeout per request…</p>}
           </div>
           <div className="flex flex-col gap-3 sm:ml-6 sm:w-[220px]">
             <div className="bg-cream neu-inset rounded-[16px] px-4 py-3 text-[0.72rem] leading-relaxed text-ink-soft">
-              <span className="font-semibold text-ink">YouTube live fetch</span> — no API key needed. Single: oEmbed + ytInitialPlayerResponse (title, duration, thumbnail, channel, publishDate). Playlist: playlist page → lockupViewModel (max 100).
+              <span className="font-semibold text-ink">YouTube live fetch</span> — runs without a key (oEmbed + <span className="font-mono text-[0.68rem]">ytInitialPlayerResponse</span>; playlists from the public page, max 100). With <span className="font-mono text-[0.68rem]">YOUTUBE_API_KEY</span> in the <em>server</em> environment the official Data API is used first: exact durations, publish dates and whether the video is embeddable. The key stays server-side — never in this bundle.
             </div>
             <PrimaryButton onClick={handleDetect} disabled={loading}>{loading ? 'Analysing…' : 'Analyse & detect'}</PrimaryButton>
             <p className="text-ink-muted text-[0.72rem] leading-relaxed">Embed preview: single <span className="font-mono text-[0.7rem]">/embed/&lt;videoId&gt;</span> · playlist itself <span className="font-mono text-[0.7rem]">videoseries?list=</span> but each playlist item embeds as its own <span className="font-mono text-[0.7rem]">/embed/&lt;videoId&gt;</span>.</p>
@@ -279,7 +281,17 @@ export default function YouTubeImportPage() {
               {result.description && <p className="text-cream/85 mt-3 max-w-[720px] text-[0.88rem] leading-relaxed line-clamp-3">{result.description}</p>}
             </div>
             <div className="px-6 py-4 sm:px-8 bg-sand/50 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-ink-muted text-[0.82rem]">Source: <a href={result.sourceUrl} target="_blank" rel="noreferrer" className="text-ink font-medium underline decoration-line/40 break-all">{result.sourceUrl}</a> · Fetched {result.fetchedAt}</p>
+              <p className="text-ink-muted text-[0.82rem]">
+                Source: <a href={result.sourceUrl} target="_blank" rel="noreferrer" className="text-ink font-medium underline decoration-line/40 break-all">{result.sourceUrl}</a> · Fetched {result.fetchedAt} ·{' '}
+                {result.metadataSource === 'api'
+                  ? 'metadata via the official YouTube Data API (server-side key)'
+                  : 'metadata read from the public YouTube pages'}
+              </p>
+              {Boolean(result.warnings?.length) && (
+                <p className="text-rose text-[0.8rem] font-medium">
+                  {result.warnings!.map((w) => <span key={w} className="block">⚠ {w}</span>)}
+                </p>
+              )}
               <p className="text-ink-muted text-[0.72rem]">Each selected video will become its <span className="font-semibold text-ink-soft">own</span> ilmNet record.</p>
             </div>
           </section>

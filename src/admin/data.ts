@@ -414,6 +414,10 @@ export interface YouTubeCollectionResult {
   kindsSummary: Record<string, number>;
   collectionTitle?: string;
   channelTitle?: string;
+  /** 'api' = official Data API via the server-side key, 'page' = public YouTube pages. */
+  metadataSource?: 'api' | 'page';
+  /** Non-fatal findings from the importer (never contains the API key). */
+  warnings?: string[];
 }
 
 export interface YouTubeImportDraft {

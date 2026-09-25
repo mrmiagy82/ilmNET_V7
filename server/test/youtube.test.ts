@@ -4,7 +4,7 @@
  * Run with: npx tsx test/youtube.test.ts
  */
 import assert from 'node:assert/strict';
-import { parseYouTubeUrl, previewYouTube, youtubeVideoLink, youtubeEmbedLink, youtubePlaylistEmbedLink } from '../src/services/youtube.service.js';
+import { parseYouTubeUrl, previewYouTube, youtubeVideoLink, youtubeEmbedLink, youtubePlaylistEmbedLink, youtubeApiConfigured } from '../src/services/youtube.service.js';
 import { parseDurationToMinutes } from '../src/services/archive.service.js';
 import { prisma } from '../src/lib/prisma.js';
 
@@ -369,6 +369,50 @@ async function testConfirmLifecycle() {
   ok('cleanup done');
 }
 
+async function testOptionalDataApi() {
+  console.log('\n--- 7. Official YouTube Data API is optional (server-side key) ---');
+
+  // 7a. No key configured: the importer must work exactly as before, using the public pages.
+  delete process.env.YOUTUBE_API_KEY;
+  assert.equal(youtubeApiConfigured(), false, 'no key configured in this environment');
+  const keyless = await previewYouTube('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+  assert.equal(keyless.metadataSource, 'page', 'without a key the metadata comes from the public page');
+  assert.equal(keyless.items.length, 1);
+  assert.ok((keyless.warnings ?? []).length === 0, 'no warnings without a key');
+  ok(`keyless import still works (source=${keyless.metadataSource}, ${keyless.items[0]!.duration ?? 'no duration'})`);
+
+  // 7b. A key that YouTube rejects must fall back to the public pages instead of failing, and the
+  //     fallback message may never contain the key itself.
+  const bogus = 'bogus-key-not-a-real-credential-0000';
+  process.env.YOUTUBE_API_KEY = bogus;
+  assert.equal(youtubeApiConfigured(), true);
+  const fallback = await previewYouTube('https://youtu.be/dQw4w9WgXcQ');
+  assert.equal(fallback.items[0]!.identifier, 'dQw4w9WgXcQ', 'video still imported when the API rejects the key');
+  assert.equal(fallback.metadataSource, 'page', 'a rejected key falls back to the public page');
+  const warnings = fallback.warnings ?? [];
+  assert.ok(warnings.length >= 1, 'the operator is told the official API could not be used');
+  assert.ok(warnings.some((w) => w.includes('Data API')), `warning names the Data API (${warnings[0]?.slice(0, 60)})`);
+  const serialised = JSON.stringify(fallback);
+  assert.ok(!serialised.includes(bogus), 'the API key never appears in the preview payload');
+  assert.ok(!warnings.join(' ').includes(bogus), 'the API key never appears in the warnings');
+  ok(`bogus key → honest fallback, key absent from payload and warnings (${fallback.items.length} item)`);
+
+  // 7c. Playlists behave the same way.
+  const playlistFallback = await previewYouTube('https://www.youtube.com/playlist?list=PLFgquLnL59alCl_2TQvOiD5Vgm1hCaGSI');
+  assert.ok(playlistFallback.totalItems > 5, 'playlist still imports with a rejected key');
+  assert.equal(playlistFallback.metadataSource, 'page');
+  assert.ok(!JSON.stringify(playlistFallback).includes(bogus), 'no key in the playlist payload');
+  ok(`playlist fallback ok (${playlistFallback.totalItems} items, source=${playlistFallback.metadataSource})`);
+
+  // 7d. A key must never end up in the database: preview writes only the import job.
+  const job = await prisma.importJob.findFirst({ where: { provider: 'youtube' }, orderBy: { createdAt: 'desc' } });
+  assert.ok(job, 'import job written for the preview');
+  assert.ok(!JSON.stringify(job).includes(bogus), 'stored import job contains no API key');
+  ok('stored import job contains no API key');
+
+  delete process.env.YOUTUBE_API_KEY;
+}
+
 async function main() {
   console.log('=== YouTube Fase 2B 14+ case audit ===');
   try {
@@ -377,7 +421,8 @@ async function main() {
     await testPlaylistPreview();
     await testInvalidUrl();
     await testConfirmLifecycle();
-    console.log('\n✅ All YouTube audit tests passed (14+ cases)');
+    await testOptionalDataApi();
+    console.log('\n✅ All YouTube audit tests passed (14+ cases + Data API fallback)');
   } catch (e: any) {
     console.error('Unhandled error in tests', e);
     process.exitCode = 1;

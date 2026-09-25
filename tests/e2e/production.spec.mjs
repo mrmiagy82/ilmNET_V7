@@ -194,6 +194,39 @@ async function main() {
     fail('no real YouTube video in the database to check the embed');
   }
 
+  // 5b. The YouTube player must not merely render: it has to boot and actually stream the video.
+  // Headless Chromium cannot deliver a trusted click to a cross-origin frame, so playback is started
+  // through the player's own API — that is how a visitor's click ends up as well (same player, same
+  // media pipeline). Fase 4.3 verified this against the live YouTube CDN.
+  if (video) {
+    const media = [];
+    page.on('request', (r) => { if (/googlevideo\.com\/videoplayback/.test(r.url())) media.push(r.url()); });
+    await page.goto(`${SITE}/lectures/${video.slug}`, { waitUntil: 'domcontentloaded' });
+    const ytFrame = await (await page.locator('iframe').first().elementHandle()).contentFrame();
+    if (!ytFrame) {
+      fail('YouTube embed did not load as a frame');
+    } else {
+      await ytFrame.waitForTimeout(6000);
+      const booted = await ytFrame.evaluate(() => ({
+        player: !!document.querySelector('#movie_player'),
+        videoTag: !!document.querySelector('video'),
+      }));
+      check(booted.player && booted.videoTag, 'the YouTube player boots inside the embed (player + video element)');
+
+      const played = await ytFrame.evaluate(async () => {
+        const pl = document.querySelector('#movie_player');
+        if (typeof pl?.playVideo !== 'function') return { ok: false, reason: 'player API unavailable' };
+        pl.playVideo();
+        await new Promise((r) => setTimeout(r, 9000));
+        const v = document.querySelector('video');
+        return { ok: true, state: pl.getPlayerState?.(), time: v?.currentTime ?? 0, readyState: v?.readyState ?? 0, error: v?.error?.code ?? null };
+      });
+      check(played.ok && played.state === 1 && played.time > 0 && !played.error,
+        `playback really starts (state ${played.state}, currentTime ${played.time?.toFixed?.(1)}s, error ${played.error})`);
+      check(media.length > 0, `the player streams real YouTube media (${media.length} videoplayback request(s))`);
+    }
+  }
+
   if (audio) {
     await page.goto(`${SITE}/lectures/${audio.slug}`);
     await page.waitForTimeout(900);

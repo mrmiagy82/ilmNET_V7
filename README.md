@@ -51,6 +51,11 @@ npm run dev                   # vite on :5173, proxies /api and /uploads to :300
 Admin: open `/admin` — the login screen asks for the `ADMIN_TOKEN` from `server/.env`; it is verified
 against the API and kept in `sessionStorage` for that tab only. The public site never needs a token.
 
+YouTube import: works without any key (it reads the public watch/playlist pages). Set `YOUTUBE_API_KEY`
+in the **server** environment to use the official YouTube Data API v3 first — exact durations, publish
+dates and whether a video is embeddable — with the public pages as fallback. The key is server-side
+only: never in a `VITE_*` variable, the database, the bundle or the repository.
+
 ## Tests
 
 ```bash

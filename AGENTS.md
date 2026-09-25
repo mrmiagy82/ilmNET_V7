@@ -50,6 +50,9 @@ Details: `README.md` (overview), `docs/backend-architecture.md` (API + data mode
 **No secrets, ever**
 - Never commit `.env`, tokens, credentials or connection strings. `.gitignore` already covers
   `.env`, `server/.env`, `server/dist/`, `dist/`, `node_modules`, logs and the opencode tarball.
+- `YOUTUBE_API_KEY` (optional) is a **server-side** variable like `ADMIN_TOKEN`: it belongs in the
+  process environment of the API, never in a `VITE_*` variable, the database or the repository. The
+  importer works without it and falls back to the public YouTube pages.
 - Never put an admin token in a `VITE_*` variable: Vite inlines it into the public bundle. In a
   deployed build the operator pastes the token at runtime in Admin → Token (sessionStorage).
 - Never print, echo or paste secret values into documents, commits, logs or `docs/CONTEXT.md`.

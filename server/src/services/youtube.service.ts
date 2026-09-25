@@ -43,6 +43,164 @@ async function fetchHtml(url: string, headers: Record<string, string> = {}): Pro
   }
 }
 
+// ── Official YouTube Data API v3 (optional, server-side only) ──
+//
+// The importer works without any key: it reads the public watch/playlist pages. When the operator
+// configures YOUTUBE_API_KEY in the *process environment*, the official API is used first because it
+// is contractual (it does not break when YouTube's markup changes), returns exact durations and
+// publish dates, and reports `status.embeddable` — the one thing scraping cannot tell us, while an
+// unembeddable video would produce a page that cannot play.
+//
+// The key never leaves the server: it is read from process.env here, never returned to the client,
+// never stored in the database and never written to documentation or logs (see redactKey()).
+const YOUTUBE_API_BASE = 'https://www.googleapis.com/youtube/v3';
+
+/** The configured Data API key, or an empty string. Read at call time so tests can flip it. */
+export function youtubeApiKey(): string {
+  return (process.env.YOUTUBE_API_KEY ?? '').trim();
+}
+
+export function youtubeApiConfigured(): boolean {
+  return youtubeApiKey().length > 0;
+}
+
+/** Remove the key from any text that could be logged, returned or stored. */
+function redactKey(text: string): string {
+  const key = youtubeApiKey();
+  return key ? text.split(key).join('[redacted]') : text;
+}
+
+/** How the last fetch got its metadata: the official API or the public pages. */
+export interface ProviderNotes {
+  source: 'api' | 'page';
+  warnings: string[];
+}
+
+async function apiGet(resource: string, params: Record<string, string>): Promise<any> {
+  const key = youtubeApiKey();
+  const query = new URLSearchParams({ ...params, key });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(`${YOUTUBE_API_BASE}/${resource}?${query.toString()}`, {
+      signal: controller.signal,
+      headers: { Accept: 'application/json', 'User-Agent': 'ilmNet/1.0 (youtube-import)' },
+    });
+    const body: any = await res.json().catch(() => null);
+    if (!res.ok) {
+      const reason = body?.error?.errors?.[0]?.reason ?? body?.error?.status ?? res.statusText;
+      throw new Error(`YouTube Data API ${res.status} on ${resource} (${reason})`);
+    }
+    return body;
+  } catch (e: any) {
+    // fetch/abort errors carry no key, but redact anyway: this message can end up in the UI.
+    throw new Error(redactKey(e?.message ? String(e.message) : 'YouTube Data API request failed'));
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** ISO-8601 duration (PT1H2M3S) → seconds. */
+function parseIsoDurationSeconds(iso: string): number | null {
+  const m = /^P(?:(\d+)D)?T?(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?$/.exec(iso.trim());
+  if (!m || (!m[1] && !m[2] && !m[3] && !m[4])) return null;
+  return Number(m[1] ?? 0) * 86400 + Number(m[2] ?? 0) * 3600 + Number(m[3] ?? 0) * 60 + Math.floor(Number(m[4] ?? 0));
+}
+
+function apiThumbnail(thumbnails: any, videoId?: string): string | undefined {
+  return (
+    thumbnails?.maxres?.url || thumbnails?.standard?.url || thumbnails?.high?.url ||
+    thumbnails?.medium?.url || thumbnails?.default?.url || (videoId ? youtubeThumbLink(videoId) : undefined)
+  );
+}
+
+/** Single video via the official API (null when the API has no such video). */
+async function fetchVideoMetadataFromApi(videoId: string): Promise<YouTubeDetectedItem | null> {
+  const body = await apiGet('videos', { part: 'snippet,contentDetails,status', id: videoId });
+  const video = body?.items?.[0];
+  if (!video) return null;
+  const snippet = video.snippet ?? {};
+  const seconds = video.contentDetails?.duration ? parseIsoDurationSeconds(video.contentDetails.duration) : null;
+  return {
+    identifier: videoId,
+    youtubeUrl: youtubeVideoLink(videoId),
+    embedUrl: youtubeEmbedLink(videoId),
+    title: String(snippet.title ?? videoId).slice(0, 300),
+    kind: 'video',
+    mediaTypes: ['YouTube Video'],
+    mediatype: 'video',
+    thumbnail: apiThumbnail(snippet.thumbnails, videoId),
+    creator: snippet.channelTitle,
+    channelId: snippet.channelId,
+    date: snippet.publishedAt ? String(snippet.publishedAt).slice(0, 10) : undefined,
+    year: snippet.publishedAt ? Number(String(snippet.publishedAt).slice(0, 4)) || undefined : undefined,
+    description: snippet.description ? String(snippet.description).slice(0, 900) : undefined,
+    duration: seconds !== null ? formatDurationFromSeconds(seconds) : undefined,
+    lengthSeconds: seconds ?? undefined,
+    publisher: snippet.channelTitle,
+    publishedAt: snippet.publishedAt ? String(snippet.publishedAt).slice(0, 10) : undefined,
+    embeddable: video.status?.embeddable !== false,
+    privacyStatus: video.status?.privacyStatus,
+  };
+}
+
+/** Playlist (title + items) via the official API, capped at MAX_ITEMS. */
+async function fetchPlaylistFromApi(
+  playlistId: string,
+): Promise<{ title: string; description?: string; channel?: string; videos: Array<{ videoId: string; title?: string; duration?: string; thumbnail?: string; creator?: string }> }> {
+  const meta = await apiGet('playlists', { part: 'snippet', id: playlistId });
+  const info = meta?.items?.[0];
+  if (!info) throw new Error(`YouTube Data API has no playlist ${playlistId}`);
+
+  const videos: Array<{ videoId: string; title?: string; duration?: string; thumbnail?: string; creator?: string }> = [];
+  let pageToken: string | undefined;
+  do {
+    const page = await apiGet('playlistItems', {
+      part: 'snippet,contentDetails',
+      playlistId,
+      maxResults: '50',
+      ...(pageToken ? { pageToken } : {}),
+    });
+    for (const entry of page?.items ?? []) {
+      const videoId = entry?.contentDetails?.videoId ?? entry?.snippet?.resourceId?.videoId;
+      if (!videoId) continue;
+      const snippet = entry.snippet ?? {};
+      videos.push({
+        videoId,
+        title: snippet.title,
+        thumbnail: apiThumbnail(snippet.thumbnails, videoId),
+        creator: snippet.videoOwnerChannelTitle ?? snippet.channelTitle,
+      });
+      if (videos.length >= MAX_ITEMS) break;
+    }
+    pageToken = page?.nextPageToken;
+  } while (pageToken && videos.length < MAX_ITEMS);
+
+  // exact durations, batched (the playlist endpoint does not return them)
+  const ids = videos.map((v) => v.videoId);
+  for (let i = 0; i < ids.length; i += 50) {
+    try {
+      const batch = await apiGet('videos', { part: 'contentDetails', id: ids.slice(i, i + 50).join(',') });
+      const durations = new Map<string, number | null>(
+        (batch?.items ?? []).map((v: any) => [v.id, v.contentDetails?.duration ? parseIsoDurationSeconds(v.contentDetails.duration) : null]),
+      );
+      for (const video of videos) {
+        const seconds = durations.get(video.videoId);
+        if (seconds !== null && seconds !== undefined) video.duration = formatDurationFromSeconds(seconds);
+      }
+    } catch {
+      // durations are a nice-to-have here; titles and ids already came through
+    }
+  }
+
+  return {
+    title: String(info.snippet?.title ?? playlistId).slice(0, 300),
+    description: info.snippet?.description ? String(info.snippet.description).slice(0, 900) : undefined,
+    channel: info.snippet?.channelTitle,
+    videos,
+  };
+}
+
 // ── URL parsing ──
 export interface ParsedYouTube {
   videoId: string | null;
@@ -181,6 +339,10 @@ export interface YouTubeDetectedItem {
   size?: string;
   publisher?: string; // channel name
   publishedAt?: string;
+  /** Official API extras (absent on the scraping path): playability for embedding + exact seconds. */
+  embeddable?: boolean;
+  privacyStatus?: string;
+  lengthSeconds?: number;
 }
 
 export interface YouTubePreview {
@@ -197,6 +359,10 @@ export interface YouTubePreview {
   kindsSummary: Record<string, number>;
   collectionTitle?: string;
   channelTitle?: string;
+  /** 'api' = official YouTube Data API (server-side key), 'page' = public watch/playlist pages. */
+  metadataSource?: 'api' | 'page';
+  /** Non-fatal findings the operator should read before saving (never contains the API key). */
+  warnings?: string[];
 }
 
 // ── Helpers to parse watch page ──
@@ -284,7 +450,25 @@ function parseWatchPage(html: string, videoId: string): { title: string; descrip
   };
 }
 
-async function fetchVideoMetadata(videoId: string): Promise<YouTubeDetectedItem | null> {
+async function fetchVideoMetadata(videoId: string, notes?: ProviderNotes): Promise<YouTubeDetectedItem | null> {
+  // Official Data API first when a server-side key is configured (falls back to the public pages).
+  if (youtubeApiConfigured()) {
+    try {
+      const item = await fetchVideoMetadataFromApi(videoId);
+      if (item) {
+        if (notes) notes.source = 'api';
+        if (item.embeddable === false) {
+          notes?.warnings.push(
+            `YouTube reports "${videoId}" as not embeddable — the public page would show a player that cannot play it.`,
+          );
+        }
+        return item;
+      }
+    } catch (e: any) {
+      notes?.warnings.push(`YouTube Data API unavailable for this video, falling back to the public page: ${e.message}`);
+    }
+  }
+
   // Try oEmbed first (fast)
   let oEmbedTitle: string | undefined;
   let oEmbedThumb: string | undefined;
@@ -345,7 +529,23 @@ async function fetchVideoMetadata(videoId: string): Promise<YouTubeDetectedItem 
   return null;
 }
 
-async function fetchPlaylistPage(playlistId: string): Promise<{ title: string; description?: string; channel?: string; videos: Array<{ videoId: string; title?: string; duration?: string; thumbnail?: string; creator?: string }> }> {
+async function fetchPlaylistPage(
+  playlistId: string,
+  notes?: ProviderNotes,
+): Promise<{ title: string; description?: string; channel?: string; videos: Array<{ videoId: string; title?: string; duration?: string; thumbnail?: string; creator?: string }> }> {
+  // Official Data API first when a server-side key is configured (falls back to the public pages).
+  if (youtubeApiConfigured()) {
+    try {
+      const playlist = await fetchPlaylistFromApi(playlistId);
+      if (playlist.videos.length) {
+        if (notes) notes.source = 'api';
+        return playlist;
+      }
+    } catch (e: any) {
+      notes?.warnings.push(`YouTube Data API unavailable for this playlist, falling back to the public page: ${e.message}`);
+    }
+  }
+
   const html = await fetchHtml(`https://www.youtube.com/playlist?list=${playlistId}`);
 
   // Playlist title & description from playlistMetadataRenderer
@@ -451,12 +651,15 @@ export async function previewYouTube(sourceUrl: string): Promise<YouTubePreview>
   const parsed = parseYouTubeUrl(sourceUrl);
   if (!parsed) throw new Error(`Cannot parse YouTube identifier from URL: ${sourceUrl}`);
 
+  // Which path actually delivered the metadata, plus anything the operator should know before saving.
+  const notes: ProviderNotes = { source: 'page', warnings: [] };
+
   if (parsed.isPlaylist && parsed.playlistId) {
     const playlistId = parsed.playlistId;
     // Fetch playlist page
     let playlistData: { title: string; description?: string; channel?: string; videos: Array<{ videoId: string; title?: string; duration?: string; thumbnail?: string; creator?: string }> };
     try {
-      playlistData = await fetchPlaylistPage(playlistId);
+      playlistData = await fetchPlaylistPage(playlistId, notes);
     } catch (e: any) {
       throw new Error(`YouTube playlist not found or unavailable: ${playlistId} (${e.message})`);
     }
@@ -503,10 +706,12 @@ export async function previewYouTube(sourceUrl: string): Promise<YouTubePreview>
       kindsSummary,
       collectionTitle: playlistData.title,
       channelTitle: playlistData.channel,
+      metadataSource: notes.source,
+      warnings: notes.warnings,
     };
   } else if (parsed.videoId) {
     const videoId = parsed.videoId;
-    const item = await fetchVideoMetadata(videoId);
+    const item = await fetchVideoMetadata(videoId, notes);
     if (!item) throw new Error(`YouTube video not found: ${videoId} (from ${sourceUrl})`);
 
     return {
@@ -522,6 +727,8 @@ export async function previewYouTube(sourceUrl: string): Promise<YouTubePreview>
       provider: 'youtube',
       kindsSummary: { video: 1 },
       collectionTitle: undefined,
+      metadataSource: notes.source,
+      warnings: notes.warnings,
     };
   } else {
     throw new Error(`Cannot parse YouTube identifier from URL: ${sourceUrl}`);

@@ -20,6 +20,7 @@ een persistent uploads-volume en de volledige testset (server-suites + browser-e
 | `CORS_ORIGIN` | ja | Exacte browser-origin(s) die de API mogen aanroepen, kommagescheiden. `*` is verboden in prod |
 | `HOST` / `PORT` | nee | Default `0.0.0.0` / `3001` |
 | `UPLOADS_DIR` | sterk aanbevolen | Map voor custom thumbnails/covers — **op een persistent volume** |
+| `YOUTUBE_API_KEY` | optioneel | **Alleen server-side.** Zet hem in de procesomgeving om de officiële YouTube Data API v3 te gebruiken voor de import (exacte duur/datum + `status.embeddable`); zonder key leest ilmNet de publieke YouTube-pagina's. Nooit in `VITE_*`, de database of de frontend |
 | `SERVE_FRONTEND` | nee | `true` (default) laat de API de build uit `FRONTEND_DIR` serveren; `false` = API only |
 | `FRONTEND_DIR` | nee | Locatie van de frontend-build; default `<repo>/dist` |
 | `ADMIN_ALLOW_LOCALHOST` | nee | Alleen dev: `false` dwingt het token ook op localhost af |
@@ -177,6 +178,8 @@ geschreven, dus draai geen `migrate reset` op productie.
 | `CORS_ORIGIN="*" is not allowed in production` | Zet de exacte publieke origin(s) in `CORS_ORIGIN`. |
 | `P1012` / `Environment variable not found: DATABASE_URL` | `DATABASE_URL` ontbreekt of is leeg in de procesomgeving. |
 | Admin geeft 401 | Verkeerd/ontbrekend token: opnieuw instellen via **Admin → Token**. |
+| YouTube-import werkt, maar zonder exacte duur/embeddable-status | Geen `YOUTUBE_API_KEY` in de serveromgeving: ilmNet leest dan de publieke pagina's. Zet de key in de procesomgeving voor de officiële Data API (server-side, nooit in een `VITE_*`-variabele) |
+| YouTube-import meldt "Data API unavailable … falling back" | Key ongeldig, quotum op of Google onbereikbaar; de import gaat verder via de publieke pagina's. De melding bevat nooit de key zelf |
 | Thumbnails 404, boot-waarschuwing over ontbrekende uploads | `UPLOADS_DIR` staat niet op een persistent volume, of het volume is niet gemount. |
 | Diepe link geeft 404 | Reverse proxy onderschept de route; stuur alles naar de Node-service of zet `SERVE_FRONTEND=true`. |
 | Archive-import faalt met `ARCHIVE_FETCH_FAILED` | Tijdelijke rate-limit bij archive.org — opnieuw proberen. |

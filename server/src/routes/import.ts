@@ -132,6 +132,10 @@ export async function importRoutes(app: FastifyInstance) {
         isSingleItem: preview.isSingleItem,
         provider: preview.provider,
         kindsSummary: preview.kindsSummary,
+        // How the metadata was fetched ('api' = official Data API via the server-side key,
+        // 'page' = public YouTube pages) plus non-fatal findings for the operator.
+        metadataSource: preview.metadataSource,
+        warnings: preview.warnings,
       };
     } catch (e: any) {
       app.log.error(e);

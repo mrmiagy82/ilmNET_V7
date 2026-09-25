@@ -5,7 +5,7 @@ Update it after every finished phase, commit, sanity check or significant discov
 Rules: only facts that are verifiable from the repository, Git history or existing docs — and
 **never** secrets, tokens or credentials.
 
-_Last updated: Fase 4.2 (admin CMS cleanup)._
+_Last updated: Fase 4.3 (YouTube playback & import)._
 
 ---
 
@@ -14,13 +14,13 @@ _Last updated: Fase 4.2 (admin CMS cleanup)._
 | | |
 | --- | --- |
 | Branch | `master` |
-| Codebase state described here | `5805520` (Fase 4.1 admin authentication) **plus** the Fase 4.2 cleanup in §7d — this document ships in the Fase 4.2 commit |
-| This document | updated in Fase 4.2; its own revision is visible with `git log -1 -- docs/CONTEXT.md` |
+| Codebase state described here | `07ea4a9` (Fase 4.2 admin CMS cleanup) **plus** the Fase 4.3 YouTube changes in §7e — this document ships in the Fase 4.3 commit |
+| This document | updated in Fase 4.3; its own revision is visible with `git log -1 -- docs/CONTEXT.md` |
 | Working tree | clean (verified against `origin/master`) |
 | Repository | `github.com/mrmiagy82/ilmNET_V7` |
 | Size | 66 source files, ~14.9k lines in `src/` + `server/src/`; the admin (`src/admin/`, 20 files, ~6.6k lines) is the largest area |
 | Build (git-ignored artefact) | single-file `dist/index.html` (~642 kB, ~160.5 kB gzip) |
-| Phase state | Fase 4.2 complete: the admin CMS keeps its Fase 4 functionality behind the Fase 4.1 login; leftover CMS product references and unused admin helpers are gone and fixed website copy lives in the React code |
+| Phase state | Fase 4.3 complete: YouTube import verified end-to-end (works keyless, optional official Data API), public playback proven to stream from the YouTube CDN in a real browser |
 | Open blockers | none |
 
 ## 2. Completed phases (from Git history)
@@ -39,7 +39,8 @@ _Last updated: Fase 4.2 (admin CMS cleanup)._
 | `2f16540` | Fase 3.10 | project context + agent continuity (`AGENTS.md`, this file) |
 | `45fc54a` | Fase 4 | admin CMS: archived status, real totals, honest admin states (see §7) |
 | `5805520` | Fase 4.1 | admin authentication: real login gate on the existing `ADMIN_TOKEN` (see §7c) |
-| _this commit_ | Fase 4.2 | admin CMS cleanup: no CMS naming, no unused admin helpers — functionality unchanged (see §7d) |
+| `07ea4a9` | Fase 4.2 | admin CMS cleanup: no CMS naming, no unused admin helpers — functionality unchanged (see §7d) |
+| _this commit_ | Fase 4.3 | YouTube: optional official Data API for the import, verified public playback (see §7e) |
 
 Earlier work is documented per topic in `docs/FASE2A_ARCHIVE.md`, `docs/FASE2B_YOUTUBE.md`,
 `docs/FASE2C_PUBLIC_FRONTEND.md`, `docs/FASE2D_SEARCH_FILTERING.md`,
@@ -83,6 +84,13 @@ public pages never call admin endpoints.
 source URL (YouTube video/playlist, Archive.org item, Google Books front cover); the frontend never
 re-hosts media. Downloads are offered only when a real file URL can be constructed
 (`src/lib/series.ts`), otherwise the UI links to the source page.
+
+**YouTube.** Import and playback are fully server-side and keyless by default: the importer reads the
+public watch/playlist pages, the public pages embed `https://www.youtube.com/embed/<videoId>` in an
+iframe (no CSP or framing headers block it). With `YOUTUBE_API_KEY` in the server's process
+environment the importer prefers the official Data API v3 and can report `status.embeddable`; without
+a key — or when the API rejects it — it falls back to the public pages and says so in the preview.
+The key is server-side only: never `VITE_*`, never in the database, the bundle or a document.
 
 **Single-file build.** `vite-plugin-singlefile` inlines everything into one `index.html`. Consequence:
 **code splitting / lazy admin routes are pointless** — this was measured (Fase 3.9: 637 kB → 643 kB,
@@ -148,6 +156,9 @@ empty states, errors) live in the React components — there is no content layer
 7. `/admin` mounts no CMS code before the API has verified the token (Fase 4.1); a refresh re-verifies,
    a tampered or expired session falls back to the login screen, and the token never appears in the URL
    or in `localStorage`.
+8. `YOUTUBE_API_KEY`, when used, lives in the **server** process environment only. It is never sent to
+   the browser, stored in the database, committed, documented with a value, or repeated in an error
+   message (Fase 4.3 redacts it; the importer keeps working without it).
 
 ## 6. Testing
 
@@ -155,9 +166,9 @@ empty states, errors) live in the React components — there is no content layer
 | --- | --- | --- |
 | `npx tsc --noEmit` (root + `server/`) | types | 0 errors |
 | `npm run build` (root) | single-file production build | ~642 kB / ~160.5 kB gzip |
-| `cd server && npm run test:all` | audit, uploads (25), production readiness (44), env hardening (13), youtube | all green |
+| `cd server && npm run test:all` | audit, uploads (25), production readiness (44), env hardening (13), youtube (+ Data API fallback) | all green |
 | `cd server && npm run test:imports` | live Archive.org + YouTube import regression | 19/19 |
-| `npm run test:e2e:production` | routes, embeds, error states, mobile, admin entry (login gate) | 64/64 |
+| `npm run test:e2e:production` | routes, embeds, **real YouTube playback**, error states, mobile, admin entry (login gate) | 67/67 |
 | `npm run test:e2e` | waveform, thumbnails, admin upload flow | 27/27 |
 | `npm run test:e2e:cms` | admin CMS: real totals, draft→published→archived→restored, collection round-trip, 401 honesty | 28/28 |
 | `npm run test:e2e:auth` | Fase 4.1 gate: login required, wrong token, deep link, refresh, tampered session, sign-out, public site stays free | 42/42 |
@@ -266,6 +277,35 @@ records, 8 scholars, 11 subjects): `npx tsc --noEmit` clean in `./` and `./serve
 the historical phase docs), the public routes render without login and every `/admin` route still
 sits behind the Fase 4.1 login.
 
+## 7e. What Fase 4.3 (YouTube playback & import) changed
+
+Investigated first, changed second — the YouTube path was already close to production-ready.
+
+- **How the import worked (and still works):** entirely server-side with no key. A single video comes
+  from oEmbed plus `ytInitialPlayerResponse` on the watch page; a playlist from the playlist page
+  (`lockupViewModel`) capped at 100 items, 7 s timeout per request. Failures are honest errors — never
+  invented items. Verified live: preview + confirm of single videos and playlists.
+- **Where the official API belongs:** nowhere is mandatory, but `YOUTUBE_API_KEY` (optional,
+  **process environment of the server only**) now makes the importer use the YouTube Data API v3 first:
+  `videos.list` (snippet, contentDetails, status) and `playlistItems.list` + batched `videos.list` for
+  exact durations. It adds `status.embeddable`, which scraping cannot know — an unembeddable video
+  would otherwise become a page whose player cannot play it (reported as a warning in the preview).
+  A rejected key, exhausted quota or an unreachable Google falls back to the public pages and says so;
+  the key never appears in a payload, warning, log line, the database or the frontend.
+- **How ids are stored:** `externalIdentifier` = the 11-character videoId, `sourceUrl` = the watch URL,
+  `embedUrl` = `https://www.youtube.com/embed/<videoId>` (server-built in `buildEmbedUrl`), playlist
+  items share `collectionIdentifier` = the playlist id with `collectionTitle`. No schema change.
+- **How the public player works:** `src/pages/ContentDetail.tsx` renders `embedUrl` in an iframe
+  (16:9, `allowFullScreen`, no cookie/consent wall in our code) and keeps an “Open original” link; the
+  API sets no framing headers and no CSP, so the frame is never blocked. Collection pages list the
+  items, each playing its own embed.
+- **Playback proven in production:** against the built production server, the embed boots
+  (`#movie_player` + `video`), playback starts and advances (`currentTime` > 0, player state 1) while
+  real `googlevideo.com/videoplayback` requests are made. `test:e2e:production` now asserts all three,
+  so a broken player fails the suite. Headless Chromium cannot deliver a trusted click into a
+  cross-origin frame, so the test starts playback through the player API — the same player a visitor's
+  click drives.
+
 ## 8. Known remaining issues (not blockers)
 
 From `docs/FASE3_9_CODEBASE_REVIEW.md` § Restrisico's plus the 3.9.1 report:
@@ -295,11 +335,12 @@ From `docs/FASE3_9_CODEBASE_REVIEW.md` § Restrisico's plus the 3.9.1 report:
 
 ## 9. Next step
 
-No open blockers: Fase 4.2 removed the leftover naming and dead admin helpers without touching
-behaviour (§7d), Fase 4.1 put the admin CMS behind a real login on the existing `ADMIN_TOKEN` (§7c),
-Fase 4 closed the gaps between the admin and the database (§7), and every suite is green. The next step
-is a **new user instruction**; the items in §8 are the documented candidates if the goal is scale,
-hardening or a cleanup. Before starting: `git status`, `git log --oneline -3`, and re-read this file.
+No open blockers: Fase 4.3 verified YouTube import and public playback and made the official Data API
+available without making the importer depend on it (§7e), Fase 4.2 removed the leftover naming and dead
+admin helpers without touching behaviour (§7d), Fase 4.1 put the admin CMS behind a real login on the
+existing `ADMIN_TOKEN` (§7c), and every suite is green. The next step is a **new user instruction**; the
+items in §8 are the documented candidates if the goal is scale, hardening or a cleanup. Before starting:
+`git status`, `git log --oneline -3`, and re-read this file.
 
 ## 10. How to keep this file accurate
 
