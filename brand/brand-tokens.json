@@ -1,0 +1,24 @@
+{
+  "brand": {
+    "name": "IlmNet",
+    "logoConcept": "Concept 04 \u2014 Minimal Modern",
+    "colors": {
+      "background": "#F3EBDD",
+      "surface": "#FFFFFF",
+      "primary": "#1F2933",
+      "sage": "#A2AB73",
+      "clayPink": "#CC3A63"
+    },
+    "wordmark": {
+      "ilm": "#1F2933",
+      "net": "#CC3A63"
+    }
+  },
+  "usage": {
+    "primaryLogo": "/brand/logo/ilmnet-logo-primary-light.png",
+    "horizontalLogo": "/brand/logo/ilmnet-logo-horizontal.png",
+    "stackedLogo": "/brand/logo/ilmnet-logo-stacked.png",
+    "icon": "/brand/icon/ilmnet-icon.png",
+    "favicon": "/brand/favicon/favicon-32.png"
+  }
+}

@@ -1,0 +1,20 @@
+:root {
+  --ilmnet-bg: #F3EBDD;
+  --ilmnet-surface: #FFFFFF;
+  --ilmnet-primary: #1F2933;
+  --ilmnet-sage: #A2AB73;
+  --ilmnet-clay: #CC3A63;
+  --ilmnet-text: #1F2933;
+  --ilmnet-text-muted: #5F6870;
+}
+
+.ilmnet-logo {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.ilmnet-logo--primary { width: 280px; }
+.ilmnet-logo--horizontal { width: 280px; }
+.ilmnet-logo--stacked { width: 180px; }
+.ilmnet-icon { width: 64px; height: 64px; }
