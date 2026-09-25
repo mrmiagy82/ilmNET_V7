@@ -83,6 +83,11 @@ npm run test:e2e              # player/waveform, thumbnails, admin upload flow
 
 ## Production
 
+Health for orchestrators: `GET /api/health` is the deep check (database **and** upload storage,
+503 when either is unusable) and `GET /api/ready` is the cheap readiness probe a load balancer should
+use. Deployment hardening — proxy trust, `X-Forwarded-*`, TLS/HSTS, the no-public-port compose setup —
+is described in [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) §5b/§5c.
+
 Operational scripts live in [`ops/`](ops/README.md): `backup.sh` (database dump + uploads archive +
 manifest), `restore.sh` (explicit target, refuses destructive guesses) and `restore-drill.sh` (proves a
 backup set restores into a throwaway database). A nightly systemd timer is included. Backups and their

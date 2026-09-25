@@ -23,6 +23,9 @@ een persistent uploads-volume en de volledige testset (server-suites + browser-e
 | `YOUTUBE_API_KEY` | optioneel | **Alleen server-side.** Zet hem in de procesomgeving om de officiële YouTube Data API v3 te gebruiken voor de import (exacte duur/datum + `status.embeddable`); zonder key leest ilmNet de publieke YouTube-pagina's. Nooit in `VITE_*`, de database of de frontend |
 | `SERVE_FRONTEND` | nee | `true` (default) laat de API de build uit `FRONTEND_DIR` serveren; `false` = API only |
 | `FRONTEND_DIR` | nee | Locatie van de frontend-build; default `<repo>/dist` |
+| `TRUST_PROXY` | nee | **Wie mag `X-Forwarded-*` zetten?** Default leeg/`false`: niets wordt vertrouwd (het socket-adres is de client). Waarden: `true` (alleen als de API nergens anders bereikbaar is) of een kommagescheiden lijst IPs/CIDR's, bv. `127.0.0.1` of `10.0.0.0/8`. Een hop-count (`2`) wordt geweigerd — zie §5c |
+| `PUBLIC_ORIGIN` | sterk aanbevolen | Canonieke origin, bv. `https://ilmnet.example`. Bepaalt het doel van de HTTP→HTTPS-redirect en de HSTS-beslissing; als hij gezet is, komt het redirect-doel **nooit** uit het request |
+| `ALLOWED_HOSTS` | nee | Extra hostnamen die als redirect-doel mogen gelden (kommagescheiden). Zelden nodig; `PUBLIC_ORIGIN` en `CORS_ORIGIN` zijn meestal genoeg |
 | `HSTS_MAX_AGE` | nee | HSTS-max-age in seconden (default 31536000 = 1 jaar). De header gaat **alleen** mee op requests die echt via HTTPS binnenkomen. `0` schakelt HSTS uit |
 | `FORCE_HTTPS` | nee | `true` (alleen productie): elk http-request krijgt een **308** naar https. Alleen aanzetten als de proxy `x-forwarded-proto` doorgeeft — zie §5b |
 | `ADMIN_ALLOW_LOCALHOST` | nee | Alleen dev: `false` dwingt het token ook op localhost af |
@@ -89,7 +92,8 @@ Draai dit onder een process manager of systemd, met de env-vars uit §1. Voorbee
 # /etc/systemd/system/ilmnet.service
 [Service]
 WorkingDirectory=/srv/ilmnet/server
-EnvironmentFile=/etc/ilmnet/ilmnet.env      # bevat o.a. DATABASE_URL, ADMIN_TOKEN, CORS_ORIGIN
+EnvironmentFile=/etc/ilmnet/ilmnet.env      # DATABASE_URL, ADMIN_TOKEN, CORS_ORIGIN, PUBLIC_ORIGIN,
+                                          # TRUST_PROXY, UPLOADS_DIR (nooit een .env in de appmap)
 ExecStart=/usr/bin/node dist/server.js
 Restart=always
 Environment=NODE_ENV=production
@@ -119,9 +123,13 @@ Wat de artifacts al regelen:
 - `server/Dockerfile` — multi-stage `node:20-alpine`, non-root (`USER node`), healthcheck op
   `/api/health`, start met `npx prisma migrate deploy && node dist/server.js`, mountpoint
   `/app/uploads`.
-- `server/docker-compose.yml` — Postgres 17 met healthcheck, `ADMIN_TOKEN` verplicht (`:?`),
-  `CORS_ORIGIN` expliciet, `UPLOADS_DIR=/app/uploads` op volume `uploads_data`, en de
-  frontend-build read-only op `/app/frontend` (`../dist` uit de repo).
+- `server/docker-compose.yml` — Postgres 17 met healthcheck, `ADMIN_TOKEN` én `POSTGRES_PASSWORD`
+  verplicht (`:?`, geen default meer), `CORS_ORIGIN` expliciet, `UPLOADS_DIR=/app/uploads` op volume
+  `uploads_data`, en de frontend-build read-only op `/app/frontend` (`../dist` uit de repo).
+  **Netwerk (Fase 5.2):** Postgres publiceert geen poort meer (`expose` op het composnetwerk) en de
+  API staat op `127.0.0.1:3001` — alleen een proxy op de host kan erbij. `TRUST_PROXY` staat in dit
+  bestand standaard op `false`; zet het op de proxy of op `true` als poort 3001 nergens anders
+  bereikbaar is (§5c).
 - `server/.dockerignore` — houdt `.env`, `uploads/`, `node_modules/`, `dist/` en tests buiten de
   image, zodat er geen secrets of lokale state meebakken.
 
@@ -169,6 +177,7 @@ npm run admin:enable  -- --username admin
 
 ```bash
 curl -s https://ilmnet.example/api/health   # status ok, database up, storage.writable true, adminProtection true
+curl -s https://ilmnet.example/api/ready    # status ready + database up (goedkope probe voor een load balancer)
 ```
 
 - `/` en diepe links (`/lectures`, `/books`, `/series/<id>`, `/lectures/<slug>`) geven 200 en
@@ -176,6 +185,10 @@ curl -s https://ilmnet.example/api/health   # status ok, database up, storage.wr
 - Admin: `/admin` vraagt om gebruikersnaam + wachtwoord; na inloggen verschijnen drafts, imports en uploads (het dashboard toont de echte totalen).
 - Upload-test: voeg in het CMS een thumbnail toe, herlaad de pagina — het bestand moet daarna nog
   steeds geserveerd worden (bewijs dat `UPLOADS_DIR` op een volume staat).
+- **Netwerk:** `ss -ltnp` (of `docker compose ps`) toont géén Postgres-poort op een publiek
+  interface, en de API-poort alleen op loopback/het interne netwerk. Zie §5c voor de proxy-instelling.
+- **Proxy:** het opstartlog zegt welke proxy's vertrouwd zijn; een mislukte login logt het echte
+  client-IP (niet het proxy-adres).
 - Bij het starten logt de server de storage-audit, bv.
   `Upload storage ready at /var/lib/ilmnet/uploads — 3 referenced file(s), 0 unused on disk`.
   Staat er `Missing upload file(s) referenced by the database: …`, dan is het volume niet gemount.
@@ -223,6 +236,97 @@ curl -s https://<domein>/api/health        # status ok, database up, storage.wri
 In de browser: DevTools → Network → filter `embed/` → het YouTube-request moet een `Referer` hebben.
 Ontbreekt die, dan onderdrukt een laag de `Referrer-Policy` en breekt de speler (zie §7e in
 `docs/CONTEXT.md`).
+
+---
+
+## 5c. Reverse proxy, forwarded headers en client-IP (Fase 5.2)
+
+De API draait achter een reverse proxy die TLS termineert. Alles wat de proxy doorgeeft is **invoer
+van buiten** en wordt daarom alleen gebruikt als je zegt welke proxy vertrouwd mag worden.
+
+### De drie headers en waarom ze uitmaken
+
+| Header | Waarvoor de app hem gebruikt | Risico zonder begrenzing |
+| --- | --- | --- |
+| `X-Forwarded-For` | het client-IP: de login-throttle (5 per gebruiker+IP), `AdminSession.ip` en de logs | Een client kiest zelf een IP → throttle per IP te omzeilen en sessies/logs vervuilen |
+| `X-Forwarded-Proto` | `req.protocol` → of HSTS meegaat en of een request als HTTPS geldt | Een client claimt HTTPS op een http-verbinding → de app stuurt HSTS over onversleuteld verkeer |
+| `X-Forwarded-Host` | het doel van de HTTP→HTTPS-redirect | Open redirect: een aanvaller bepaalt naar welke host een bezoeker wordt gestuurd |
+
+Daarom: **`trustProxy` staat standaard uit** (tot Fase 5.2 stond hij hard op `true`, wat betekende dat
+élke client deze drie headers mocht zetten).
+
+### Instellen
+
+```bash
+# Aanbevolen: precies de proxy (of het proxy-netwerk) vertrouwen
+TRUST_PROXY=127.0.0.1            # proxy op dezelfde host
+TRUST_PROXY=10.0.0.0/8           # proxy in een privaat netwerk
+TRUST_PROXY=127.0.0.1,10.0.0.0/8 # meerdere
+
+# Alleen als de API uitsluitend via de proxy bereikbaar is (poort niet gepubliceerd, bind op
+# 127.0.0.1 of alleen op het interne netwerk):
+TRUST_PROXY=true
+```
+
+- **Geen hop-count** (`TRUST_PROXY=2`): die vertrouwt stil de verkeerde hop zodra de topologie
+  verandert. De server weigert zo'n waarde bij het starten.
+- Zonder `TRUST_PROXY` is `req.ip` het adres van de proxy zelf. Dat is niet gevaarlijk, maar betekent
+  dat de login-throttle alle beheerders als één bezoeker ziet (de brede limiet is 20 mislukte
+  pogingen per IP per 15 minuten) en dat `AdminSession.ip` het proxy-adres vastlegt. De server zegt
+  dit expliciet in het opstartlog.
+- `FORCE_HTTPS=true` zonder vertrouwde proxy wordt **geweigerd bij het starten**: de app ziet dan
+  altijd `http` en zou elke request naar zichzelf verwijzen. Hetzelfde geldt voor `FORCE_HTTPS=true`
+  zonder enig toegestaan redirect-doel (`PUBLIC_ORIGIN` of een host in `CORS_ORIGIN`/`ALLOWED_HOSTS`).
+
+### De proxy zelf
+
+```nginx
+# nginx — TLS termineren, forwards doorgeven, http → https
+server {
+    listen 443 ssl;
+    server_name ilmnet.example;
+    # ssl_certificate …  (certificaat via je eigen route: certbot, platform, …)
+
+    location / {
+        proxy_pass         http://127.0.0.1:3001;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+        proxy_set_header   X-Forwarded-Host  $host;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_read_timeout 60s;      # import-previews van archive.org/YouTube kunnen even duren
+        client_max_body_size 6m;     # uploads zijn max 5 MB
+    }
+}
+server {
+    listen 80;
+    server_name ilmnet.example;
+    return 308 https://$host$request_uri;   # of laat de app dit doen met FORCE_HTTPS=true
+}
+```
+
+`X-Forwarded-For` moet door de proxy **gezet** worden (niet doorgegeven wat de client stuurde):
+`$proxy_add_x_forwarded_for` voegt het echte adres toe. Zet bij Cloudflare/CDN bovendien dat de
+`Referrer-Policy`-responsheader niet wordt overschreven (anders breekt de YouTube-speler, §7e van
+`docs/CONTEXT.md`).
+
+### Controleren
+
+```bash
+# 1. De app moet de proxy vertrouwen: in het opstartlog
+#      Proxy trust: TRUST_PROXY trusted proxies: 127.0.0.1
+#    of, als het uit staat én je zit in productie:
+#      Client IP source: the socket address. Behind a reverse proxy every request therefore looks …
+journalctl -u ilmnet -n 30 --no-pager | grep -E "Proxy trust|Client IP source"
+
+# 2. Doorvoer van het echte client-IP: doe een mislukte login en kijk welk IP gelogd wordt
+#    (het moet jouw adres zijn, niet 127.0.0.1 van de proxy)
+journalctl -u ilmnet -n 5 --no-pager | grep -i "sign-in rejected"
+
+# 3. HSTS alleen op https, en het redirect-doel klopt
+curl -sI https://ilmnet.example/api/health | grep -i strict-transport-security
+curl -sI http://ilmnet.example/ | head -1        # 308 (of 301) — nooit naar een vreemde host
+```
 
 ---
 
@@ -356,11 +460,24 @@ config en het TLS-certificaat. Noteer die apart, zodat een herstel op een nieuwe
 | `pg_dump: error: invalid URI query parameter: "schema"` | Alleen als je `pg_dump` handmatig met de Prisma-URL aanroept. `ops/backup.sh` filtert Prisma-parameters (`schema`, `connection_limit`, …) er zelf uit; doe dat handmatig ook, of laat `?schema=public` weg |
 | Na het terugzetten zijn thumbnails 404 | De uploads zijn niet (of in een andere map) teruggezet: controleer `UPLOADS_DIR` en de bootregel `Upload storage ready …` resp. `Missing upload file(s) …` |
 | `drill FAILED` bij een rij-aantal | De set is incompleet of hoort bij een andere database. Maak een nieuwe back-up en herhaal de drill; zet niets terug voordat de drill slaagt |
+| `FORCE_HTTPS=true requires TRUST_PROXY` bij het starten | De app ziet zonder vertrouwde proxy alleen `http` en zou oneindig naar zichzelf redirecten. Zet `TRUST_PROXY` op het proxy-adres/CIDR, of laat de redirect aan de proxy (§5c) |
+| `FORCE_HTTPS=true needs a redirect target` bij het starten | Zet `PUBLIC_ORIGIN=https://<domein>` (aanbevolen) of zorg dat `CORS_ORIGIN`/`ALLOWED_HOSTS` de publieke host bevatten |
+| `TRUST_PROXY="2" looks like a hop count` | Gebruik een expliciet adres of CIDR in plaats van een aantal hops (§5c) |
+| Bezoekers worden naar een onverwachte host geredirect | Het log toont `Refused to redirect to a host that is not on the allowlist — using the canonical origin`. Zet `PUBLIC_ORIGIN` op het echte domein; dan kan het request het doel niet meer beïnvloeden |
+| Login-throttle grijpt te snel aan (alle beheerders lijken één IP) | `TRUST_PROXY` staat uit of is fout: de app ziet het proxy-adres als client. Zet het op het adres/CIDR van de proxy (§5c) en controleer met een mislukte login welk IP gelogd wordt |
 
 ---
 
 ## 8. Health check (voor orchestrators)
 
-`GET /api/health` → **200** met `{ status, env, database, storage: { dir, persistent, writable, files, bytes }, adminProtection }`;
-**503** zodra de database of de uploadopslag onbruikbaar is. Dit endpoint zit ook in de
-`HEALTHCHECK` van de Dockerfile.
+Twee endpoints, met een bewust verschillend doel (Fase 5.2):
+
+| Endpoint | Wat het checkt | Antwoord | Gebruik |
+| --- | --- | --- | --- |
+| `GET /api/health` (alias `/api/v1/health`) | service + database + uploadopslag | **200** met `{ status, env, database, storage: { dir, persistent, writable, files, bytes }, adminProtection }` · **503** als de database onbereikbaar is of het uploadvolume niet schrijfbaar | de `HEALTHCHECK` van de Dockerfile en de handmatige verificatie: zegt of het **hele** deployment bruikbaar is |
+| `GET /api/ready` (alias `/api/v1/ready`) | alleen de database-ping | **200** met `{ status: "ready", database: "up" }` · **503** met `status: "not_ready"` | readiness-probe van een load balancer/orchestrator: goedkoop, geen bestandsstatistieken |
+
+Beide zijn publiek (geen admin-referenties), read-only en uitgezonderd van de `FORCE_HTTPS`-redirect,
+zodat een probe op de app-socket over http blijft werken. Een **liveness**-probe hoort niet naar deze
+endpoints te kijken als de database erbij hoort: gebruik `/api/ready` voor "mag er verkeer naartoe" en
+herstart een container alleen op basis van `/api/health`-fouten die niet de database betreffen.

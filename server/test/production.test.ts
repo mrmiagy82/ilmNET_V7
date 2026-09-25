@@ -9,7 +9,9 @@
  *  4. uploads: path traversal blocked, only image files, size/type limits enforced
  *  5. storage: UPLOADS_DIR override, health reports storage + admin protection
  *  6. deploy: fail-fast without ADMIN_TOKEN in production, frontend build served when present
- *  7. TLS readiness (Fase 5.1): HSTS only over HTTPS, optional FORCE_HTTPS redirect
+ *  7. TLS readiness (Fase 5.1) and proxy trust (Fase 5.2): HSTS only over HTTPS, forwarded
+ *     headers only from a configured proxy, redirect target never taken from the request,
+ *     readiness probe
  */
 import fs from 'fs';
 import path from 'path';
@@ -18,6 +20,7 @@ import Fastify from 'fastify';
 import { buildApp } from '../src/server';
 import { prisma } from '../src/lib/prisma';
 import { getUploadsDir, listUploadFiles, uploadsHealth } from '../src/lib/storage';
+import { trustProxyIsEnabled, trustProxySetting } from '../src/lib/proxy';
 
 // Fase 3.8.1: production refuses development/placeholder tokens, so the suite uses a
 // production-grade value (a real deployment provides its own via the process environment).
@@ -71,6 +74,12 @@ async function noBody(method: string, url: string, token?: string): Promise<{ st
   });
   const json = await res.json().catch(() => ({}));
   return { status: res.status, json };
+}
+
+/** Restore an env var exactly: `process.env.X = undefined` would store the string "undefined". */
+function restoreEnv(key: string, value: string | undefined): void {
+  if (value === undefined) delete process.env[key];
+  else process.env[key] = value;
 }
 
 async function main() {
@@ -316,72 +325,249 @@ async function main() {
     check(secHeaders.headers.get('x-content-type-options') === 'nosniff', 'API responses set X-Content-Type-Options: nosniff');
     check(Boolean(secHeaders.headers.get('referrer-policy')), 'API responses set a referrer policy');
 
-    console.log('\n--- 6b. TLS / HTTPS readiness (Fase 5.1) ---');
-    // A request that arrives over HTTPS (directly or through a TLS-terminating proxy that sets
-    // x-forwarded-proto) carries HSTS; a plain-HTTP request must not.
-    const secureReq = await fetch(`${base}/api/health`, {
+    console.log('\n--- 6b. TLS / HTTPS readiness + proxy trust (Fase 5.1 / 5.2) ---');
+  // (1) Default: trust nothing. A client cannot claim to speak HTTPS.
+  {
+    const saved = process.env.TRUST_PROXY;
+    delete process.env.TRUST_PROXY;
+    const plainApp = await buildApp();
+    const plainBase = await plainApp.listen({ port: 0, host: '127.0.0.1' });
+    try {
+      check(
+        trustProxyIsEnabled() === false,
+        `TRUST_PROXY unset means nothing is trusted (${JSON.stringify(trustProxySetting())})`,
+      );
+      const spoofedProto = await fetch(`${plainBase}/api/health`, {
+        headers: { host: 'ilmnet.example', 'x-forwarded-proto': 'https' },
+      });
+      check(
+        spoofedProto.headers.get('strict-transport-security') === null,
+        'x-forwarded-proto is ignored while TRUST_PROXY is unset (no HSTS from a spoofed header)',
+      );
+      const spoofedFor = await fetch(`${plainBase}/api/health`, {
+        headers: { host: 'ilmnet.example', 'x-forwarded-for': '203.0.113.9' },
+      });
+      check(spoofedFor.status === 200, 'a spoofed x-forwarded-for does not break the request');
+    } finally {
+      await plainApp.close();
+      restoreEnv('TRUST_PROXY', saved);
+    }
+  }
+
+  // (2) Behind a trusted proxy: HSTS exactly on requests that arrive over HTTPS.
+  const savedTrustProxy = process.env.TRUST_PROXY;
+  process.env.TRUST_PROXY = 'true';
+  const tlsApp = await buildApp();
+  const tlsBase = await tlsApp.listen({ port: 0, host: '127.0.0.1' });
+  try {
+    const secureReq = await fetch(`${tlsBase}/api/health`, {
       headers: { host: 'ilmnet.example', 'x-forwarded-proto': 'https' },
     });
     const hsts = secureReq.headers.get('strict-transport-security') ?? '';
-    check(hsts.includes('max-age='), `https request carries HSTS (${hsts || 'missing'})`);
+    check(hsts.includes('max-age='), `https request through a trusted proxy carries HSTS (${hsts || 'missing'})`);
     check(!/includeSubDomains/i.test(hsts), 'HSTS does not claim includeSubDomains before the subdomains are ready');
     check(
       secureReq.headers.get('referrer-policy') === 'strict-origin-when-cross-origin',
       'referrer policy stays the YouTube-compatible value (Fase 4.3.1)',
     );
 
-    const plainReq = await fetch(`${base}/api/health`, { headers: { host: 'ilmnet.example' } });
+    const plainReq = await fetch(`${tlsBase}/api/health`, { headers: { host: 'ilmnet.example' } });
     check(plainReq.headers.get('strict-transport-security') === null, 'plain http response carries no HSTS header');
 
     const savedHsts = process.env.HSTS_MAX_AGE;
     process.env.HSTS_MAX_AGE = '0';
-    const hstsDisabled = await fetch(`${base}/api/health`, {
+    const hstsDisabled = await fetch(`${tlsBase}/api/health`, {
       headers: { host: 'ilmnet.example', 'x-forwarded-proto': 'https' },
     });
     check(hstsDisabled.headers.get('strict-transport-security') === null, 'HSTS_MAX_AGE=0 switches HSTS off');
-    process.env.HSTS_MAX_AGE = savedHsts;
+    restoreEnv('HSTS_MAX_AGE', savedHsts);
+  } finally {
+    await tlsApp.close();
+    restoreEnv('TRUST_PROXY', savedTrustProxy);
+  }
 
-    // FORCE_HTTPS redirects plain HTTP (308 keeps method + body) and leaves health checks alone.
-    const savedForceHttps = process.env.FORCE_HTTPS;
-    process.env.FORCE_HTTPS = 'true';
-    const redirectApp = await buildApp();
-    const redirectBase = await redirectApp.listen({ port: 0, host: '127.0.0.1' });
+  // (3) FORCE_HTTPS: 308 keeps method + body, probes keep working, and the target is never taken
+  //     from an untrusted host.
+  const savedForceHttps = process.env.FORCE_HTTPS;
+  process.env.FORCE_HTTPS = 'true';
+  process.env.TRUST_PROXY = 'true';
+  const redirectApp = await buildApp();
+  const redirectBase = await redirectApp.listen({ port: 0, host: '127.0.0.1' });
+  try {
+    // `fetch` cannot override the Host header, so the proxy-supplied public host is tested the way a
+    // real proxy supplies it: through x-forwarded-host.
+    const httpGet = await fetch(`${redirectBase}/lectures?type=audio`, {
+      headers: { host: 'ilmnet.example', 'x-forwarded-host': 'ilmnet.example' },
+      redirect: 'manual',
+    });
+    check(httpGet.status === 308, `FORCE_HTTPS answers plain http with 308 (${httpGet.status})`);
+    check(
+      (httpGet.headers.get('location') ?? '') === 'https://ilmnet.example/lectures?type=audio',
+      `redirect uses the forwarded host and keeps path + query (${httpGet.headers.get('location')})`,
+    );
+
+    // A host outside the allowlist is replaced by the canonical origin, never echoed back.
+    const notAllowed = await fetch(`${redirectBase}/books`, {
+      headers: { host: '10.1.2.3:8080', 'x-forwarded-host': '10.1.2.3' },
+      redirect: 'manual',
+    });
+    check(
+      (notAllowed.headers.get('location') ?? '') === 'https://ilmnet.example/books',
+      `a host outside the allowlist is replaced by the canonical origin (${notAllowed.headers.get('location')})`,
+    );
+
+    // A forged forwarded host must never become the redirect target (open-redirect guard).
+    const forgedHost = await fetch(`${redirectBase}/lectures`, {
+      headers: { host: 'ilmnet.example', 'x-forwarded-host': 'evil.example' },
+      redirect: 'manual',
+    });
+    const forgedLocation = forgedHost.headers.get('location') ?? '';
+    check(
+      forgedHost.status === 308 && forgedLocation.startsWith('https://ilmnet.example/'),
+      `a forged x-forwarded-host is not echoed back (${forgedLocation})`,
+    );
+    check(!forgedLocation.includes('evil.example'), 'the forged host never appears in the redirect');
+
+    // An allowlisted host is honoured as-is — that is what ALLOWED_HOSTS is for.
+    const savedAllowed = process.env.ALLOWED_HOSTS;
+    process.env.ALLOWED_HOSTS = 'intranet.example';
+    const allowApp = await buildApp();
+    const allowBase = await allowApp.listen({ port: 0, host: '127.0.0.1' });
     try {
-      // `fetch` cannot override the Host header, so the proxy-supplied public host is tested the way a
-      // real proxy supplies it: through x-forwarded-host.
-      const httpGet = await fetch(`${redirectBase}/lectures?type=audio`, {
-        headers: { host: 'ilmnet.example', 'x-forwarded-host': 'ilmnet.example' },
+      const allowedHost = await fetch(`${allowBase}/scholars?page=2`, {
+        headers: { host: 'ilmnet.example', 'x-forwarded-host': 'intranet.example' },
         redirect: 'manual',
       });
-      check(httpGet.status === 308, `FORCE_HTTPS answers plain http with 308 (${httpGet.status})`);
       check(
-        (httpGet.headers.get('location') ?? '') === 'https://ilmnet.example/lectures?type=audio',
-        `redirect uses the forwarded host and keeps path + query (${httpGet.headers.get('location')})`,
+        (allowedHost.headers.get('location') ?? '') === 'https://intranet.example/scholars?page=2',
+        `an allowlisted host is used as the redirect target (${allowedHost.headers.get('location')})`,
       );
-      const httpGetDirect = await fetch(`${redirectBase}/books`, { headers: {}, redirect: 'manual' });
-      check(
-        (httpGetDirect.headers.get('location') ?? '') === `https://${new URL(redirectBase).host}/books`,
-        `redirect falls back to the host the request arrived on (${httpGetDirect.headers.get('location')})`,
-      );
-      const httpsGet = await fetch(`${redirectBase}/lectures`, {
-        headers: { host: 'ilmnet.example', 'x-forwarded-proto': 'https' },
-        redirect: 'manual',
-      });
-      check(httpsGet.status === 200, `https request is served, not redirected (${httpsGet.status})`);
-      const healthOverHttp = await fetch(`${redirectBase}/api/health`, {
+    } finally {
+      await allowApp.close();
+      restoreEnv('ALLOWED_HOSTS', savedAllowed);
+    }
+
+    const httpsGet = await fetch(`${redirectBase}/lectures`, {
+      headers: { host: 'ilmnet.example', 'x-forwarded-proto': 'https' },
+      redirect: 'manual',
+    });
+    check(httpsGet.status === 200, `https request is served, not redirected (${httpsGet.status})`);
+
+    for (const probe of ['/api/health', '/api/v1/health', '/api/ready', '/api/v1/ready']) {
+      const overHttp = await fetch(`${redirectBase}${probe}`, {
         headers: { host: 'ilmnet.example' },
         redirect: 'manual',
       });
-      check(
-        healthOverHttp.status === 200,
-        `health stays reachable over plain http for a container healthcheck (${healthOverHttp.status})`,
-      );
-    } finally {
-      await redirectApp.close();
-      process.env.FORCE_HTTPS = savedForceHttps;
+      check(overHttp.status === 200, `${probe} stays reachable over plain http for a probe (${overHttp.status})`);
     }
 
-    console.log('\n--- 7. Frontend hosting + JSON 404s ---');
+    // PUBLIC_ORIGIN wins over everything else, so the redirect cannot be steered at all.
+    const savedPublicOrigin = process.env.PUBLIC_ORIGIN;
+    process.env.PUBLIC_ORIGIN = 'https://canonical.example';
+    const canonicalApp = await buildApp();
+    const canonicalBase = await canonicalApp.listen({ port: 0, host: '127.0.0.1' });
+    try {
+      const canonicalRedirect = await fetch(`${canonicalBase}/books?page=2`, {
+        headers: { host: 'ilmnet.example', 'x-forwarded-host': 'ilmnet.example' },
+        redirect: 'manual',
+      });
+      check(
+        (canonicalRedirect.headers.get('location') ?? '') === 'https://canonical.example/books?page=2',
+        `PUBLIC_ORIGIN decides the redirect target (${canonicalRedirect.headers.get('location')})`,
+      );
+    } finally {
+      await canonicalApp.close();
+      restoreEnv('PUBLIC_ORIGIN', savedPublicOrigin);
+    }
+  } finally {
+    await redirectApp.close();
+    restoreEnv('FORCE_HTTPS', savedForceHttps);
+    restoreEnv('TRUST_PROXY', savedTrustProxy);
+  }
+
+  console.log('\n--- 6c. Proxy configuration guard rails (Fase 5.2) ---');
+  check(trustProxySetting() === false, 'TRUST_PROXY unset → false (trust nothing)');
+  process.env.TRUST_PROXY = '127.0.0.1,10.0.0.0/8';
+  const parsedList = trustProxySetting();
+  check(
+    Array.isArray(parsedList) && parsedList.length === 2 && parsedList[1] === '10.0.0.0/8',
+    `TRUST_PROXY accepts an explicit proxy list (${JSON.stringify(parsedList)})`,
+  );
+  const listApp = await buildApp();
+  check(listApp.initialConfig !== undefined, 'an app with an explicit proxy list builds');
+  await listApp.close();
+
+  // A hop count would silently trust the wrong hop — refused, in any mode.
+  process.env.TRUST_PROXY = '2';
+  let hopCountRefused = '';
+  try {
+    await buildApp();
+  } catch (e: any) {
+    hopCountRefused = e?.message ?? '';
+  }
+  check(/hop count/.test(hopCountRefused), `TRUST_PROXY="2" is refused (${hopCountRefused.slice(0, 44)}…)`);
+
+  // `process.env.X = undefined` stores the string "undefined" — never a proxy address.
+  process.env.TRUST_PROXY = 'undefined';
+  check(trustProxySetting() === false, 'the literal string "undefined" is treated as unset');
+  restoreEnv('TRUST_PROXY', savedTrustProxy);
+
+  // FORCE_HTTPS without a trusted proxy would redirect every request to itself: refused at boot.
+  process.env.FORCE_HTTPS = 'true';
+  process.env.TRUST_PROXY = '';
+  let loopRefused = '';
+  try {
+    await buildApp();
+  } catch (e: any) {
+    loopRefused = e?.message ?? '';
+  }
+  check(/requires TRUST_PROXY/.test(loopRefused), `FORCE_HTTPS without TRUST_PROXY is refused (${loopRefused.slice(0, 44)}…)`);
+
+  // ... and with a trusted proxy but no allowlisted host, the redirect target is missing: refused.
+  process.env.TRUST_PROXY = 'true';
+  const savedCorsForProxy = process.env.CORS_ORIGIN;
+  const savedPublicForProxy = process.env.PUBLIC_ORIGIN;
+  const savedAllowedForProxy = process.env.ALLOWED_HOSTS;
+  // Not `delete`: then the value would come from server/.env and rule R3 rightly refuses the boot
+  // before this guard is even reached. An empty process value is authoritative and host-less.
+  process.env.CORS_ORIGIN = '';
+  delete process.env.PUBLIC_ORIGIN;
+  delete process.env.ALLOWED_HOSTS;
+  let targetRefused = '';
+  try {
+    await buildApp();
+  } catch (e: any) {
+    targetRefused = e?.message ?? '';
+  }
+  check(
+    /needs a redirect target/.test(targetRefused),
+    `FORCE_HTTPS without PUBLIC_ORIGIN/CORS_ORIGIN is refused (${targetRefused.slice(0, 44)}…)`,
+  );
+  restoreEnv('CORS_ORIGIN', savedCorsForProxy);
+  restoreEnv('PUBLIC_ORIGIN', savedPublicForProxy);
+  restoreEnv('ALLOWED_HOSTS', savedAllowedForProxy);
+  restoreEnv('FORCE_HTTPS', savedForceHttps);
+  restoreEnv('TRUST_PROXY', savedTrustProxy);
+
+  console.log('\n--- 6d. Readiness probe (Fase 5.2) ---');
+  const ready = await fetch(`${base}/api/ready`);
+  const readyJson: any = await ready.json().catch(() => ({}));
+  check(
+    ready.status === 200 && readyJson.status === 'ready',
+    `GET /api/ready is 200 + ready (${ready.status} ${readyJson.status})`,
+  );
+  check(readyJson.database === 'up', 'readiness reports the database as up');
+  const readyV1 = await fetch(`${base}/api/v1/ready`);
+  check(readyV1.status === 200, `GET /api/v1/ready mirrors it (${readyV1.status})`);
+  const readyNoAuth = await raw('GET', `${base}/api/ready`);
+  check(readyNoAuth.status === 200, `readiness needs no credentials (${readyNoAuth.status})`);
+  const readyShape = Object.keys(readyJson).sort().join(',');
+  check(
+    readyShape === 'database,service,status,timestamp',
+    `readiness stays a cheap probe, not the deep health payload (${readyShape})`,
+  );
+
+  console.log('\n--- 7. Frontend hosting + JSON 404s ---');
     const buildIndex = path.resolve(process.cwd(), '..', 'dist', 'index.html');
     if (fs.existsSync(buildIndex)) {
       const root = await fetch(`${base}/`);

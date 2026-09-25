@@ -5,13 +5,14 @@ Update it after every finished phase, commit, sanity check or significant discov
 Rules: only facts that are verifiable from the repository, Git history or existing docs — and
 **never** secrets, tokens or credentials.
 
-_Last updated: Fase 5.1 (production blockers: backup + restore, honest footer links, TLS/HSTS)._
+_Last updated: Fase 5.2 (deployment hardening: proxy trust, network exposure, readiness)._
 
-The last phases: Fase 4.5 shipped real accounts, server-side sessions, a secure cookie and
-attribution (§7f); Fase 5 audited production readiness read-only and named three blockers — no
-backup/restore, TLS not proven, and a footer that linked twelve labels to a single page. Fase 5.1
-closed them: `ops/backup.sh` + `ops/restore.sh` + a documented, executed restore drill, a footer that
-only links pages that exist, and TLS/HSTS support in the app with a provider-agnostic runbook (§7g).
+The last phases: Fase 5.1 closed the three blockers from the Fase 5 audit (backup + restore, honest
+footer links, TLS/HSTS with a provider-agnostic runbook, §7g). Fase 5.2 hardened the deployment
+itself: forwarded headers are only trusted when `TRUST_PROXY` names a proxy, the HTTP→HTTPS redirect
+can no longer be steered by a forged host, a `FORCE_HTTPS` misconfiguration is refused at boot,
+Postgres is no longer published by the compose file (which was not even valid YAML before), and the
+API gained a cheap readiness probe (§7h).
 
 ---
 
@@ -20,15 +21,15 @@ only links pages that exist, and TLS/HSTS support in the app with a provider-agn
 | | |
 | --- | --- |
 | Branch | `master` |
-| Codebase state described here | `f030ef3` (Fase 4.5.1) **plus** the Fase 5.1 changes in §7g — this document ships in the Fase 5.1 commit |
-| This document | updated in Fase 5.1; its own revision is visible with `git log -1 -- docs/CONTEXT.md` |
+| Codebase state described here | `a7d6865` (Fase 5.1) **plus** the Fase 5.2 changes in §7h — this document ships in the Fase 5.2 commit |
+| This document | updated in Fase 5.2; its own revision is visible with `git log -1 -- docs/CONTEXT.md` |
 | Working tree | clean (verified against `origin/master`) |
 | Repository | `github.com/mrmiagy82/ilmNET_V7` |
 | Size | 69 source files, ~15.6k lines in `src/` + `server/src/`; the admin (`src/admin/`, 20 files, ~6.5k lines) is the largest area |
 | Build (git-ignored artefact) | single-file `dist/index.html` (644.42 kB, 161.00 kB gzip, measured in Fase 4.5) |
-| Phase state | Fase 5.1 complete: the three production blockers from the Fase 5 audit are closed — **backup + restore** (`ops/`, with an executed restore drill), **footer links** that only point at pages that exist, **TLS/HSTS** support with an opt-in HTTP→HTTPS redirect (§7g). Fase 4.5's authentication and Fase 4.3's YouTube work are unchanged |
-| Roadmap | production finishing, UI/UX and performance toward the definitive live deployment (§9) — phase 5.2 is the deploy hardening on the real host |
-| Open blockers | none in the repository. The remaining items are host-side and cannot be verified from the repo: terminating TLS in front of the app, `X-Forwarded-Proto` forwarding, the nightly backup timer running on the server, off-site copies, and an uptime/monitoring hook (§8.14) |
+| Phase state | Fase 5.2 complete: the deployment is hardened in the repository — forwarded headers require an explicit `TRUST_PROXY`, the redirect target is allowlisted (`PUBLIC_ORIGIN`/`CORS_ORIGIN`/`ALLOWED_HOSTS`) and can no longer be forged, misconfigurations stop the boot, compose no longer publishes Postgres and binds the API to loopback, and `/api/ready` exists next to `/api/health` (§7h) |
+| Roadmap | production finishing, UI/UX and performance toward the definitive live deployment (§9) — the remaining deploy work is host-side (§8.14) |
+| Open blockers | none in the repository. Host-side and not verifiable from the repo: terminating TLS, forwarding `X-Forwarded-Proto`, choosing `TRUST_PROXY` for the real topology, the nightly backup timer plus off-site copies, uptime/alerting, and public-API rate limiting (§8.14) |
 
 ## 2. Completed phases (from Git history)
 
@@ -53,7 +54,8 @@ only links pages that exist, and TLS/HSTS support in the app with a provider-agn
 | `720ef70` | Fase 4.5 | real admin authentication: `AdminUser` + `AdminSession`, username + password, secure session cookie, attribution (see §7f) |
 | `f030ef3` | Fase 4.5.1 | project context synchronized with the post-4.5 repository: roadmap, scrapped TinyCMS, test status and remaining issues |
 | — (audit only) | Fase 5 | production readiness audit; read-only, no commit — three blockers: no backup/restore, TLS not proven, footer linked to a single page |
-| _this commit_ | Fase 5.1 | production blockers closed: `ops/` backup + restore + drill, honest footer navigation, TLS/HSTS support (see §7g) |
+| `a7d6865` | Fase 5.1 | production blockers closed: `ops/` backup + restore + drill, honest footer navigation, TLS/HSTS support (see §7g) |
+| _this commit_ | Fase 5.2 | deployment hardening: proxy trust (`TRUST_PROXY`), safe forwarded-host handling, boot guards, no public Postgres/API port, readiness probe (see §7h) |
 
 Earlier work is documented per topic in `docs/FASE2A_ARCHIVE.md`, `docs/FASE2B_YOUTUBE.md`,
 `docs/FASE2C_PUBLIC_FRONTEND.md`, `docs/FASE2D_SEARCH_FILTERING.md`,
@@ -208,7 +210,7 @@ empty states, errors) live in the React components — there is no content layer
 | --- | --- | --- |
 | `npx tsc --noEmit` (root + `server/`) | types | 0 errors (Fase 5.1) |
 | `npm run build` (root) | single-file production build | 644.91 kB / 161.10 kB gzip (Fase 5.1) |
-| `cd server && npm run test:all` | audit, uploads (25), production readiness (**54**, incl. TLS/HSTS/redirect), env hardening (13), youtube (+ Data API fallback), **auth (69)** | green in Fase 5.1 (exit 0; the live YouTube scrape check can still fail when Google throttles this IP — §8.11) |
+| `cd server && npm run test:all` | audit, uploads (25), production readiness (**76**, incl. TLS/HSTS, proxy trust, boot guards, readiness), env hardening (13), youtube (+ Data API fallback), **auth (69)** | green in Fase 5.2 (exit 0; the live YouTube scrape check can still fail when Google throttles this IP — §8.11) |
 | `ops/backup.sh` + `ops/restore-drill.sh` | database + uploads backup, then a restore into a throwaway database with count and checksum comparison | drill PASSED in Fase 5.1 (seven tables + two upload files, §7g) |
 | `cd server && npm run test:imports` | live Archive.org + YouTube import regression | 19/19 whenever the provider answers; the live scrape check is the part that fails under Google's throttle (§8.11) |
 | `npm run test:e2e:production` | routes, embeds, **real YouTube playback**, error states, mobile, admin entry (login gate), **footer navigation (17 checks)** | 84/84 (Fase 5.1) |
@@ -231,11 +233,12 @@ own records — verify afterwards, and never point them at a database whose cont
 Known quirk: `test:imports` deliberately leaves the imported record in place (that is part of what it
 asserts), so run it against a throwaway database or remove the record afterwards.
 
-**State of these numbers (Fase 5.1):** measured against a rebuilt sandbox (PostgreSQL 17.11, fresh
-`ilmnet` + `ilmnet_prod`, real Archive.org/YouTube imports as fixtures — 8 books, 7 videos, 3 audio, 8
-scholars, 11 subjects) and a production server (`NODE_ENV=production`) on `:3101`; `test:e2e:auth` was
-re-run against that same server (60/60). The sandbox is ephemeral (dependencies, database and processes
-are not part of the snapshot): rebuild and re-run per `AGENTS.md` §4 before quoting these again.
+**State of these numbers (Fase 5.2):** measured in the same rebuilt sandbox (PostgreSQL 17.11, real
+Archive.org/YouTube imports: 8 books, 7 videos, 3 audio, 8 scholars, 11 subjects). The production
+readiness suite grew from 44 (Fase 4.5) to 54 (Fase 5.1) to **76** (Fase 5.2 — proxy trust, redirect
+allowlist, boot guards, readiness probe). The sandbox is ephemeral (dependencies, database and
+processes are not part of the snapshot): rebuild and re-run per `AGENTS.md` §4 before quoting these
+again.
 
 ## 7. What Fase 4 (the admin CMS) changed (so it is not re-broken)
 
@@ -524,6 +527,63 @@ readiness **54/54**, env hardening 13/13, YouTube (live, including the Data API 
 `test:e2e:production` **84/84** against a production server with the 18 real records; `test:e2e:auth`
 60/60 against the same server; the restore drill PASSED as shown above.
 
+## 7h. What Fase 5.2 (deployment hardening) changed
+
+The Fase 5 audit's IMPORTANT list contained deployment items that *are* verifiable from the repository.
+Fase 5.2 implemented those and left the environmental ones to the host (§8.14). No new dependencies,
+no schema change, no redesign.
+
+**Forwarded headers are no longer trusted blindly.** The server ran with Fastify's `trustProxy: true`,
+which lets any client set `X-Forwarded-For` (the login throttle, `AdminSession.ip` and the logs all
+believe it), `X-Forwarded-Proto` (the app would send HSTS for a plain-HTTP request) and
+`X-Forwarded-Host` (the redirect target). New `server/src/lib/proxy.ts`:
+
+- `TRUST_PROXY` is the single switch, default **false** — nothing is trusted, the socket address is
+  the client. `true` is an explicit opt-in for an API that is only reachable through the proxy; a
+  comma-separated list of IPs/CIDRs (`127.0.0.1`, `10.0.0.0/8`) is the recommended form and is passed
+  to Fastify unchanged.
+- A hop count (`TRUST_PROXY=2`) is refused at boot: it silently trusts the wrong hop as soon as the
+  topology changes. The literal strings `undefined`/`null` count as unset, because
+  `process.env.X = undefined` stores the *string* `"undefined"` — that would otherwise become a proxy
+  address called “undefined” (the test suite hit exactly that).
+- The HTTP→HTTPS redirect target comes from `PUBLIC_ORIGIN` (canonical, the request cannot influence
+  it) or, failing that, from a host on the allowlist (`CORS_ORIGIN`, `ALLOWED_HOSTS`). A host that is
+  not allowlisted is replaced by the canonical origin and logged as a warning — a forged
+  `X-Forwarded-Host: evil.example` never reaches a visitor. Without any allowlist the app refuses to
+  redirect at all and says so in the log (the proxy should do it).
+- Boot guards: `FORCE_HTTPS=true` without a trusted proxy (guaranteed redirect loop) or without any
+  redirect target is refused before the port is opened, with a message that names the fix.
+- The boot log states the effective posture (`Proxy trust: …`, `Client IP source: …` when trust is
+  off in production), so a misconfigured proxy is visible without guessing.
+
+**Health vs readiness.** `/api/health` stays the deep check (database **and** upload storage, 503 when
+either is unusable — the Dockerfile HEALTHCHECK keeps using it). New `/api/ready` (+ `/api/v1/ready`)
+is the cheap probe for a load balancer: a database ping, `{ status: "ready", database: "up" }`, 200/503,
+no credentials. Both stay reachable over plain HTTP and are exempt from the `FORCE_HTTPS` redirect, so
+a probe on the app socket keeps working.
+
+**Network exposure in `server/docker-compose.yml`.** Postgres no longer publishes a port at all
+(`expose` on the compose network; `docker compose exec postgres psql …` for a one-off session, and a
+commented-out loopback mapping if host access is truly needed) and `POSTGRES_PASSWORD` is required
+instead of defaulting to `ilmnet_dev` — the same pattern the API token already used. The API publishes
+`127.0.0.1:3001` instead of `3001:3001`, so only a proxy on the host can reach it, and `TRUST_PROXY`
+appears with its safe default plus a `PUBLIC_ORIGIN` slot. **The compose file was also not valid YAML
+before this phase**: the unquoted `${ADMIN_TOKEN:?…: …}` interpolation contains a second colon and
+`docker compose` would have refused the whole file — it is quoted now (both the token and the new
+password guard), and the file parses.
+
+**Docs.** `docs/DEPLOYMENT.md` gained §5c (the three forwarded headers, what each one controls, how to
+set `TRUST_PROXY`, an nginx example that sets `X-Forwarded-*` itself, how to verify with the log and a
+failed login), a liveness-vs-readiness table in §8, a network bullet in the Docker section, an extra
+verification step and six new troubleshooting rows. `server/.env.example` documents `TRUST_PROXY`,
+`PUBLIC_ORIGIN` and `ALLOWED_HOSTS`; `AGENTS.md` carries the rule; `README.md` mentions the endpoints.
+
+**Verified in this phase.** `tsc --noEmit` clean in `./` and `./server`; `test:all` exit 0 — audit,
+uploads 25/25, production readiness **76/76** (was 54: +22 checks for proxy trust, the redirect
+allowlist, the boot guards, the `undefined` footgun and the readiness probe), env hardening 13/13,
+YouTube live, auth 69/69. `npm run build` unchanged at 644.91 kB / 161.10 kB gzip (no frontend code was
+touched). Compose validated as YAML with a parser.
+
 ## 8. Known remaining issues (not blockers)
 
 From `docs/FASE3_9_CODEBASE_REVIEW.md` § Restrisico's plus the 3.9.1 report:
@@ -566,12 +626,17 @@ From `docs/FASE3_9_CODEBASE_REVIEW.md` § Restrisico's plus the 3.9.1 report:
     `.env` files that still set it are harmless but should be cleaned up; `AGENTS.md` keeps the rule
     that no credential may come from `VITE_*`.
 
-14. **Host-side items the repository cannot verify** (Fase 5.1 closed everything that *is* verifiable
-    from the code): TLS termination and renewal; the proxy forwarding `X-Forwarded-Proto` (without it a
-    `FORCE_HTTPS` deployment would redirect in a loop); the nightly `ilmnet-backup.timer` actually
-    running; the off-site copy of the sets; the monthly `ops/restore-drill.sh`; rate limiting on the
-    public API, a non-public database port and `TRUST_PROXY` hygiene (Fase 5 audit I2-I4); uptime
-    monitoring/alerting (I9). `docs/DEPLOYMENT.md` §5b/§6b holds the exact commands and install steps.
+14. **Host-side items the repository cannot verify.** Fase 5.2 moved as much of this as possible into
+    the code (defaults that trust nothing, an allowlisted redirect target, boot guards for the
+    dangerous combinations, a readiness probe, no published database/API port in compose), so what is
+    left is genuinely environmental: terminating TLS and renewing certificates; forwarding
+    `X-Forwarded-Proto` and choosing the real `TRUST_PROXY` value for that topology (a proxy that does
+    not forward the scheme makes `FORCE_HTTPS` unusable — the boot guard will tell you); the nightly
+    `ilmnet-backup.timer` running elsewhere than a test host; off-site copies; the monthly
+    `ops/restore-drill.sh`; rate limiting in front of the public API; uptime monitoring/alerting and a
+    resource/pool budget for the real traffic (audit I2, I9, L13). `docs/DEPLOYMENT.md` §5b/§5c/§6b
+    holds the exact commands and install steps, including the log lines and `curl` checks that prove
+    each one.
 
 ## 9. Next step
 
@@ -584,12 +649,10 @@ scrape check when Google throttles this IP (§8.11), which is external and passe
 **The roadmap is production finishing, UI/UX and performance toward the definitive live deployment.**
 Fase 5.1 removed the three blockers that were verifiable in the repository; the rest starts on the host.
 
-- **Phase 5.2 — deploy hardening and proof (next).** Terminate TLS in front of the app, forward
-  `X-Forwarded-Proto` and decide where the http→https redirect lives (`docs/DEPLOYMENT.md` §5b);
-  install `ilmnet-backup.timer` and copy the sets off-site (§6b); add an uptime check on `/api/health`;
-  put the public API behind a rate limit and keep Postgres off the public internet (audit I2-I4); then
-  run the §5 checklist on the live domain, including the `Referrer-Policy`/`Referer` check of §7e.
-- **Phase 5.3 — data safety.** Make the legacy `ADMIN_TOKEN` switchable off in production (audit I6),
+- **Phase 5.3 — data safety (next).** Fase 5.2 finished the repository-side work of the audit's
+  deployment items; what remains for a real host is environmental (§8.14): TLS, `TRUST_PROXY` for the
+  real topology, the backup timer + off-site copies, uptime monitoring and public-API rate limiting.
+  Then the data-safety items: Make the legacy `ADMIN_TOKEN` switchable off in production (audit I6),
   ask before a hard delete (I7) and stop leaking `createdBy`/`updatedBy`/`metadata` in the public
   payload (I8).
 - **Phase 5.4 — scale and speed.** Server-side pagination and real totals on the public lists

@@ -68,6 +68,12 @@ Details: `README.md` (overview), `docs/backend-architecture.md` (API + data mode
   when a `.env` file would supply `NODE_ENV`, `ADMIN_TOKEN`, `CORS_ORIGIN` or `ADMIN_ALLOW_LOCALHOST`
   (see `docs/FASE3_8_1_ENV_SECURITY.md`). `ADMIN_TOKEN` must be at least 16 characters.
 - `CORS_ORIGIN` lists exact browser origins; a wildcard in production stops the boot.
+- **Never re-introduce `trustProxy: true` as a default.** `X-Forwarded-For` decides the login throttle
+  and what admin sessions/logs record, `X-Forwarded-Proto` decides whether HSTS is sent, and
+  `X-Forwarded-Host` decides where a redirect sends visitors. Forwarded headers are honoured only when
+  `TRUST_PROXY` names the proxy (see `server/src/lib/proxy.ts`); a redirect target must come from
+  `PUBLIC_ORIGIN`/`CORS_ORIGIN`/`ALLOWED_HOSTS`, never from the request. The boot guards for
+  `FORCE_HTTPS` exist for that reason — do not "simplify" them away (`docs/DEPLOYMENT.md` §5c).
 
 **Data**
 - Never run the destructive demo seed (`npm run seed`) against a production database — it refuses,

@@ -8,7 +8,12 @@
 # app directory/image — the server refuses a production boot configured from a .env file.
 #   ADMIN_TOKEN        long random string; admin CMS + uploads require it in production
 #   CORS_ORIGIN        exact frontend origin(s), comma separated (no wildcards in production)
-#   POSTGRES_PASSWORD  database password (change the default below!)
+#   POSTGRES_PASSWORD  REQUIRED — no default is shipped any more (Fase 5.2); generate one with
+#                      `openssl rand -base64 24`
+#
+# Networking (Fase 5.2): nothing is published on a public interface. PostgreSQL stays on the compose
+# network, and the API is published on 127.0.0.1 so a reverse proxy on the host can reach it.
+# Terminate TLS at that proxy (docs/DEPLOYMENT.md §5b/§5c).
 #
 # Fresh database: run the reference seed once, inside the container (the image ships server/dist):
 #   docker compose exec server node dist/seed.js --reference
@@ -25,9 +30,12 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-ilmnet}
       POSTGRES_USER: ${POSTGRES_USER:-ilmnet}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ilmnet_dev}
-    ports:
-      - "5432:5432"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required - generate one with: openssl rand -base64 24}"
+    # No published port: PostgreSQL is only reachable on the compose network. For a one-off psql
+    # session: `docker compose exec postgres psql -U ilmnet -d ilmnet`. If you really need host
+    # access, publish it on loopback only: ["127.0.0.1:5432:5432"] — never ["5432:5432"].
+    expose:
+      - "5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -44,20 +52,32 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-ilmnet}:${POSTGRES_PASSWORD:-ilmnet_dev}@postgres:5432/${POSTGRES_DB:-ilmnet}?schema=public
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-ilmnet}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-ilmnet}?schema=public"
       PORT: "3001"
       HOST: 0.0.0.0
       NODE_ENV: production
       # exact origins of the frontend(s) that may call this API from a browser
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173}
-      ADMIN_TOKEN: ${ADMIN_TOKEN:?ADMIN_TOKEN is required — generate one with: openssl rand -hex 32}
+      # Quoted on purpose: an unquoted `${VAR:?message: with a colon}` is invalid YAML and makes
+      # `docker compose` refuse the whole file (Fase 5.2 fixed exactly that).
+      ADMIN_TOKEN: "${ADMIN_TOKEN:?ADMIN_TOKEN is required - generate one with: openssl rand -hex 32}"
+      # Proxy trust (Fase 5.2): never trust forwarded headers blindly. Set this to the address/CIDR
+      # of the proxy that talks to this container, or "true" when port 3001 below is reachable from
+      # nowhere else. Empty/false = x-forwarded-* is ignored (the socket address is the client).
+      TRUST_PROXY: "${TRUST_PROXY:-false}"
+      # Canonical target of the HTTP→HTTPS redirect and the HSTS decision. Empty = derive the
+      # allowed hosts from CORS_ORIGIN/ALLOWED_HOSTS, and do not redirect when there are none.
+      PUBLIC_ORIGIN: "${PUBLIC_ORIGIN:-}"
       # persistent volume for custom thumbnails/covers (DB stores /uploads/<file>)
       UPLOADS_DIR: /app/uploads
       # serve the built frontend from this container when ../dist exists (mounted below)
       SERVE_FRONTEND: "true"
       FRONTEND_DIR: /app/frontend
+    # Loopback only: the host's reverse proxy reaches the API here, the internet does not. Remove
+    # this mapping entirely when the proxy runs as a container on the same compose network — it can
+    # then reach http://server:3001 directly and nothing needs to be published at all.
     ports:
-      - "3001:3001"
+      - "127.0.0.1:3001:3001"
     volumes:
       - uploads_data:/app/uploads
       - ../dist:/app/frontend:ro

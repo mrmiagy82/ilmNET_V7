@@ -3,11 +3,24 @@ import { prisma } from '../lib/prisma';
 import { uploadsHealth } from '../lib/storage';
 
 /**
- * Health endpoint. Reports service + database + upload storage so a deployment can be
- * verified without opening the admin CMS. Returns 503 when the database is unreachable.
+ * Health and readiness endpoints.
+ *
+ *   GET /api/health  (alias: /api/v1/health)
+ *     The deep check: service + database + upload storage. Returns **503** when the database is
+ *     unreachable or the upload volume is not writable. This is what the Dockerfile HEALTHCHECK and
+ *     the deployment runbook use: it tells an operator whether the whole deployment is usable
+ *     (uploads are how the CMS attaches thumbnails/covers).
+ *
+ *   GET /api/ready   (alias: /api/v1/ready)
+ *     The cheap readiness probe for a load balancer / orchestrator: it only pings the database, so a
+ *     pod can be taken out of rotation without waiting for the storage walk. Returns **200** with
+ *     `{ status: "ready", database: "up" }` or **503** with `{ status: "not_ready", database: "down" }`.
+ *
+ *   Both are public (no admin credentials), read-only, and deliberately exempt from the
+ *   `FORCE_HTTPS` redirect so a probe on the app socket keeps working over plain HTTP (Fase 5.2).
  */
 export async function healthRoutes(app: FastifyInstance) {
-  const handler = async (reply: any) => {
+  const deepHandler = async (reply: any) => {
     const storage = uploadsHealth();
     let database: 'up' | 'down' = 'up';
     try {
@@ -36,6 +49,25 @@ export async function healthRoutes(app: FastifyInstance) {
     };
   };
 
-  app.get('/api/health', async (_req, reply) => handler(reply));
-  app.get('/api/v1/health', async (_req, reply) => handler(reply));
+  const readyHandler = async (reply: any) => {
+    let database: 'up' | 'down' = 'up';
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+    } catch {
+      database = 'down';
+    }
+    const ready = database === 'up';
+    reply.code(ready ? 200 : 503);
+    return {
+      status: ready ? 'ready' : 'not_ready',
+      service: 'ilmnet-server',
+      database,
+      timestamp: new Date().toISOString(),
+    };
+  };
+
+  app.get('/api/health', async (_req, reply) => deepHandler(reply));
+  app.get('/api/v1/health', async (_req, reply) => deepHandler(reply));
+  app.get('/api/ready', async (_req, reply) => readyHandler(reply));
+  app.get('/api/v1/ready', async (_req, reply) => readyHandler(reply));
 }

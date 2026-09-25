@@ -24,6 +24,14 @@ import {
   touchAdminSession,
 } from './lib/auth';
 import { auditUploadReferences, ensureUploadsDir, getUploadsDir, isUploadsDirWritable, MAX_UPLOAD_BYTES } from './lib/storage';
+import {
+  assertProxyConfiguration,
+  forwardedHost,
+  redirectTargetFor,
+  trustProxyDescription,
+  trustProxyIsEnabled,
+  trustProxySetting,
+} from './lib/proxy';
 
 const PORT = parseInt(process.env.PORT || '3001', 10);
 const HOST = process.env.HOST || '0.0.0.0';
@@ -54,7 +62,11 @@ function hstsMaxAge(): number {
 /**
  * Opt-in HTTP → HTTPS redirect (Fase 5.1). Enable with `FORCE_HTTPS=true` in production when a
  * TLS-terminating reverse proxy forwards the original scheme in `x-forwarded-proto`; the proxy must
- * set that header, otherwise this can only ever see `http` and would redirect in a loop.
+ * set that header, otherwise this can only ever see `http` and would redirect in a loop — hence the
+ * boot guard in `lib/proxy.ts` (`assertProxyConfiguration`).
+ *
+ * The redirect target is never taken from the request unless the host is allowlisted: see
+ * `redirectTargetFor()` — `PUBLIC_ORIGIN` wins, otherwise a host from `CORS_ORIGIN`/`ALLOWED_HOSTS`.
  */
 function forceHttpsEnabled(): boolean {
   return isProduction() && process.env.FORCE_HTTPS?.trim().toLowerCase() === 'true';
@@ -87,6 +99,9 @@ export async function buildApp() {
       'ADMIN_TOKEN is required when NODE_ENV=production. The admin CMS (writes, draft listings, uploads) must never be exposed unprotected.',
     );
   }
+  // Fase 5.2 — a redirect without a trusted proxy would loop, and a redirect without an allowlisted
+  // host would let the request decide where visitors are sent.
+  assertProxyConfiguration();
   if (corsOrigins().includes('*')) {
     if (isProduction()) throw new Error('CORS_ORIGIN="*" is not allowed in production — list the exact frontend origins.');
     // eslint-disable-next-line no-console
@@ -100,7 +115,11 @@ export async function buildApp() {
       redact: ['req.headers["x-admin-token"]', 'req.headers.authorization', 'req.headers["x-admin-secret"]'],
     },
     bodyLimit: 1 * 1024 * 1024, // 1 MB JSON payloads; uploads go through multipart
-    trustProxy: true,
+    // Fase 5.2: forwarded headers (x-forwarded-for / -proto / -host) are only honoured when
+    // TRUST_PROXY says which proxy may be trusted. `true` (the pre-5.2 behaviour) is an explicit
+    // opt-in, never the default: a spoofable client IP feeds the login throttle and the logs, and a
+    // spoofable x-forwarded-host feeds the redirect below.
+    trustProxy: trustProxySetting(),
   });
 
   await app.register(cors, {
@@ -135,14 +154,34 @@ export async function buildApp() {
   // (server/Dockerfile HEALTHCHECK) keeps working. The proxy normally does this redirect; this is
   // the in-app fallback for a proxy that only forwards.
   if (forceHttpsEnabled()) {
+    let warnedAboutHost = false;
     app.addHook('onRequest', async (req, reply) => {
       if (req.protocol === 'https') return;
       const path = req.url.split('?')[0];
-      if (path === '/api/health' || path === '/api/v1/health') return;
-      const forwardedHost = (req.headers['x-forwarded-host'] as string | undefined)?.split(',')[0]?.trim();
-      const host = forwardedHost || req.headers.host;
-      if (!host) return;
-      return reply.code(308).redirect(`https://${host}${req.raw.url ?? req.url}`);
+      if (path === '/api/health' || path === '/api/v1/health' || path === '/api/ready' || path === '/api/v1/ready') {
+        return; // probes must keep working over plain HTTP on the app socket (Docker HEALTHCHECK)
+      }
+      // Only a host that is on the allowlist (PUBLIC_ORIGIN / CORS_ORIGIN / ALLOWED_HOSTS) can be
+      // the target; anything else falls back to the canonical host instead of being echoed back.
+      const claimedHost = forwardedHost(req) ?? (req.headers.host as string | undefined);
+      const target = redirectTargetFor(claimedHost);
+      if (!target) {
+        if (!warnedAboutHost) {
+          warnedAboutHost = true;
+          req.log.error(
+            'FORCE_HTTPS is on but no redirect target is configured (PUBLIC_ORIGIN / CORS_ORIGIN / ALLOWED_HOSTS). ' +
+              'Requests are served as-is; let the reverse proxy do the HTTP→HTTPS redirect.',
+          );
+        }
+        return;
+      }
+      if (target.replacedHost) {
+        req.log.warn(
+          { claimedHost: target.replacedHost, redirectTo: target.origin },
+          'Refused to redirect to a host that is not on the allowlist — using the canonical origin',
+        );
+      }
+      return reply.code(308).redirect(`${target.origin}${req.raw.url ?? req.url}`);
     });
   }
 
@@ -296,8 +335,16 @@ if (require.main === module) {
       );
       app.log.info(
         `TLS: ${hstsMaxAge() > 0 ? `HSTS max-age=${hstsMaxAge()}s on https requests` : 'HSTS disabled (HSTS_MAX_AGE=0)'}` +
-          ` · HTTP→HTTPS redirect: ${forceHttpsEnabled() ? 'on (FORCE_HTTPS)' : 'off (let the reverse proxy do it)'}`,
+          ` · HTTP→HTTPS redirect: ${forceHttpsEnabled() ? `on (FORCE_HTTPS) → ${redirectTargetFor(null)?.origin ?? 'no target configured'}` : 'off (let the reverse proxy do it)'}`,
       );
+      app.log.info(`Proxy trust: TRUST_PROXY ${trustProxyDescription()}`);
+      if (isProduction() && !trustProxyIsEnabled()) {
+        app.log.info(
+          'Client IP source: the socket address. Behind a reverse proxy every request therefore looks like ' +
+            'the proxy itself (login throttle and admin sessions record that address) — set TRUST_PROXY to the ' +
+            'proxy address/CIDR, or true when the API is only reachable through the proxy.',
+        );
+      }
       const build = frontendBuild();
       app.log.info(
         `Serving frontend build: ${build.available && process.env.SERVE_FRONTEND !== 'false' ? build.dir : 'no (API only — set VITE_API_URL on the frontend host)'}`,
