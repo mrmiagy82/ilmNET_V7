@@ -22,11 +22,14 @@ import {
   ErrorBanner,
   ExternalEmbed,
   Field,
+  ErrorRow,
   GhostButton,
+  LoadingRows,
   PageIntro,
   PrimaryButton,
   SelectInput,
   SourceCard,
+  StatusPill,
   TextArea,
   TextInput,
 } from './ui';
@@ -45,6 +48,7 @@ const empty: Omit<AdminBook, 'id' | 'updatedAt'> = {
   year: new Date().getFullYear(),
   status: 'draft',
   coverUrl: '',
+  series: '',
   publisher: '',
   language: 'English',
   isbn: '',
@@ -53,8 +57,52 @@ const empty: Omit<AdminBook, 'id' | 'updatedAt'> = {
 
 export default function BookForm() {
   const { id } = useParams();
+  const { books, loading, backendState } = useAdmin();
+  const existing = id ? books.find((b) => b.id === id) : undefined;
+
+  // A direct URL or a hard refresh must not claim the record is gone while it is still loading.
+  if (id && !existing) {
+    if (loading || backendState === 'connecting') {
+      return (
+        <div className="mx-auto max-w-[720px]">
+          <PageIntro eyebrow="Books" title="Loading…" intro="Fetching this record from PostgreSQL." />
+          <div className="mt-8">
+            <LoadingRows rows={2} label="Loading the book…" />
+          </div>
+        </div>
+      );
+    }
+    if (backendState === 'unauthenticated' || backendState === 'offline') {
+      return (
+        <div className="mx-auto max-w-[720px]">
+          <ErrorRow
+            title={backendState === 'unauthenticated' ? 'Admin token missing or rejected (401)' : 'Backend unreachable'}
+            body="This record could not be loaded, so it is not shown as “not found”. Retry with a valid token and a reachable API."
+          />
+          <div className="mt-8">
+            <GhostButton to="/admin/books">Back to books</GhostButton>
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div className="mx-auto max-w-[720px]">
+        <PageIntro eyebrow="Books" title="Not found" intro="This book is no longer on the desk." />
+        <div className="mt-8">
+          <GhostButton to="/admin/books">Back to books</GhostButton>
+        </div>
+      </div>
+    );
+  }
+  // Mounting this component per record means the form below always initialises from the record that is
+  // really in the database — a direct URL or a hard refresh can never leave an empty form behind.
+  return <BookFormInner key={id ?? 'new'} />;
+}
+
+function BookFormInner() {
+  const { id } = useParams();
   const navigate = useNavigate();
-  const { books, scholars, subjects, upsertBook } = useAdmin();
+  const { books, scholars, subjects, upsertBook, setBookStatus } = useAdmin();
   const existing = id ? books.find((b) => b.id === id) : undefined;
   const isNew = !id;
 
@@ -75,6 +123,9 @@ export default function BookForm() {
         year: existing.year,
         status: existing.status,
         coverUrl: existing.coverUrl ?? '',
+        series: existing.series ?? '',
+        collectionIdentifier: existing.collectionIdentifier,
+        collectionTitle: existing.collectionTitle,
         publisher: existing.publisher ?? '',
         language: existing.language ?? 'English',
         isbn: existing.isbn ?? '',
@@ -85,16 +136,6 @@ export default function BookForm() {
   });
   const [error, setError] = useState<string | null>(null);
 
-  if (id && !existing) {
-    return (
-      <div className="mx-auto max-w-[720px]">
-        <PageIntro eyebrow="Books" title="Not found" intro="This book is no longer on the desk." />
-        <div className="mt-8">
-          <GhostButton to="/admin/books">Back to books</GhostButton>
-        </div>
-      </div>
-    );
-  }
 
   const set = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
@@ -126,7 +167,8 @@ export default function BookForm() {
   const embedUrl = useMemo(() => getBookEmbedUrl(effectiveUrl, form.sourceType as BookSourceType), [effectiveUrl, form.sourceType]);
   const archiveEmbed = useMemo(() => getArchiveEmbedUrl(effectiveUrl), [effectiveUrl]);
 
-  const save = (status: PublishStatus) => {
+
+    const save = (status: PublishStatus) => {
     const scholarsChosen = form.scholarIds && form.scholarIds.length > 0 ? form.scholarIds : form.scholarId ? [form.scholarId] : [];
     if (!form.title.trim() || !effectiveUrl || scholarsChosen.length === 0 || form.subjectIds.length === 0) {
       setError('Title, external URL, at least one author/scholar and one subject are required.');
@@ -365,6 +407,19 @@ export default function BookForm() {
           </Field>
         </section>
         <section className="grid gap-5 sm:grid-cols-2">
+          <Field label="Series">
+            <TextInput value={form.series ?? ''} onChange={(e) => set('series', e.target.value)} placeholder="Classical Texts" />
+          </Field>
+          {form.collectionTitle || form.collectionIdentifier ? (
+            <Field label="Collection (from bulk import)" hint="Groups this record with the rest of the import.">
+              <div className="bg-sand neu-inset rounded-[16px] px-4 py-3 text-[0.86rem] font-medium">
+                {form.collectionTitle ?? '—'}
+                {form.collectionIdentifier ? (
+                  <span className="text-ink-muted mt-0.5 block font-mono text-[0.72rem]">{form.collectionIdentifier}</span>
+                ) : null}
+              </div>
+            </Field>
+          ) : null}
           <Field label="Publisher">
             <TextInput value={form.publisher ?? ''} onChange={(e) => set('publisher', e.target.value)} placeholder="Dar al-Kutub · or external host name" />
           </Field>
@@ -386,8 +441,30 @@ export default function BookForm() {
         </section>
 
         <div className="border-line/80 flex flex-col gap-3 border-t pt-8 sm:flex-row sm:items-center sm:justify-between">
-          <GhostButton to="/admin/books">Cancel</GhostButton>
+          <div className="flex items-center gap-3">
+            <GhostButton to="/admin/books">Cancel</GhostButton>
+            {existing ? <StatusPill status={existing.status} /> : null}
+          </div>
           <div className="flex flex-col gap-3 sm:flex-row">
+            {existing?.status === 'archived' ? (
+              <GhostButton
+                onClick={() => {
+                  setBookStatus(existing.id, 'draft');
+                  navigate('/admin/books');
+                }}
+              >
+                Restore to draft
+              </GhostButton>
+            ) : existing ? (
+              <GhostButton
+                onClick={() => {
+                  setBookStatus(existing.id, 'archived');
+                  navigate('/admin/books');
+                }}
+              >
+                Archive
+              </GhostButton>
+            ) : null}
             <GhostButton onClick={() => save('draft')}>Save as draft</GhostButton>
             <PrimaryButton onClick={() => save('published')}>Publish to library</PrimaryButton>
           </div>

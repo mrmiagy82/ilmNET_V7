@@ -1,26 +1,34 @@
 import { Link } from 'react-router-dom';
 import { useAdmin } from './store';
-import { PageIntro, PrimaryButton, GhostButton } from './ui';
+import { ErrorRow, LoadingRows, PageIntro, PrimaryButton, GhostButton } from './ui';
 
 export default function Overview() {
-  const { lectures, books, scholars, subjects, activity } = useAdmin();
+  const { lectures, books, scholars, subjects, activity, totals, loading, backendState } = useAdmin();
 
-  const pubL = lectures.filter((x) => x.status === 'published').length;
-  const draftL = lectures.filter((x) => x.status === 'draft').length;
-  const pubB = books.filter((x) => x.status === 'published').length;
-  const draftB = books.filter((x) => x.status === 'draft').length;
-  const archiveLectures = lectures.filter((x) => (x as any).provider === 'archive').length;
+  const draftLectures = lectures.filter((x) => x.status === 'draft').length;
+  const draftBooks = books.filter((x) => x.status === 'draft').length;
   const drafts = [
     ...lectures.filter((x) => x.status === 'draft').map((x) => ({ id: x.id, title: x.title, kind: 'Lecture', to: `/admin/lectures/${x.id}` })),
     ...books.filter((x) => x.status === 'draft').map((x) => ({ id: x.id, title: x.title, kind: 'Book', to: `/admin/books/${x.id}` })),
   ];
 
-  const stats = [
-    { value: String(pubL), label: 'Published lectures', to: '/admin/lectures', hint: `YouTube + ${archiveLectures} Archive` },
-    { value: String(draftL), label: 'Lecture drafts', to: '/admin/lectures', hint: 'Awaiting review' },
-    { value: String(pubB), label: 'Published books', to: '/admin/books', hint: 'Archive.org + external' },
-    { value: String(scholars.length), label: 'Scholars', to: '/admin/scholars', hint: 'Authors & teachers' },
-    { value: String(subjects.length), label: 'Subjects', to: '/admin/subjects', hint: 'Shelves' },
+  // Numbers come from the database (`pagination.total`, one row per query). While the admin is
+  // loading — or when the backend/token is not usable — the dashboard shows a state, not a 0.
+  const degraded = backendState === 'offline' || backendState === 'unauthenticated';
+  const countsLoading = loading || backendState === 'connecting';
+  const n = (value: number | undefined) => (countsLoading ? '—' : value === undefined ? '—' : String(value));
+
+  const statusStats = [
+    { value: n(totals?.published), label: 'Published', to: '/admin/lectures', hint: 'Visible on the public site' },
+    { value: n(totals?.draft), label: 'Drafts', to: '/admin/lectures', hint: 'Waiting to be published' },
+    { value: n(totals?.archived), label: 'Archived', to: '/admin/books', hint: 'Hidden, kept in the database' },
+  ];
+
+  const libraryStats = [
+    { value: n(totals?.publishedLectures), label: 'Published lectures', to: '/admin/lectures', hint: 'Video, audio and Archive.org items' },
+    { value: n(totals?.publishedBooks), label: 'Published books', to: '/admin/books', hint: 'Books & documents' },
+    { value: n(scholars.length), label: 'Scholars', to: '/admin/scholars', hint: 'Authors & teachers' },
+    { value: n(subjects.length), label: 'Subjects', to: '/admin/subjects', hint: 'Shelves' },
   ];
 
   return (
@@ -38,19 +46,48 @@ export default function Overview() {
         }
       />
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
-        {stats.map((s) => (
-          <Link
-            key={s.label}
-            to={s.to}
-            className="bg-cream neu-raised rounded-[24px] px-5 py-6 transition-transform hover:-translate-y-1"
-          >
-            <p className="font-display text-ink text-[1.7rem] font-extrabold tracking-tight">{s.value}</p>
-            <p className="text-ink-muted mt-2 text-[0.72rem] font-semibold tracking-[0.08em] uppercase">{s.label}</p>
-            <p className="text-ink-muted/70 mt-1 text-[0.72rem]">{s.hint}</p>
-          </Link>
-        ))}
-      </div>
+      {degraded ? (
+        <ErrorRow
+          title={backendState === 'unauthenticated' ? 'Admin token missing or rejected (401)' : 'Backend unreachable'}
+          body={
+            backendState === 'unauthenticated'
+              ? 'The library totals cannot be shown: the API refused the request. Set a valid admin token and the real numbers appear again.'
+              : 'The library totals cannot be shown while the API does not respond. Nothing is hidden — the numbers simply are not known right now.'
+          }
+        />
+      ) : countsLoading ? (
+        <LoadingRows rows={2} label="Loading library totals from PostgreSQL…" />
+      ) : (
+      <>
+        <div className="grid grid-cols-3 gap-4">
+          {statusStats.map((s) => (
+            <Link
+              key={s.label}
+              to={s.to}
+              className="bg-cream neu-raised rounded-[24px] px-5 py-6 transition-transform hover:-translate-y-1"
+            >
+              <p className="font-display text-ink text-[1.7rem] font-extrabold tracking-tight">{s.value}</p>
+              <p className="text-ink-muted mt-2 text-[0.72rem] font-semibold tracking-[0.08em] uppercase">{s.label}</p>
+              <p className="text-ink-muted/70 mt-1 text-[0.72rem]">{s.hint}</p>
+            </Link>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          {libraryStats.map((s) => (
+            <Link
+              key={s.label}
+              to={s.to}
+              className="bg-cream neu-raised rounded-[24px] px-5 py-6 transition-transform hover:-translate-y-1"
+            >
+              <p className="font-display text-ink text-[1.5rem] font-extrabold tracking-tight">{s.value}</p>
+              <p className="text-ink-muted mt-2 text-[0.72rem] font-semibold tracking-[0.08em] uppercase">{s.label}</p>
+              <p className="text-ink-muted/70 mt-1 text-[0.72rem]">{s.hint}</p>
+            </Link>
+          ))}
+        </div>
+      </>
+      )}
 
       {/* Bulk import highlight — new requirement */}
       <section className="bg-olive/10 neu-raised overflow-hidden rounded-[32px] border border-olive/10">
@@ -203,7 +240,11 @@ export default function Overview() {
               </ul>
             )}
             <p className="text-ink-muted mt-3 px-2 text-[0.78rem]">
-              {draftB} book {draftB === 1 ? 'draft' : 'drafts'} · {draftL} lecture {draftL === 1 ? 'draft' : 'drafts'} · {pubL + pubB} published
+              {draftBooks} book {draftBooks === 1 ? 'draft' : 'drafts'} · {draftLectures} lecture {draftLectures === 1 ? 'draft' : 'drafts'} in this
+              view
+              {totals
+                ? ` · ${totals.draft} draft${totals.draft === 1 ? '' : 's'} and ${totals.published} published in the database`
+                : ''}
             </p>
           </div>
         </section>

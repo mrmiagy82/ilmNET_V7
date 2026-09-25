@@ -90,11 +90,21 @@ export function GhostButton({
 }
 
 export function StatusPill({ status }: { status: PublishStatus }) {
-  return status === 'published' ? (
-    <span className="bg-olive/20 text-olive-deep inline-flex rounded-full px-3 py-1 text-[0.72rem] font-semibold tracking-[0.04em] uppercase">
-      Published
-    </span>
-  ) : (
+  if (status === 'published') {
+    return (
+      <span className="bg-olive/20 text-olive-deep inline-flex rounded-full px-3 py-1 text-[0.72rem] font-semibold tracking-[0.04em] uppercase">
+        Published
+      </span>
+    );
+  }
+  if (status === 'archived') {
+    return (
+      <span className="bg-rose/10 text-rose inline-flex rounded-full px-3 py-1 text-[0.72rem] font-semibold tracking-[0.04em] uppercase">
+        Archived
+      </span>
+    );
+  }
+  return (
     <span className="bg-sand text-ink-muted inline-flex rounded-full px-3 py-1 text-[0.72rem] font-semibold tracking-[0.04em] uppercase">
       Draft
     </span>
@@ -521,11 +531,67 @@ export function EmptyRow({ title, body }: { title: string; body: string }) {
   );
 }
 
-export function CountLine({ n, noun }: { n: number; noun: string }) {
+/**
+ * Honest counting: `total` is the real database count (`pagination.total`) and may be larger than
+ * what this table has loaded. It is only shown when it is known — never as a stand-in `0`.
+ */
+export function CountLine({ n, noun, total }: { n: number; noun: string; total?: number | null }) {
   return (
     <p className="text-ink-muted text-[0.86rem] font-medium">
       {n} {n === 1 ? noun : `${noun}s`} shown
+      {typeof total === 'number' && total > n ? (
+        <span className="text-ink-muted/70"> · {total} in the database</span>
+      ) : null}
     </p>
+  );
+}
+
+/**
+ * The status transitions the admin offers for one record. Archived records are restorable but never
+ * jump back to the public site in one click — restoring returns them to draft first.
+ */
+export function statusActions(
+  status: PublishStatus,
+  handlers: { publish: () => void; unpublish: () => void; archive: () => void; restore: () => void }
+): { key: string; label: string; onClick: () => void }[] {
+  if (status === 'published') {
+    return [
+      { key: 'unpublish', label: 'Unpublish', onClick: handlers.unpublish },
+      { key: 'archive', label: 'Archive', onClick: handlers.archive },
+    ];
+  }
+  if (status === 'archived') {
+    return [{ key: 'restore', label: 'Restore to draft', onClick: handlers.restore }];
+  }
+  return [
+    { key: 'publish', label: 'Publish', onClick: handlers.publish },
+    { key: 'archive', label: 'Archive', onClick: handlers.archive },
+  ];
+}
+
+/** Placeholder rows while the admin is still loading — never an empty-looking table. */
+export function LoadingRows({ rows = 4, label = 'Loading from the database…' }: { rows?: number; label?: string }) {
+  return (
+    <div className="space-y-3" aria-busy="true" aria-live="polite">
+      <p className="text-ink-muted text-[0.86rem] font-medium">{label}</p>
+      {Array.from({ length: rows }).map((_, i) => (
+        <div key={i} className="bg-cream neu-raised rounded-[24px] p-5">
+          <div className="bg-sand h-4 w-[45%] animate-pulse rounded-full" />
+          <div className="bg-sand/70 mt-3 h-3 w-[70%] animate-pulse rounded-full" />
+          <div className="bg-sand/50 mt-3 h-3 w-[30%] animate-pulse rounded-full" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** The admin could not load its data — say why instead of showing an empty library. */
+export function ErrorRow({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="bg-rose/10 rounded-[24px] px-6 py-14 text-center">
+      <p className="font-display text-ink text-[1.15rem] font-extrabold">{title}</p>
+      <p className="text-ink-soft mt-2 text-[0.92rem]">{body}</p>
+    </div>
   );
 }
 

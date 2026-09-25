@@ -25,12 +25,15 @@ import {
   ArchiveEmbed,
   ChipToggle,
   ErrorBanner,
+  ErrorRow,
+  LoadingRows,
   Field,
   GhostButton,
   PageIntro,
   PrimaryButton,
   SelectInput,
   SourceCard,
+  StatusPill,
   TextArea,
   TextInput,
   YoutubeEmbed,
@@ -59,8 +62,52 @@ const empty: Omit<AdminLecture, 'id' | 'updatedAt'> = {
 
 export default function LectureForm() {
   const { id } = useParams();
+  const { lectures, loading, backendState } = useAdmin();
+  const existing = id ? lectures.find((l) => l.id === id) : undefined;
+
+  // A direct URL or a hard refresh must not claim the record is gone while it is still loading.
+  if (id && !existing) {
+    if (loading || backendState === 'connecting') {
+      return (
+        <div className="mx-auto max-w-[720px]">
+          <PageIntro eyebrow="Lectures" title="Loading…" intro="Fetching this record from PostgreSQL." />
+          <div className="mt-8">
+            <LoadingRows rows={2} label="Loading the lecture…" />
+          </div>
+        </div>
+      );
+    }
+    if (backendState === 'unauthenticated' || backendState === 'offline') {
+      return (
+        <div className="mx-auto max-w-[720px]">
+          <ErrorRow
+            title={backendState === 'unauthenticated' ? 'Admin token missing or rejected (401)' : 'Backend unreachable'}
+            body="This record could not be loaded, so it is not shown as “not found”. Retry with a valid token and a reachable API."
+          />
+          <div className="mt-8">
+            <GhostButton to="/admin/lectures">Back to lectures</GhostButton>
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div className="mx-auto max-w-[720px]">
+        <PageIntro eyebrow="Lectures" title="Not found" intro="This lecture is no longer on the desk." />
+        <div className="mt-8">
+          <GhostButton to="/admin/lectures">Back to lectures</GhostButton>
+        </div>
+      </div>
+    );
+  }
+  // Mounting this component per record means the form below always initialises from the record that is
+  // really in the database — a direct URL or a hard refresh can never leave an empty form behind.
+  return <LectureFormInner key={id ?? 'new'} />;
+}
+
+function LectureFormInner() {
+  const { id } = useParams();
   const navigate = useNavigate();
-  const { lectures, scholars, subjects, upsertLecture } = useAdmin();
+  const { lectures, scholars, subjects, upsertLecture, setLectureStatus } = useAdmin();
   const existing = id ? lectures.find((l) => l.id === id) : undefined;
   const isNew = !id;
 
@@ -75,6 +122,8 @@ export default function LectureForm() {
         sourceUrl: (existing as any).sourceUrl ?? existing.youtubeUrl,
         archiveIdentifier: (existing as any).archiveIdentifier,
         mediaTypes: (existing as any).mediaTypes,
+        collectionIdentifier: existing.collectionIdentifier,
+        collectionTitle: existing.collectionTitle,
         scholarId: existing.scholarId,
         scholarIds: existing.scholarIds ?? (existing.scholarId ? [existing.scholarId] : []),
         subjectIds: existing.subjectIds,
@@ -94,16 +143,6 @@ export default function LectureForm() {
   });
   const [error, setError] = useState<string | null>(null);
 
-  if (id && !existing) {
-    return (
-      <div className="mx-auto max-w-[720px]">
-        <PageIntro eyebrow="Lectures" title="Not found" intro="This lecture is no longer on the desk." />
-        <div className="mt-8">
-          <GhostButton to="/admin/lectures">Back to lectures</GhostButton>
-        </div>
-      </div>
-    );
-  }
 
   const set = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
@@ -142,7 +181,8 @@ export default function LectureForm() {
     return null;
   }, [isArchiveProvider, ytEmbedUrl, archiveUrl]);
 
-  const save = (status: PublishStatus) => {
+
+    const save = (status: PublishStatus) => {
     const scholarsChosen = form.scholarIds && form.scholarIds.length > 0 ? form.scholarIds : form.scholarId ? [form.scholarId] : [];
     if (!form.title.trim() || scholarsChosen.length === 0 || form.subjectIds.length === 0) {
       setError('Title, at least one scholar and one subject are required.');
@@ -403,10 +443,20 @@ export default function LectureForm() {
         </section>
 
         <section className="grid gap-5 sm:grid-cols-2">
-          <Field label="Series">
-            <TextInput value={form.series} onChange={(e) => set('series', e.target.value)} placeholder="Tafsīr Foundations" />
-          </Field>
-          <Field label="Format">
+            <Field label="Series">
+              <TextInput value={form.series} onChange={(e) => set('series', e.target.value)} placeholder="Tafsīr Foundations" />
+            </Field>
+            {form.collectionTitle || form.collectionIdentifier ? (
+              <Field label="Collection (from bulk import)" hint="Groups this record with the rest of the import.">
+                <div className="bg-sand neu-inset rounded-[16px] px-4 py-3 text-[0.86rem] font-medium">
+                  {form.collectionTitle ?? '—'}
+                  {form.collectionIdentifier ? (
+                    <span className="text-ink-muted mt-0.5 block font-mono text-[0.72rem]">{form.collectionIdentifier}</span>
+                  ) : null}
+                </div>
+              </Field>
+            ) : null}
+            <Field label="Format">
             <SelectInput value={form.format} onChange={(e) => set('format', e.target.value as LectureFormat)}>
               {lectureFormats.map((f) => (
                 <option key={f}>{f}</option>
@@ -448,8 +498,30 @@ export default function LectureForm() {
         </section>
 
         <div className="border-line/80 flex flex-col gap-3 border-t pt-8 sm:flex-row sm:items-center sm:justify-between">
-          <GhostButton to="/admin/lectures">Cancel</GhostButton>
+          <div className="flex items-center gap-3">
+            <GhostButton to="/admin/lectures">Cancel</GhostButton>
+            {existing ? <StatusPill status={existing.status} /> : null}
+          </div>
           <div className="flex flex-col gap-3 sm:flex-row">
+            {existing?.status === 'archived' ? (
+              <GhostButton
+                onClick={() => {
+                  setLectureStatus(existing.id, 'draft');
+                  navigate('/admin/lectures');
+                }}
+              >
+                Restore to draft
+              </GhostButton>
+            ) : existing ? (
+              <GhostButton
+                onClick={() => {
+                  setLectureStatus(existing.id, 'archived');
+                  navigate('/admin/lectures');
+                }}
+              >
+                Archive
+              </GhostButton>
+            ) : null}
             <GhostButton onClick={() => save('draft')}>Save as draft</GhostButton>
             <PrimaryButton onClick={() => save('published')}>Publish to library</PrimaryButton>
           </div>

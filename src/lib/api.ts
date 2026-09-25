@@ -191,6 +191,14 @@ export function publishContent(id: string) {
 export function unpublishContent(id: string) {
   return apiFetch<Single<BackendContent>>(`/api/admin/contents/${encodeURIComponent(id)}/unpublish`, { method: "POST" });
 }
+/** Archiving keeps the record in PostgreSQL but hides it from the public site (status = archived). */
+export function archiveContent(id: string) {
+  return patchContent(id, { status: "archived" });
+}
+/** Restoring an archived record puts it back to draft — it never returns to the public site on its own. */
+export function restoreContent(id: string) {
+  return patchContent(id, { status: "draft" });
+}
 
 // ── Admin media uploads (custom thumbnails/covers) ──
 export async function uploadImage(file: File): Promise<{ url: string; filename: string; bytes: number; mime: string }> {
@@ -353,6 +361,11 @@ export function health() {
 // ── Mappers: BackendContent <-> AdminLecture/AdminBook ──
 import type { AdminBook, AdminLecture, PublishStatus } from "@/admin/data";
 
+/** Status must round-trip unchanged: a non-published record may be a draft *or* archived. */
+export function backendToPublishStatus(status: string): PublishStatus {
+  return status === "published" ? "published" : status === "archived" ? "archived" : "draft";
+}
+
 export function backendToAdminLecture(c: BackendContent): AdminLecture {
   const scholarIds = c.scholars.map((s) => s.scholarId);
   const ytUrl = c.provider === "youtube" ? c.sourceUrl : "";
@@ -365,6 +378,8 @@ export function backendToAdminLecture(c: BackendContent): AdminLecture {
     sourceUrl: c.sourceUrl,
     archiveIdentifier: c.externalIdentifier ?? c.collectionIdentifier ?? undefined,
     mediaTypes: (c.metadata?.archive?.available_media as string[]) ?? undefined,
+    collectionIdentifier: c.collectionIdentifier ?? undefined,
+    collectionTitle: c.collectionTitle ?? undefined,
     scholarId: scholarIds[0] ?? "",
     scholarIds,
     subjectIds: c.subjects.map((s) => s.subjectId),
@@ -375,7 +390,7 @@ export function backendToAdminLecture(c: BackendContent): AdminLecture {
     // geen kunstmatige 30 — null betekent onbekend (DB: null)
     durationMin: (c.durationMin ?? null) as any,
     episodes: c.episodes ?? 1,
-    status: (c.status === "published" ? "published" : "draft") as PublishStatus,
+    status: backendToPublishStatus(c.status),
     updatedAt: new Date(c.updatedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
     thumbnailUrl: c.thumbnailUrl ?? undefined,
     coverUrl: c.coverUrl ?? undefined,
@@ -396,6 +411,9 @@ export function backendToAdminBook(c: BackendContent): AdminBook {
     provider: (provMap[c.provider] ?? "archive") as any,
     archiveIdentifier: c.externalIdentifier ?? undefined,
     mediaTypes: (c.metadata?.archive?.available_media as string[]) ?? undefined,
+    series: c.series ?? "",
+    collectionIdentifier: c.collectionIdentifier ?? undefined,
+    collectionTitle: c.collectionTitle ?? undefined,
     scholarId: scholarIds[0] ?? "",
     scholarIds,
     subjectIds: c.subjects.map((s) => s.subjectId),
@@ -404,8 +422,9 @@ export function backendToAdminBook(c: BackendContent): AdminBook {
     // geen kunstmatige 120 — null betekent onbekend (DB: null)
     pages: (c.pages ?? null) as any,
     year: c.year ?? new Date().getFullYear(),
-    status: (c.status === "published" ? "published" : "draft") as PublishStatus,
+    status: backendToPublishStatus(c.status),
     updatedAt: new Date(c.updatedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
+    thumbnailUrl: c.thumbnailUrl ?? undefined,
     coverUrl: c.coverUrl ?? undefined,
     publisher: (c.metadata?.publisher as string) ?? c.collectionTitle ?? undefined,
     language: c.language ?? "English",
@@ -437,8 +456,9 @@ export function adminLectureToPayload(l: AdminLecture): Record<string, any> {
     provider: isArchive ? "archive" : "youtube",
     sourceUrl: isArchive ? (l as any).sourceUrl || l.youtubeUrl : l.youtubeUrl || (l as any).sourceUrl,
     externalIdentifier: (l as any).archiveIdentifier || null,
-    collectionIdentifier: null,
-    collectionTitle: null,
+    // group fields are stored by the bulk imports; an edit from the admin must not drop them
+    collectionIdentifier: l.collectionIdentifier ?? null,
+    collectionTitle: l.collectionTitle ?? null,
     durationMin: l.durationMin || null,
     episodes: l.episodes || null,
     scholarIds: l.scholarIds?.length ? l.scholarIds : l.scholarId ? [l.scholarId] : [],
@@ -457,12 +477,15 @@ export function adminBookToPayload(b: AdminBook): Record<string, any> {
     description: b.description,
     status: b.status,
     language: b.language,
-    thumbnailUrl: null,
+    thumbnailUrl: b.thumbnailUrl ?? null,
     coverUrl: b.coverUrl || null,
-    series: null,
+    series: b.series || null,
     provider: prov,
     sourceUrl: b.sourceUrl || b.archiveUrl,
     externalIdentifier: (b as any).archiveIdentifier || null,
+    // group fields are stored by the bulk imports; an edit from the admin must not drop them
+    collectionIdentifier: b.collectionIdentifier ?? null,
+    collectionTitle: b.collectionTitle ?? null,
     pages: b.pages || null,
     year: b.year || null,
     scholarIds: b.scholarIds?.length ? b.scholarIds : b.scholarId ? [b.scholarId] : [],

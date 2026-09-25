@@ -7,13 +7,16 @@ import {
   ConfirmDialog,
   CountLine,
   EmptyRow,
+  ErrorRow,
   IconBtn,
+  LoadingRows,
   PageIntro,
   PencilIcon,
   PrimaryButton,
   StatusPill,
   TableShell,
   TrashIcon,
+  statusActions,
   tdCls,
   thCls,
   trCls,
@@ -21,9 +24,9 @@ import {
 import { isArchiveUrl, isYoutubePlaylistUrl } from './data';
 
 export default function LecturesPage() {
-  const { lectures, scholars, subjects, deleteLecture, setLectureStatus } = useAdmin();
+  const { lectures, scholars, subjects, deleteLecture, setLectureStatus, loading, backendState, totals } = useAdmin();
   const [query, setQuery] = useState('');
-  const [status, setStatus] = useState<'all' | 'published' | 'draft'>('all');
+  const [status, setStatus] = useState<'all' | 'published' | 'draft' | 'archived'>('all');
   const [subject, setSubject] = useState<string | 'all'>('all');
   const [source, setSource] = useState<'all' | 'youtube-video' | 'youtube-playlist' | 'archive'>('all');
   const [pending, setPending] = useState<string | null>(null);
@@ -35,6 +38,8 @@ export default function LecturesPage() {
   const subjectName = (id: string) => subjects.find((s) => s.id === id)?.name ?? id;
 
   const lectureProvider = (l: (typeof lectures)[number]) => (l as any).provider ?? (isArchiveUrl((l as any).sourceUrl ?? l.youtubeUrl) ? 'archive' : 'youtube');
+  // series is free text; collectionTitle/collectionIdentifier come from a bulk import
+  const groupLabel = (l: (typeof lectures)[number]) => [l.series, l.collectionTitle].filter(Boolean).join(' · ');
   const lectureUrl = (l: (typeof lectures)[number]) => (l as any).sourceUrl ?? l.youtubeUrl ?? '';
 
   const filtered = useMemo(() => {
@@ -48,6 +53,7 @@ export default function LecturesPage() {
         l.title.toLowerCase().includes(q) ||
         scholarStr.toLowerCase().includes(q) ||
         l.series.toLowerCase().includes(q) ||
+        (l.collectionTitle ?? '').toLowerCase().includes(q) ||
         names.toLowerCase().includes(q) ||
         url.includes(q);
       const matchesS = status === 'all' || l.status === status;
@@ -85,6 +91,7 @@ export default function LecturesPage() {
             options={[
               { value: 'published', label: 'Published' },
               { value: 'draft', label: 'Draft' },
+              { value: 'archived', label: 'Archived' },
             ]}
             active={status}
             onChange={setStatus}
@@ -110,11 +117,33 @@ export default function LecturesPage() {
       </div>
 
       <div className="mt-6 flex items-center justify-between">
-        <CountLine n={filtered.length} noun="lecture" />
+        <CountLine
+          n={filtered.length}
+          noun="lecture"
+          total={status === 'all' && !query.trim() && subject === 'all' && source === 'all' ? totals?.allLectures : undefined}
+        />
         <span className="text-ink-muted hidden text-[0.76rem] sm:inline">Archive lectures show as “Archive” badge — same management.</span>
       </div>
 
-      {filtered.length === 0 ? (
+      {backendState === 'unauthenticated' ? (
+        <div className="mt-6">
+          <ErrorRow
+            title="Admin token missing or rejected (401)"
+            body="The lectures could not be loaded. Set a valid token in the admin panel — nothing was changed."
+          />
+        </div>
+      ) : backendState === 'offline' ? (
+        <div className="mt-6">
+          <ErrorRow
+            title="Backend unreachable"
+            body="The lecture list could not be loaded from the database. Retry once the API responds — this is not an empty library."
+          />
+        </div>
+      ) : loading ? (
+        <div className="mt-6">
+          <LoadingRows rows={4} label="Loading lectures from PostgreSQL…" />
+        </div>
+      ) : filtered.length === 0 ? (
         <div className="mt-6">
           <EmptyRow title="No lectures match" body="Try another search, subject, source or publish state." />
         </div>
@@ -148,17 +177,21 @@ export default function LecturesPage() {
                     </div>
                   </div>
                   <p className="text-ink-muted mt-3 truncate text-[0.78rem] font-mono">{url}</p>
-                  <p className="text-ink-muted mt-1 text-[0.72rem]">{l.series} · {l.subjectIds.map(subjectName).join(', ')}</p>
+                  <p className="text-ink-muted mt-1 text-[0.72rem]">{[groupLabel(l), l.subjectIds.map(subjectName).join(', ')].filter(Boolean).join(' · ')}</p>
                   <div className="mt-4 flex flex-wrap gap-2">
                     <Link to={`/admin/lectures/${l.id}`} className="bg-sand neu-raised-sm rounded-full px-4 py-2 text-[0.8rem] font-semibold">
                       Edit
                     </Link>
-                    <button
-                      onClick={() => setLectureStatus(l.id, l.status === 'published' ? 'draft' : 'published')}
-                      className="bg-sand neu-raised-sm rounded-full px-4 py-2 text-[0.8rem] font-semibold"
-                    >
-                      {l.status === 'published' ? 'Unpublish' : 'Publish'}
-                    </button>
+                    {statusActions(l.status, {
+                      publish: () => setLectureStatus(l.id, 'published'),
+                      unpublish: () => setLectureStatus(l.id, 'draft'),
+                      archive: () => setLectureStatus(l.id, 'archived'),
+                      restore: () => setLectureStatus(l.id, 'draft'),
+                    }).map((a) => (
+                      <button key={a.key} onClick={a.onClick} className="bg-sand neu-raised-sm rounded-full px-4 py-2 text-[0.8rem] font-semibold">
+                        {a.label}
+                      </button>
+                    ))}
                     <button onClick={() => setPending(l.id)} className="text-rose rounded-full px-4 py-2 text-[0.8rem] font-semibold">
                       Remove
                     </button>
@@ -199,7 +232,7 @@ export default function LecturesPage() {
                             <div>
                               <p className="font-semibold leading-tight">{l.title}</p>
                               <p className="text-ink-muted mt-0.5 max-w-[260px] truncate text-[0.75rem] font-mono">{url}</p>
-                              <p className="text-ink-muted text-[0.72rem] mt-1">{l.series}{(l as any).archiveIdentifier ? ` · ${(l as any).archiveIdentifier}` : ''}</p>
+                              <p className="text-ink-muted text-[0.72rem] mt-1">{[groupLabel(l), (l as any).archiveIdentifier].filter(Boolean).join(' · ')}</p>
                             </div>
                           </div>
                         </td>
@@ -216,12 +249,20 @@ export default function LecturesPage() {
                         <td className={`${tdCls} text-ink-muted whitespace-nowrap`}>{l.updatedAt}</td>
                         <td className={tdCls}>
                           <div className="flex items-center justify-end gap-1">
-                            <button
-                              onClick={() => setLectureStatus(l.id, l.status === 'published' ? 'draft' : 'published')}
-                              className="text-ink-muted hover:text-rose px-2 text-[0.78rem] font-semibold"
-                            >
-                              {l.status === 'published' ? 'Unpublish' : 'Publish'}
-                            </button>
+                            {statusActions(l.status, {
+                              publish: () => setLectureStatus(l.id, 'published'),
+                              unpublish: () => setLectureStatus(l.id, 'draft'),
+                              archive: () => setLectureStatus(l.id, 'archived'),
+                              restore: () => setLectureStatus(l.id, 'draft'),
+                            }).map((a) => (
+                              <button
+                                key={a.key}
+                                onClick={a.onClick}
+                                className="text-ink-muted hover:text-rose px-2 text-[0.78rem] font-semibold"
+                              >
+                                {a.label}
+                              </button>
+                            ))}
                             <Link
                               to={`/admin/lectures/${l.id}`}
                               aria-label="Edit"
@@ -249,7 +290,7 @@ export default function LecturesPage() {
         title="Remove this lecture?"
         body={
           remove
-            ? `“${remove.title}” will leave the desk. The ${lectureProvider(remove) === 'archive' ? 'Archive.org item' : `YouTube ${remove.sourceType === 'youtube-playlist' ? 'playlist' : 'video'}`} itself is not deleted.`
+            ? `“${remove.title}” will leave the desk. The ${lectureProvider(remove) === 'archive' ? 'Archive.org item' : `YouTube ${remove.sourceType === 'youtube-playlist' ? 'playlist' : 'video'}`} itself is not deleted. The record is removed from the database for good — use Archive instead if you only want to hide it.`
             : ''
         }
         onCancel={() => setPending(null)}

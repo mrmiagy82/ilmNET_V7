@@ -5,7 +5,7 @@ Update it after every finished phase, commit, sanity check or significant discov
 Rules: only facts that are verifiable from the repository, Git history or existing docs — and
 **never** secrets, tokens or credentials.
 
-_Last updated: Fase 3.10 (project context & agent continuity)._
+_Last updated: Fase 4 (TinyCMS)._
 
 ---
 
@@ -14,13 +14,13 @@ _Last updated: Fase 3.10 (project context & agent continuity)._
 | | |
 | --- | --- |
 | Branch | `master` |
-| Codebase state described here | `f4aad03` — “Fase 3.9.1 fix production honesty issues” |
-| This document | written in Fase 3.10; its own revision is visible with `git log -1 -- docs/CONTEXT.md` |
+| Codebase state described here | `2f16540` (Fase 3.10) **plus** the Fase 4 TinyCMS changes in §7 — this document ships in the Fase 4 commit |
+| This document | updated in Fase 4; its own revision is visible with `git log -1 -- docs/CONTEXT.md` |
 | Working tree | clean (verified against `origin/master`) |
 | Repository | `github.com/mrmiagy82/ilmNET_V7` |
-| Size | 63 source files, ~14.1k lines in `src/` + `server/src/` |
-| Build (git-ignored artefact) | single-file `dist/index.html` (~628 kB, ~157 kB gzip) |
-| Phase state | feature-complete for the current phase; last review found no blockers |
+| Size | 64 source files, ~14.7k lines in `src/` + `server/src/`; the admin (`src/admin/`, 18 files, ~6.4k lines) is the largest area |
+| Build (git-ignored artefact) | single-file `dist/index.html` (~638 kB, ~159.5 kB gzip) |
+| Phase state | Fase 4 TinyCMS complete: real statuses (draft/published/archived), real database totals, honest loading/error states |
 | Open blockers | none |
 
 ## 2. Completed phases (from Git history)
@@ -35,7 +35,9 @@ _Last updated: Fase 3.10 (project context & agent continuity)._
 | `96513a1` | Fase 3.8 | deployment prepared and tested end-to-end |
 | `944a83f` | Fase 3.8.1 | production env/security hardening (`.env` may not configure a prod boot) |
 | `cfe8587` | Fase 3.9 | final production codebase review + sanity-check fixes |
-| `f4aad03` | Fase 3.9.1 | honesty of counters, status and copy (see §7) |
+| `f4aad03` | Fase 3.9.1 | honesty of counters, status and copy |
+| `2f16540` | Fase 3.10 | project context + agent continuity (`AGENTS.md`, this file) |
+| _this commit_ | Fase 4 | TinyCMS: archived status, real totals, honest admin states (see §7) |
 
 Earlier work is documented per topic in `docs/FASE2A_ARCHIVE.md`, `docs/FASE2B_YOUTUBE.md`,
 `docs/FASE2C_PUBLIC_FRONTEND.md`, `docs/FASE2D_SEARCH_FILTERING.md`,
@@ -84,6 +86,12 @@ re-hosts media. Downloads are offered only when a real file URL can be construct
 **code splitting / lazy admin routes are pointless** — this was measured (Fase 3.9: 637 kB → 643 kB,
 i.e. no gain). Do not retry it unless the build target itself changes.
 
+**Admin reads/writes.** The admin store (`src/admin/store.tsx`) is the only place that touches
+`/api/admin/*`; it maps backend rows to `AdminLecture`/`AdminBook` through `src/lib/api.ts`. Statuses
+round-trip unchanged (`draft | published | archived`) and group fields (`series`,
+`collectionIdentifier`, `collectionTitle`) survive an edit. Counters come from `pagination.total`
+(one record per query) — never from the capped list and never invented.
+
 **Style.** Neumorphic/spatial UI with the cream/olive/rose palette; no religious symbols or
 decorative clichés; the public site is free and needs no login.
 
@@ -129,11 +137,12 @@ decorative clichés; the public site is free and needs no login.
 | Command | What it covers | Last verified result |
 | --- | --- | --- |
 | `npx tsc --noEmit` (root + `server/`) | types | 0 errors |
-| `npm run build` (root) | single-file production build | ~628 kB / ~157 kB gzip |
+| `npm run build` (root) | single-file production build | ~638 kB / ~159.5 kB gzip |
 | `cd server && npm run test:all` | audit, uploads (25), production readiness (44), env hardening (13), youtube | all green |
 | `cd server && npm run test:imports` | live Archive.org + YouTube import regression | 19/19 |
 | `npm run test:e2e:production` | routes, embeds, error states, mobile, admin | 61/61 |
 | `npm run test:e2e` | waveform, thumbnails, admin upload flow | 27/27 |
+| `npm run test:e2e:cms` | TinyCMS: real totals, draft→published→archived→restored, collection round-trip, 401 honesty | 28/28 |
 
 Browser specs take `SITE_URL`, `API_URL` and `ADMIN_TOKEN`; the server suite takes
 `TEST_ADMIN_TOKEN`. Mutating suites clean up their own records — verify afterwards, and never point
@@ -141,7 +150,34 @@ them at a database whose content must be preserved. Known quirk: `test:imports` 
 the imported record in place (that is part of what it asserts), so run it against a throwaway
 database or remove the record afterwards.
 
-## 7. What Fase 3.9 / 3.9.1 changed (so it is not re-broken)
+## 7. What Fase 4 (TinyCMS) changed (so it is not re-broken)
+
+The admin CMS already existed (Fase 3). Fase 4 closed the gaps between it and the database, without
+touching the schema or adding dependencies:
+
+- **`archived` is a first-class status in the admin.** `StatusPill`, the status filter
+  (`All states / Published / Draft / Archived`), the row actions and the edit forms all know it.
+  Archive keeps the record in PostgreSQL (public API returns 404 for it); *Restore to draft* brings
+  it back as a draft — archived content never returns to the public site on its own.
+- **Editing no longer destroys data.** `adminLectureToPayload` used to send
+  `collectionIdentifier: null; collectionTitle: null` and `adminBookToPayload` sent `series: null`,
+  so one save wiped a bulk-import grouping. Both now round-trip `series` + `collectionIdentifier` +
+  `collectionTitle` (and `thumbnailUrl` for books), and the forms show the collection a record
+  belongs to.
+- **No status is silently rewritten.** `backendToPublishStatus()` is now the single mapping; before,
+  every non-published record (including archived) was turned into `draft` on load.
+- **Dashboard totals are real.** `pagination.total` (seven `limit=1` queries) instead of counting a
+  list capped at 100 items; while loading or when the token/API fails, the dashboard shows a state —
+  never a `0` that looks like an empty library.
+- **Lists and forms have loading/error states.** Lists show placeholders while loading and an
+  explicit 401/offline row instead of an empty table; a direct URL or hard refresh on an edit page
+  shows *Loading…* and then the hydrated form (the form mounts per record, so it can never be empty).
+- **Honest counting.** `CountLine` prints “N shown · M in the database” when the database holds more
+  than the loaded page.
+- **Tests.** `tests/e2e/cms.spec.mjs` (`npm run test:e2e:cms`) drives the real admin in a browser:
+  it archives, restores, publishes, edits a bulk-import-shaped record and checks the 401 path.
+
+## 7b. What Fase 3.9 / 3.9.1 changed (still valid)
 
 - Landing page shows **real** library counts (`pagination.total` per type + scholar count) and
   nothing while loading; the subject pills/cards are real subjects with real item counts.
@@ -163,8 +199,9 @@ From `docs/FASE3_9_CODEBASE_REVIEW.md` § Restrisico's plus the 3.9.1 report:
 
 1. **Single-file bundle** — the CMS ships inside the same `index.html` as the public site; code
    splitting is impossible while `vite-plugin-singlefile` is active.
-2. **100-item lists** — public lists fetch up to 100 items per request; growth needs server-side
-   pagination / infinite scroll (`pagination.total` already exists).
+2. **100-item lists** — public lists and the admin store fetch up to 100 items per request; growth
+   needs server-side pagination / infinite scroll (`pagination.total` already exists, and the admin
+   now reports the real total next to the loaded page).
 3. **Search** is `ILIKE %q%` across several columns; thousands of records need a trigram/full-text
    index.
 4. **No rate limiting** on the public API (a reverse-proxy concern).
@@ -178,10 +215,10 @@ From `docs/FASE3_9_CODEBASE_REVIEW.md` § Restrisico's plus the 3.9.1 report:
 
 ## 9. Next step
 
-No open blockers: Fase 3.9.1 closed every point from the independent sanity check, and the review
-concluded the codebase is ready for the next phase. The next step is a **new user instruction**;
-the items in §8 are the documented candidates if the goal is scale or hardening. Before starting:
-`git status`, `git log --oneline -3`, and re-read this file.
+No open blockers: Fase 4 closed the real gaps between the admin and the database (see §7) and every
+suite is green. The next step is a **new user instruction**; the items in §8 are the documented
+candidates if the goal is scale or hardening. Before starting: `git status`,
+`git log --oneline -3`, and re-read this file.
 
 ## 10. How to keep this file accurate
 

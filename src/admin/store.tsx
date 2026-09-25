@@ -16,6 +16,22 @@ type Kind = Activity['kind'];
 /** Why the admin API is not usable right now — an auth problem is not a network problem. */
 export type BackendState = 'connecting' | 'online' | 'unauthenticated' | 'offline';
 
+/**
+ * Real totals straight from the database (`pagination.total`, one record per query) — never
+ * derived from the capped list the admin loads, and never invented.
+ */
+export interface AdminTotals {
+  published: number;
+  draft: number;
+  archived: number;
+  publishedLectures: number;
+  publishedBooks: number;
+  /** every lecture-type record regardless of status — what the Lectures list holds. */
+  allLectures: number;
+  /** every book/document record regardless of status — what the Books list holds. */
+  allBooks: number;
+}
+
 interface AdminStore {
   lectures: AdminLecture[];
   books: AdminBook[];
@@ -27,6 +43,7 @@ interface AdminStore {
   apiAuthError: boolean;
   backendState: BackendState;
   loading: boolean;
+  totals: AdminTotals | null;
   clearNotice: () => void;
   flash: (msg: string) => void;
   refresh: () => Promise<void>;
@@ -58,7 +75,7 @@ function toAdminScholar(s: api.BackendScholar): AdminScholar {
     specialtyId: s.specialtyId ?? '',
     bio: s.bio ?? '',
     accent: s.accent as any,
-    status: (s.status === 'published' ? 'published' : 'draft') as PublishStatus,
+    status: api.backendToPublishStatus(s.status),
     updatedAt: new Date(s.updatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
   };
 }
@@ -69,7 +86,7 @@ function toAdminSubject(s: api.BackendSubject): AdminSubject {
     group: s.group as any,
     description: s.description ?? '',
     accent: s.accent as any,
-    status: (s.status === 'published' ? 'published' : 'draft') as PublishStatus,
+    status: api.backendToPublishStatus(s.status),
     updatedAt: new Date(s.updatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
   };
 }
@@ -84,6 +101,30 @@ async function settle<T>(p: Promise<T>): Promise<Settled<T>> {
   }
 }
 
+/** `pagination.total` of a settled list response — the database count, or null when the call failed. */
+function totalOf(res: Settled<{ pagination: { total: number } }>): number | null {
+  return res.ok ? res.value.pagination.total : null;
+}
+
+/**
+ * Status transitions. Publishing goes through the publish endpoint (it validates scholar + subject
+ * and stamps publishedAt). Restoring an archived record returns it to draft — archived content never
+ * becomes public again on its own.
+ */
+function statusChange(noun: string, status: PublishStatus, previous?: PublishStatus): { verb: Activity['verb']; message: string } {
+  if (status === 'published') return { verb: 'Published', message: `${noun} published — visible on the public site.` };
+  if (status === 'archived') return { verb: 'Archived', message: `${noun} archived — kept in the database, hidden from the public site.` };
+  if (previous === 'archived') return { verb: 'Restored', message: `${noun} restored to draft.` };
+  return { verb: 'Unpublished', message: `${noun} unpublished — back to draft.` };
+}
+
+function statusRequest(id: string, status: PublishStatus, previous?: PublishStatus) {
+  if (status === 'published') return api.publishContent(id);
+  if (status === 'archived') return api.archiveContent(id);
+  if (previous === 'archived') return api.restoreContent(id);
+  return api.unpublishContent(id);
+}
+
 export function AdminProvider({ children }: { children: ReactNode }) {
   const [lectures, setLectures] = useState<AdminLecture[]>([]);
   const [books, setBooks] = useState<AdminBook[]>([]);
@@ -94,16 +135,38 @@ export function AdminProvider({ children }: { children: ReactNode }) {
   const [notice, setNotice] = useState<string | null>(null);
   const [backendState, setBackendState] = useState<BackendState>('connecting');
   const [loading, setLoading] = useState(true);
+  const [totals, setTotals] = useState<AdminTotals | null>(null);
 
   const push = (entry: Activity) => setActivity((prev) => [entry, ...prev].slice(0, 14));
   const flash = (msg: string) => setNotice(msg);
 
   const refresh = async () => {
-    const [schRes, subRes, contRes] = await Promise.all([
+    const [schRes, subRes, contRes, pubRes, draftRes, archRes, lecRes, bookRes, allLecRes, allBookRes] = await Promise.all([
       settle(api.listAdminScholars()),
       settle(api.listAdminSubjects()),
       settle(api.listAdminContents({ limit: 100 })),
+      // one record per query: pagination.total is the real database count, not a page size
+      settle(api.listAdminContents({ limit: 1, status: 'published' })),
+      settle(api.listAdminContents({ limit: 1, status: 'draft' })),
+      settle(api.listAdminContents({ limit: 1, status: 'archived' })),
+      settle(api.listAdminContents({ limit: 1, status: 'published', type: 'lecture,audio,video' })),
+      settle(api.listAdminContents({ limit: 1, status: 'published', type: 'book,document' })),
+      settle(api.listAdminContents({ limit: 1, type: 'lecture,audio,video' })),
+      settle(api.listAdminContents({ limit: 1, type: 'book,document' })),
     ]);
+
+    const counts: Record<keyof AdminTotals, number | null> = {
+      published: totalOf(pubRes),
+      draft: totalOf(draftRes),
+      archived: totalOf(archRes),
+      publishedLectures: totalOf(lecRes),
+      publishedBooks: totalOf(bookRes),
+      allLectures: totalOf(allLecRes),
+      allBooks: totalOf(allBookRes),
+    };
+    // Partial counts would be misleading, so they are shown all-or-nothing.
+    if (Object.values(counts).every((v) => v !== null)) setTotals(counts as AdminTotals);
+    else setTotals(null);
 
     if (schRes.ok && subRes.ok && contRes.ok) {
       setScholars(schRes.value.data.map(toAdminScholar));
@@ -170,6 +233,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       apiAuthError,
       backendState,
       loading,
+      totals,
       clearNotice: () => setNotice(null),
       flash,
       refresh,
@@ -225,14 +289,13 @@ export function AdminProvider({ children }: { children: ReactNode }) {
         const item = lectures.find((x) => x.id === id);
         const before = lectures;
         setLectures((prev) => prev.map((x) => (x.id === id ? { ...x, status, updatedAt: todayStamp() } : x)));
-        const verb: Activity['verb'] = status === 'published' ? 'Published' : 'Unpublished';
+        const { verb, message } = statusChange('Lecture', status, item?.status);
         const confirmed = async () => {
           if (item) push(log(verb, 'lecture', item.title));
-          flash(status === 'published' ? 'Lecture published.' : 'Lecture unpublished.');
+          flash(message);
           await refresh();
         };
-        const fn = status === 'published' ? api.publishContent : api.unpublishContent;
-        fn(id)
+        statusRequest(id, status, item?.status)
           .then(confirmed)
           .catch(async () => {
             try {
@@ -295,14 +358,13 @@ export function AdminProvider({ children }: { children: ReactNode }) {
         const item = books.find((x) => x.id === id);
         const before = books;
         setBooks((prev) => prev.map((x) => (x.id === id ? { ...x, status, updatedAt: todayStamp() } : x)));
-        const verb: Activity['verb'] = status === 'published' ? 'Published' : 'Unpublished';
+        const { verb, message } = statusChange('Book', status, item?.status);
         const confirmed = async () => {
           if (item) push(log(verb, 'book', item.title));
-          flash(status === 'published' ? 'Book published.' : 'Book unpublished.');
+          flash(message);
           await refresh();
         };
-        const fn = status === 'published' ? api.publishContent : api.unpublishContent;
-        fn(id)
+        statusRequest(id, status, item?.status)
           .then(confirmed)
           .catch(async () => {
             try {
@@ -443,7 +505,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
           });
       },
     }),
-    [lectures, books, scholars, subjects, activity, notice, apiOnline, apiAuthError, backendState, loading]
+    [lectures, books, scholars, subjects, activity, notice, apiOnline, apiAuthError, backendState, loading, totals]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

@@ -26,6 +26,9 @@ export interface AdminLecture {
   sourceUrl?: string;
   archiveIdentifier?: string;
   mediaTypes?: string[];
+  // series/collection grouping as stored in the database (bulk imports fill these)
+  collectionIdentifier?: string;
+  collectionTitle?: string;
   scholarId: string;
   scholarIds?: string[];
   subjectIds: string[];
@@ -52,6 +55,10 @@ export interface AdminBook {
   provider?: SourceProvider;
   archiveIdentifier?: string;
   mediaTypes?: string[];
+  // series/collection grouping as stored in the database (bulk imports fill these)
+  series?: string;
+  collectionIdentifier?: string;
+  collectionTitle?: string;
   scholarId: string;
   scholarIds?: string[];
   subjectIds: string[];
@@ -61,6 +68,7 @@ export interface AdminBook {
   year: number;
   status: PublishStatus;
   updatedAt: string;
+  thumbnailUrl?: string;
   coverUrl?: string;
   publisher?: string;
   language?: string;
@@ -92,7 +100,7 @@ export interface AdminSubject {
 export interface Activity {
   id: string;
   at: string;
-  verb: 'Added' | 'Updated' | 'Published' | 'Unpublished' | 'Removed';
+  verb: 'Added' | 'Updated' | 'Published' | 'Unpublished' | 'Archived' | 'Restored' | 'Removed';
   kind: 'lecture' | 'book' | 'scholar' | 'subject';
   title: string;
 }
