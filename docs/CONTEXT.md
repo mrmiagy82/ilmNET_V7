@@ -5,10 +5,12 @@ Update it after every finished phase, commit, sanity check or significant discov
 Rules: only facts that are verifiable from the repository, Git history or existing docs — and
 **never** secrets, tokens or credentials.
 
-_Last updated: Fase 4.5 (real admin authentication)._
+_Last updated: Fase 4.5.1 (project context synchronized with the repository state after Fase 4.5)._
 
-Fase 4.4 (a read-only audit of the admin authentication) was answered with the Fase 4.5 instruction;
-since then every `/admin` route signs in with a username and a password.
+The last phases: Fase 4.3.1 diagnosed YouTube “Error 153” without changing any code (§7e), Fase 4.4
+audited the admin authentication read-only and was answered by the Fase 4.5 instruction, and Fase 4.5
+shipped real accounts, server-side sessions, a secure cookie and attribution (§7f). Every `/admin`
+route now signs in with a username and a password.
 
 ---
 
@@ -17,13 +19,14 @@ since then every `/admin` route signs in with a username and a password.
 | | |
 | --- | --- |
 | Branch | `master` |
-| Codebase state described here | `dab8211` (Fase 4.3 YouTube) **plus** the Fase 4.5 authentication changes in §7f — this document ships in the Fase 4.5 commit |
-| This document | updated in Fase 4.5; its own revision is visible with `git log -1 -- docs/CONTEXT.md` |
+| Codebase state described here | `720ef70` (Fase 4.5, real admin authentication); this document is synchronized in Fase 4.5.1 |
+| This document | updated in Fase 4.5.1; its own revision is visible with `git log -1 -- docs/CONTEXT.md` |
 | Working tree | clean (verified against `origin/master`) |
 | Repository | `github.com/mrmiagy82/ilmNET_V7` |
-| Size | 66 source files, ~14.9k lines in `src/` + `server/src/`; the admin (`src/admin/`, 20 files, ~6.6k lines) is the largest area |
-| Build (git-ignored artefact) | single-file `dist/index.html` (644.42 kB, 161.00 kB gzip) |
-| Phase state | Fase 4.5 complete: operators sign in with a username + password (scrypt, server-side sessions, HttpOnly cookie); the legacy `ADMIN_TOKEN` still works as a dual-mode fallback; writes carry `createdBy`/`updatedBy` |
+| Size | 69 source files, ~15.6k lines in `src/` + `server/src/`; the admin (`src/admin/`, 20 files, ~6.5k lines) is the largest area |
+| Build (git-ignored artefact) | single-file `dist/index.html` (644.42 kB, 161.00 kB gzip, measured in Fase 4.5) |
+| Phase state | Fase 4.5 complete and verified: operators sign in with a username + password (scrypt, server-side sessions, `HttpOnly` cookie); the legacy `ADMIN_TOKEN` still works as a dual-mode fallback; writes carry `createdBy`/`updatedBy`. TinyCMS is scrapped and off the roadmap (§2, §7d) |
+| Roadmap | production finishing, UI/UX and performance toward the definitive live deployment (§9) |
 | Open blockers | none. Note: YouTube throttles watch-page *scrapes* from this datacenter IP (`302 → google.com/sorry`) now and then, which can fail the live `test/youtube.test.ts` and `test:imports` checks; embeds, playback and `oEmbed` keep working (see §8.11) |
 
 ## 2. Completed phases (from Git history)
@@ -40,11 +43,14 @@ since then every `/admin` route signs in with a username and a password.
 | `cfe8587` | Fase 3.9 | final production codebase review + sanity-check fixes |
 | `f4aad03` | Fase 3.9.1 | honesty of counters, status and copy |
 | `2f16540` | Fase 3.10 | project context + agent continuity (`AGENTS.md`, this file) |
-| `45fc54a` | Fase 4 | admin CMS: archived status, real totals, honest admin states (see §7) |
-| `5805520` | Fase 4.1 | admin authentication: real login gate on the existing `ADMIN_TOKEN` (see §7c) |
+| `45fc54a` | Fase 4 | admin CMS: archived status, real totals, honest admin states (see §7). Committed under the working name “TinyCMS”, which is scrapped since Fase 4.2 — do not reintroduce it (§7d) |
+| `5805520` | Fase 4.1 | admin authentication: real login gate on the existing `ADMIN_TOKEN` (see §7c — the gate stands, its token credential model was replaced in Fase 4.5, §7f) |
 | `07ea4a9` | Fase 4.2 | admin CMS cleanup: no CMS naming, no unused admin helpers — functionality unchanged (see §7d) |
 | `dab8211` | Fase 4.3 | YouTube: optional official Data API for the import, verified public playback (see §7e) |
-| _this commit_ | Fase 4.5 | real admin authentication: username + password, server-side sessions, attribution (see §7f) |
+| — (diagnosis only) | Fase 4.3.1 | YouTube “Error 153”: proven that the missing `Referer` is not lost in our code; no change, no commit (see §7e) |
+| — (audit only) | Fase 4.4 | read-only audit of the admin authentication; no change, no commit — answered by the Fase 4.5 instruction (see §7f) |
+| `720ef70` | Fase 4.5 | real admin authentication: `AdminUser` + `AdminSession`, username + password, secure session cookie, attribution (see §7f) |
+| _this commit_ | Fase 4.5.1 | project context synchronized with the post-4.5 repository: roadmap, scrapped TinyCMS, test status and remaining issues (this file) |
 
 Earlier work is documented per topic in `docs/FASE2A_ARCHIVE.md`, `docs/FASE2B_YOUTUBE.md`,
 `docs/FASE2C_PUBLIC_FRONTEND.md`, `docs/FASE2D_SEARCH_FILTERING.md`,
@@ -59,8 +65,8 @@ the CMS share one origin and `/api` needs no cross-origin setup.
 **Data model** (`server/prisma/schema.prisma`): `Content` (one generic table with `ContentType`
 enum `lecture|audio|video|book|document` and `Provider` enum `youtube|archive|google_books|pdf|
 external`) plus `Scholar`, `Subject` (with `SubjectGroup`), the join tables `ContentScholar` /
-`ContentSubject`, and `ImportJob` for bulk imports. A single generic table replaced the earlier
-split lecture/book models — the admin adapts to it in `src/lib/api.ts`
+`ContentSubject`, `ImportJob` for bulk imports, and the operator tables `AdminUser` / `AdminSession`
+(Fase 4.5, §7f). A single generic table replaced the earlier split lecture/book models — the admin adapts to it in `src/lib/api.ts`
 (`backendToAdminLecture` / `backendToAdminBook`).
 
 **Why it matters:** `provider + externalIdentifier` is unique, so re-importing the same item is a
@@ -144,9 +150,13 @@ empty states, errors) live in the React components — there is no content layer
   otherwise images vanish on redeploy while the database keeps referencing them.
 - Production reference data: `npm run seed:reference` (subjects + scholars only, never content).
   The destructive demo seed refuses to run in production.
-  - `server/.env` in this repository is **development only** and stays untracked; the production token
-    is entered by the operator on the `/admin` login screen (Fase 4.1). It is verified against the API
-    and survives only in that tab's `sessionStorage` — never in the repo, the bundle or `localStorage`.
+  - `server/.env` in this repository is **development only** and stays untracked; in production the
+    configuration comes from the process environment and operator accounts are created on the server
+    with `npm run admin:create` (Fase 4.5). The browser only posts username + password to
+    `POST /api/admin/login` and stores no credential at all (§7f).
+  - **The admin CMS needs HTTPS** (or `localhost`/`127.0.0.1`): the session cookie is `Secure`, so a
+    deployment on plain `http://<host>` signs in and then appears signed out (§8.12;
+    `docs/DEPLOYMENT.md` §4b).
 - Note for sandboxes: this workspace is ephemeral — dependencies, PostgreSQL and running processes
   are **not** part of the snapshot. Rebuild them (see `README.md` § Local development) before
   running tests, and check `git status` afterwards for stray artefacts.
@@ -183,10 +193,10 @@ empty states, errors) live in the React components — there is no content layer
 
 | Command | What it covers | Last verified result |
 | --- | --- | --- |
-| `npx tsc --noEmit` (root + `server/`) | types | 0 errors |
-| `npm run build` (root) | single-file production build | ~642 kB / ~160.5 kB gzip |
-| `cd server && npm run test:all` | audit, uploads (25), production readiness (44), env hardening (13), youtube (+ Data API fallback), **auth (69)** | all green in Fase 4.5 (the live YouTube scrape check can fail when Google throttles this IP — see §8.11) |
-| `cd server && npm run test:imports` | live Archive.org + YouTube import regression | 19/19 |
+| `npx tsc --noEmit` (root + `server/`) | types | 0 errors (Fase 4.5) |
+| `npm run build` (root) | single-file production build | 644.42 kB / 161.00 kB gzip (Fase 4.5) |
+| `cd server && npm run test:all` | audit, uploads (25), production readiness (44), env hardening (13), youtube (+ Data API fallback), **auth (69)** | green in Fase 4.5 — uploads 25/25, readiness 44/44, env 13/13, auth 69/69; the live YouTube scrape check can fail when Google throttles this IP (§8.11) |
+| `cd server && npm run test:imports` | live Archive.org + YouTube import regression | 19/19 whenever the provider answers; the live scrape check is the part that fails under Google's throttle (§8.11) |
 | `npm run test:e2e:production` | routes, embeds, **real YouTube playback**, error states, mobile, admin entry (login gate) | 67/67 |
 | `npm run test:e2e` | waveform, thumbnails, admin upload flow | 27/27 |
 | `npm run test:e2e:cms` | admin CMS: real totals, draft→published→archived→restored, collection round-trip, 401 honesty | 28/28 |
@@ -206,6 +216,11 @@ refuses to start (Fase 3.8.1). `test:e2e:auth` and `test:e2e:production` expect 
 own records — verify afterwards, and never point them at a database whose content must be preserved.
 Known quirk: `test:imports` deliberately leaves the imported record in place (that is part of what it
 asserts), so run it against a throwaway database or remove the record afterwards.
+
+**State of these numbers (Fase 4.5.1):** no source file changed after `720ef70` — Fase 4.5.1 only
+updated this document — so the results above still describe the current repository. The sandbox is
+ephemeral (no `node_modules`, no database), so the suites have to be rebuilt and re-run before they can
+be quoted again; do that with the next code change (`AGENTS.md` §4).
 
 ## 7. What Fase 4 (the admin CMS) changed (so it is not re-broken)
 
@@ -250,7 +265,14 @@ touching the schema or adding dependencies:
 - Docs: `docs/FASE3_9_CODEBASE_REVIEW.md` holds the full review, the 3.9.1 fix list and the
   verification table.
 
-## 7c. What Fase 4.1 (admin authentication) changed (so it is not re-broken)
+## 7c. What Fase 4.1 (admin authentication) changed (the gate stands, the credential model does not)
+
+> The **gate** and its behaviour are still in place — the CMS cannot render before the API has
+> confirmed a caller. The **credential model described below is history**: since Fase 4.5 the browser
+> signs in with a username + password and keeps nothing, the session lives in an
+> `HttpOnly; Secure; SameSite=Lax` cookie, and `sessionStorage`, `x-admin-token`,
+> `verifyAdminSession()` and the `admin-login-token` field no longer exist anywhere in the code
+> (§7f).
 
 - **`/admin` is a real, gated admin environment.** `src/admin/auth.tsx` (`AdminAuthProvider` /
   `useAdminAuth`), `src/admin/AdminLogin.tsx` (the login page) and `src/admin/AdminGate.tsx` (the route
@@ -294,6 +316,13 @@ Nothing functional was reverted: Fase 4 (admin CMS: statuses, real totals, hones
 - **Kept on purpose:** the admin store/forms/import pages, the four e2e suites, the `test:e2e:cms`
   script and `tests/e2e/cms.spec.mjs` (that is the admin-CMS browser suite), and every public route.
 
+- **TinyCMS is scrapped, definitively.** The Fase 4 commit (`45fc54a`) still carries that working name
+  in its message, and the phase itself delivered an admin CMS. Since Fase 4.2 the name, the CMS
+  framework idea and the content layer it implied are absent from every file, and Fase 4.5.1 also
+  removed them from the roadmap (§9). Do not reintroduce the name, a CMS framework or a content layer
+  for website texts: the admin talks to the Fastify+Prisma API directly and fixed copy lives in the
+  React components.
+
 Verified after the cleanup (fresh database, real Archive.org/YouTube imports as fixtures — 18 content
 records, 8 scholars, 11 subjects): `npx tsc --noEmit` clean in `./` and `./server`; `npm run build` →
 642.36 kB / 160.44 kB gzip; `test:all` green (uploads 25/25, readiness 44/44, env 13/13);
@@ -324,6 +353,19 @@ Investigated first, changed second — the YouTube path was already close to pro
   (16:9, `allowFullScreen`, no cookie/consent wall in our code) and keeps an “Open original” link; the
   API sets no framing headers and no CSP, so the frame is never blocked. Collection pages list the
   items, each playing its own embed.
+- **“Error 153” (Fase 4.3.1 — diagnosis only, no code change).** YouTube's embedded player must
+  identify itself through the HTTP `Referer`. The diagnosis in a real browser against the production
+  server showed this repository is correct: `server/src/server.ts` sends
+  `referrer-policy: strict-origin-when-cross-origin` (the value YouTube recommends), there is no CSP
+  and no `X-Frame-Options`, and the player iframe in `src/pages/ContentDetail.tsx` has neither
+  `sandbox` nor `referrerpolicy`. All seven imported videos loaded with a valid `Referer` and no error.
+  The failure only appeared when the `Referer` was suppressed on purpose — by a layer that rewrites the
+  `Referrer-Policy` response header to `same-origin`/`no-referrer`, or by a document without a usable
+  origin (`sandbox="allow-scripts"` without `allow-same-origin`, `srcdoc`, a WebView without a base
+  URL). Conclusion: the `Referer` is lost in the deployment layer around the app, not in our code.
+  Production check: `curl -sI https://<domain>/` must literally show
+  `referrer-policy: strict-origin-when-cross-origin`, and DevTools → Network (filter `embed/`) must
+  show a `Referer` for the YouTube request.
 - **Playback proven in production:** against the built production server, the embed boots
   (`#movie_player` + `video`), playback starts and advances (`currentTime` > 0, player state 1) while
   real `googlevideo.com/videoplayback` requests are made. `test:e2e:production` now asserts all three,
@@ -422,14 +464,32 @@ From `docs/FASE3_9_CODEBASE_REVIEW.md` § Restrisico's plus the 3.9.1 report:
 
 ## 9. Next step
 
-No open blockers: Fase 4.5 replaced the shared token with real accounts, sessions and attribution
-(§7f), Fase 4.3 verified YouTube import and playback (§7e), Fase 4.2 removed the leftover naming and
-dead helpers (§7d), Fase 4.1 put the CMS behind a login (§7c), and every suite is green — except the
-live YouTube scrape check when Google throttles this IP (§8.11), which is external and passes again
-after a pause. The next step is a **new user instruction**; the documented candidates are the items
-in §8, e.g. account management in the UI, roles/permissions, 2FA, a shared throttle store for
-multi-instance deployments or an audit-log table. Before starting: `git status`,
-`git log --oneline -3`, and re-read this file.
+No open blockers. Fase 4.5 replaced the shared token with real accounts, sessions and attribution
+(§7f); Fase 4.3.1 proved the YouTube “Error 153” is not caused by this repository (§7e); Fase 4.3
+verified YouTube import and playback (§7e); Fase 4.2 removed the leftover naming and dead helpers
+(§7d); Fase 4.1 put the CMS behind a login (§7c). Every suite is green — except the live YouTube
+scrape check when Google throttles this IP (§8.11), which is external and passes again after a pause.
+
+**The roadmap is production finishing, UI/UX and performance toward the definitive live deployment.**
+Most of it is finishing work on what exists, not new features; the concrete items live in §8:
+
+- **Production finishing** — a real deployment with TLS (the session cookie is `Secure`, §8.12),
+  operator accounts created with `npm run admin:create` before the first sign-in (`docs/DEPLOYMENT.md`
+  §4b), `UPLOADS_DIR` on a persistent volume, `GET /api/health` green, and the `Referrer-Policy` /
+  `Referer` check of §7e verified on the live domain.
+- **UI/UX** — refine the existing public and admin surfaces (density, empty/loading/error states,
+  mobile); anything visual keeps the neumorphic/spatial style, the cream/olive/rose palette and the
+  honesty rules of §7b — no invented numbers or state.
+- **Performance** — the measured limits in §8: server-side pagination for the 100-item lists (§8.2), a
+  trigram/full-text index for the `ILIKE` search (§8.3), rate limiting in front of the public API
+  (§8.4) and the Tailwind `@source` scope (§8.7).
+
+TinyCMS is **not** on the roadmap: the name, the CMS framework and a content layer for website texts
+are scrapped permanently (Fase 4.2/4.5.1, §7d) and must never be reintroduced. The remaining
+candidates from the Fase 4.4 audit stay available as follow-ups without being planned: account
+management in the UI, roles/permissions, 2FA, a shared throttle store for multi-instance deployments
+and an audit-log table (§8.9). Before starting: `git status`, `git log --oneline -3`, and re-read this
+file.
 
 ## 10. How to keep this file accurate
 
