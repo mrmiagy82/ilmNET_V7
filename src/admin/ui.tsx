@@ -213,48 +213,6 @@ export function SourceCard({
   );
 }
 
-export function SourcePreview({
-  url,
-  ok,
-  expect,
-}: {
-  url: string;
-  ok: boolean;
-  expect: string;
-}) {
-  if (!url.trim()) return null;
-  return (
-    <div
-      className={`mt-3 flex items-start gap-3 rounded-[18px] px-4 py-3 ${
-        ok ? 'bg-olive/15' : 'bg-rose/10'
-      }`}
-    >
-      <span
-        className={`mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full ${
-          ok ? 'bg-olive/30 text-olive-deep' : 'bg-rose/15 text-rose'
-        }`}
-      >
-        {ok ? (
-          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
-            <path d="m5 12.5 4.5 4.5L19 7.5" />
-          </svg>
-        ) : (
-          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-            <circle cx="12" cy="12" r="8" />
-            <path d="M12 8v4.5M12 16h.01" />
-          </svg>
-        )}
-      </span>
-      <div className="min-w-0">
-        <p className={`text-[0.84rem] font-semibold ${ok ? 'text-olive-deep' : 'text-rose'}`}>
-          {ok ? `${expect} link recognised` : `This does not look like a ${expect} URL`}
-        </p>
-        <p className="text-ink-muted mt-0.5 truncate text-[0.8rem]">{url}</p>
-      </div>
-    </div>
-  );
-}
-
 // — Embedded previews —
 
 export function YoutubeEmbed({ url }: { url: string }) {
@@ -405,22 +363,6 @@ export function ExternalEmbed({ url, type }: { url: string; type: string }) {
             <a href={url} target="_blank" rel="noreferrer" className="bg-cream neu-raised-sm mt-4 inline-flex items-center rounded-full px-4 py-2 text-[0.82rem] font-semibold text-ink hover:text-rose">Open externally ↗</a>
           </div>
         </div>
-      </div>
-    </div>
-  );
-}
-
-export function CoverPreview({ url, title }: { url: string; title?: string }) {
-  if (!url.trim()) return null;
-  return (
-    <div className="mt-3 flex gap-3 rounded-[18px] bg-sand/60 p-3">
-      <div className="h-[96px] w-[72px] shrink-0 overflow-hidden rounded-[10px] bg-sand-deep neu-inset">
-        <img src={url} alt={title ?? 'Cover preview'} className="h-full w-full object-cover" onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} />
-      </div>
-      <div className="min-w-0 py-1">
-        <p className="text-ink text-[0.84rem] font-semibold">Cover preview</p>
-        <p className="text-ink-muted mt-1 break-all text-[0.72rem]">{url}</p>
-        <p className="text-ink-muted mt-1 text-[0.72rem]">If the image fails, the public card will fall back to its generated cover.</p>
       </div>
     </div>
   );

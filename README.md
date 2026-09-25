@@ -48,8 +48,8 @@ npm install
 npm run dev                   # vite on :5173, proxies /api and /uploads to :3001
 ```
 
-Admin: open `/admin`, paste the `ADMIN_TOKEN` from `server/.env` once (kept in `sessionStorage` for
-the tab). The public site never needs a token.
+Admin: open `/admin` — the login screen asks for the `ADMIN_TOKEN` from `server/.env`; it is verified
+against the API and kept in `sessionStorage` for that tab only. The public site never needs a token.
 
 ## Tests
 

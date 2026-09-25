@@ -24,8 +24,9 @@ This file is the entry point for every automated session on **ilmNet**. Follow i
 ilmNet is a free, public, no-login library for Islamic knowledge (lectures, books, scholars,
 subjects, grouped into series/collections). Content is not re-hosted: pages embed the real source
 (YouTube, Archive.org, Google Books) and link to it. A token-protected admin CMS at `/admin` curates
-everything — guided content wizard, CRUD, thumbnail uploads and bulk import from Archive.org and
-YouTube. There is no CMS framework (no TinaCMS): the admin talks to the Fastify+Prisma API directly.
+  everything — guided content wizard, CRUD, thumbnail uploads and bulk import from Archive.org and
+  YouTube. There is no CMS framework and no content layer for website texts: the admin talks to the
+  Fastify+Prisma API directly, and fixed copy lives in the React components.
 
 - **Frontend**: React 19, React Router 7, Tailwind v4, Vite — built as a **single `index.html`**
   (`vite-plugin-singlefile`), served by the API in the default deployment.

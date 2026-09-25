@@ -129,14 +129,6 @@ export const lectureProviderOptions: { value: SourceProvider; label: string; hin
   { value: 'external', label: 'External URL', hint: 'Other hosted audio/video' },
 ];
 
-export const archiveContentTypeOptions: { value: ArchiveContentType; label: string; hint: string }[] = [
-  { value: 'lecture', label: 'Lecture', hint: 'A taught session — audio or video' },
-  { value: 'audio', label: 'Audio', hint: 'Audio recording / recitation' },
-  { value: 'video', label: 'Video', hint: 'Video recording' },
-  { value: 'book', label: 'Book', hint: 'Text edition / manuscript' },
-  { value: 'document', label: 'Document', hint: 'PDF / article / document' },
-];
-
 // — Archive.org generic bulk-import types —
 
 export interface ArchiveDetectedItem {
@@ -229,21 +221,6 @@ export function isYoutubePlaylistUrl(url: string) {
   }
 }
 
-export function isYoutubeVideoUrl(url: string) {
-  try {
-    if (!isYoutubeUrl(url)) return false;
-    const u = new URL(url);
-    if (u.hostname.replace(/^www\./, '') === 'youtu.be') return true;
-    if (u.searchParams.has('v')) return true;
-    if (u.pathname.startsWith('/embed/')) return true;
-    if (u.pathname.startsWith('/shorts/')) return true;
-    if (u.pathname.includes('/playlist') && u.searchParams.has('list') && !u.searchParams.has('v')) return false;
-    return !isYoutubePlaylistUrl(url) || u.searchParams.has('v');
-  } catch {
-    return false;
-  }
-}
-
 export function isArchiveUrl(url: string) {
   try {
     const host = new URL(url).hostname.replace(/^www\./, '');
@@ -281,28 +258,12 @@ export function isExternalBookUrl(url: string) {
   }
 }
 
-export function detectLectureSource(url: string): LectureSourceType | null {
-  if (!isYoutubeUrl(url)) return null;
-  return isYoutubePlaylistUrl(url) && !new URL(url).searchParams.has('v') ? 'youtube-playlist' : 'youtube-video';
-}
-
 export function detectBookSource(url: string): BookSourceType | null {
   if (!url.trim()) return null;
   if (isArchiveUrl(url)) return 'archive';
   if (isGoogleBooksUrl(url)) return 'google-books';
   if (isPdfUrl(url)) return 'pdf';
   if (isExternalBookUrl(url)) return 'external';
-  return null;
-}
-
-export function detectProvider(url: string): SourceProvider | null {
-  if (isYoutubeUrl(url)) return 'youtube';
-  if (isArchiveUrl(url)) return 'archive';
-  if (!url.trim()) return null;
-  try {
-    const u = new URL(url);
-    if (['http:', 'https:'].includes(u.protocol)) return 'external';
-  } catch {}
   return null;
 }
 
@@ -382,20 +343,6 @@ export function getBookEmbedUrl(url: string, type: BookSourceType | null): strin
   return null;
 }
 
-export function youtubeThumbnail(url: string): string | null {
-  try {
-    const embed = getYoutubeEmbedUrl(url);
-    if (!embed) return null;
-    const idMatch = embed.match(/\/embed\/([^?]+)/);
-    if (idMatch?.[1] && idMatch[1] !== 'videoseries') {
-      return `https://img.youtube.com/vi/${idMatch[1]}/hqdefault.jpg`;
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
-
 // — Generic Archive.org helpers —
 
 export function parseArchiveIdentifier(url: string): string | null {
@@ -425,23 +372,6 @@ export function archiveItemLink(identifier: string): string {
 
 export function archiveEmbedLink(identifier: string): string {
   return `https://archive.org/embed/${identifier}`;
-}
-
-export function inferArchiveItemKind(mediaTypes: string[]): ArchiveItemKind {
-  const s = mediaTypes.join(' ').toLowerCase();
-  if (s.includes('mp3') || s.includes('ogg') || s.includes('flac') || s.includes('audio')) return 'audio';
-  if (s.includes('mpeg4') || s.includes('h.264') || s.includes('video') || s.includes('mp4')) return 'video';
-  if (s.includes('pdf') || s.includes('djvu') || s.includes('text')) return 'book';
-  if (s.includes('collection')) return 'collection';
-  return 'unknown';
-}
-
-export function inferContentTypeFromKind(kind: ArchiveItemKind): ArchiveContentType {
-  if (kind === 'audio') return 'audio';
-  if (kind === 'video') return 'video';
-  if (kind === 'book') return 'book';
-  if (kind === 'collection') return 'lecture';
-  return 'document';
 }
 
 export type YouTubeItemKind = 'video' | 'playlist' | 'unknown';
@@ -500,48 +430,3 @@ export interface YouTubeImportDraft {
   status: PublishStatus | 'skip';
 }
 
-// Helper for youtube URL helpers already defined above — also expose parse helpers
-export function parseYouTubeIdentifier(url: string): string | null {
-  try {
-    const u = new URL(url.trim());
-    const host = u.hostname.replace(/^www\./, '').toLowerCase();
-    const playlistId = u.searchParams.get('list');
-    if (playlistId) return playlistId;
-    if (host === 'youtu.be') {
-      const parts = u.pathname.split('/').filter(Boolean);
-      return parts[0] || null;
-    }
-    const v = u.searchParams.get('v');
-    if (v) return v;
-    const parts = u.pathname.split('/').filter(Boolean);
-    if (parts[0] === 'shorts' && parts[1]) return parts[1];
-    if (parts[0] === 'embed' && parts[1]) return parts[1].split('?')[0];
-    return null;
-  } catch { return null; }
-}
-
-export function getYouTubeEmbedUrl(url: string): string | null {
-  const id = parseYouTubeIdentifier(url);
-  if (!id) return null;
-  try {
-    const u = new URL(url);
-    if (u.searchParams.has('list') && !u.searchParams.has('v')) {
-      const list = u.searchParams.get('list');
-      return `https://www.youtube.com/embed/videoseries?list=${list}`;
-    }
-  } catch {}
-  // individual video embed
-  // Detect playlist vs video by param
-  if (url.includes('playlist?list=') || url.includes('&list=')) {
-    // for preview display, we still use playlist embed for collection?
-    try {
-      const u2 = new URL(url);
-      const list = u2.searchParams.get('list');
-      const v = u2.searchParams.get('v');
-      if (list && !v) return `https://www.youtube.com/embed/videoseries?list=${list}`;
-      if (v) return `https://www.youtube.com/embed/${v}`;
-    } catch {}
-  }
-  // fallback single
-  return `https://www.youtube.com/embed/${id}`;
-}

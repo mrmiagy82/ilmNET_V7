@@ -188,9 +188,6 @@ export function listPublishedContents(params: Record<string, string | number | u
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
   return apiFetch<Paginated<BackendContent>>(`/api/contents${suffix}`);
 }
-export function getAdminContent(idOrSlug: string) {
-  return apiFetch<Single<BackendContent>>(`/api/admin/contents/${encodeURIComponent(idOrSlug)}`);
-}
 export function createContent(payload: Record<string, any>) {
   return apiFetch<Single<BackendContent>>(`/api/admin/contents`, { method: "POST", body: JSON.stringify(payload) });
 }
@@ -230,14 +227,6 @@ export async function uploadImage(file: File): Promise<{ url: string; filename: 
     throw new Error(typeof msg === "string" ? msg : JSON.stringify(msg));
   }
   return (body as any).data;
-}
-
-export function listUploadedImages() {
-  return apiFetch<{ data: { filename: string; url: string; bytes: number; modifiedAt: string }[] }>(`/api/admin/uploads`);
-}
-
-export function deleteUploadedImage(filename: string) {
-  return apiFetch<{ data: { deleted: string } }>(`/api/admin/uploads/${encodeURIComponent(filename)}`, { method: "DELETE" });
 }
 
 // ── Scholars ──

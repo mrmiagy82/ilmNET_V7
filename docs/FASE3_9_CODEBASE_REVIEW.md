@@ -3,7 +3,7 @@
 Vanaf commit `944a83f`, gevolgd door **Fase 3.9.1** (vanaf `cfe8587`) die de eerlijkheidsproblemen
 uit de onafhankelijke sanity check van 3.9 heeft opgelost. Doel: vaststellen wat er nog nodig is
 vóór publieke lancering, en **alleen noodzakelijke fixes** doorvoeren (geen nieuwe features, geen
-redesign, geen TinaCMS).
+  redesign, geen CMS-framework).
 
 > **Lees dit document samen met de sectie [Fase 3.9.1](#fase-391--eerlijkheid-van-cijfers-status-en-copy)
 > onderaan.** De tabel hieronder beschrijft de bevindingen en fixes van 3.9; de sanity check vond

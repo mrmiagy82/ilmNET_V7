@@ -1,5 +1,5 @@
 /**
- * Fase 4 — TinyCMS in a real browser, against the real API and PostgreSQL.
+ * Fase 4 — the admin CMS in a real browser, against the real API and PostgreSQL.
  *
  *   cd server && npm run build
  *   NODE_ENV=production ADMIN_TOKEN=… CORS_ORIGIN=http://localhost:3101 node dist/server.js
@@ -19,8 +19,8 @@ import { chromium } from 'playwright';
 const SITE = process.env.SITE_URL || 'http://localhost:3101';
 const API = process.env.API_URL || SITE;
 const TOKEN = process.env.ADMIN_TOKEN || 'prod-test-token-1234567890';
-const COLLECTION_ID = 'e2e-tinycms-collection';
-const COLLECTION_TITLE = 'E2E TinyCMS collection';
+const COLLECTION_ID = 'e2e-admin-cms-collection';
+const COLLECTION_TITLE = 'E2E admin CMS collection';
 
 let passed = 0;
 let failed = 0;
@@ -51,7 +51,7 @@ const publicApi = async (pathname) => {
 
 async function main() {
   const stamp = Date.now();
-  const title = `E2E TinyCMS ${stamp}`;
+  const title = `E2E admin CMS ${stamp}`;
   const scholars = (await api('/api/admin/scholars')).json.data;
   const subjects = (await api('/api/admin/subjects')).json.data;
   check(scholars.length > 0 && subjects.length > 0, 'reference data present: scholars + subjects in the database');
@@ -68,7 +68,7 @@ async function main() {
       series: 'E2E Series',
       provider: 'archive',
       sourceUrl: 'https://archive.org/details/RenewingOurIntentions',
-      externalIdentifier: `e2e-tinycms-${stamp}`,
+      externalIdentifier: `e2e-admin-cms-${stamp}`,
       collectionIdentifier: COLLECTION_ID,
       collectionTitle: COLLECTION_TITLE,
       scholarIds: [scholars[0].id],
@@ -220,7 +220,7 @@ async function main() {
   const leftover = (await api(`/api/admin/contents?limit=1&q=${encodeURIComponent(title)}`)).json.pagination.total;
   check(leftover === 0, 'no fixture left behind in the database');
 
-  console.log(`\n${failed === 0 ? '✅ All TinyCMS e2e checks passed' : `❌ ${failed} checks failed`} (${passed} passed, ${failed} failed)`);
+  console.log(`\n${failed === 0 ? '✅ All admin-CMS e2e checks passed' : `❌ ${failed} checks failed`} (${passed} passed, ${failed} failed)`);
   process.exit(failed === 0 ? 0 : 1);
 }
 

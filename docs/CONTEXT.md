@@ -5,7 +5,7 @@ Update it after every finished phase, commit, sanity check or significant discov
 Rules: only facts that are verifiable from the repository, Git history or existing docs — and
 **never** secrets, tokens or credentials.
 
-_Last updated: Fase 4 (TinyCMS)._
+_Last updated: Fase 4.2 (admin CMS cleanup)._
 
 ---
 
@@ -14,13 +14,13 @@ _Last updated: Fase 4 (TinyCMS)._
 | | |
 | --- | --- |
 | Branch | `master` |
-| Codebase state described here | `45fc54a` (Fase 4 TinyCMS) **plus** the Fase 4.1 admin-authentication changes in §7c — this document ships in the Fase 4.1 commit |
-| This document | updated in Fase 4.1; its own revision is visible with `git log -1 -- docs/CONTEXT.md` |
+| Codebase state described here | `5805520` (Fase 4.1 admin authentication) **plus** the Fase 4.2 cleanup in §7d — this document ships in the Fase 4.2 commit |
+| This document | updated in Fase 4.2; its own revision is visible with `git log -1 -- docs/CONTEXT.md` |
 | Working tree | clean (verified against `origin/master`) |
 | Repository | `github.com/mrmiagy82/ilmNET_V7` |
 | Size | 66 source files, ~14.9k lines in `src/` + `server/src/`; the admin (`src/admin/`, 20 files, ~6.6k lines) is the largest area |
 | Build (git-ignored artefact) | single-file `dist/index.html` (~642 kB, ~160.5 kB gzip) |
-| Phase state | Fase 4.1 admin authentication complete: everything under `/admin` sits behind a real login that verifies the existing `ADMIN_TOKEN` against the API before any CMS code runs |
+| Phase state | Fase 4.2 complete: the admin CMS keeps its Fase 4 functionality behind the Fase 4.1 login; leftover CMS product references and unused admin helpers are gone and fixed website copy lives in the React code |
 | Open blockers | none |
 
 ## 2. Completed phases (from Git history)
@@ -37,8 +37,9 @@ _Last updated: Fase 4 (TinyCMS)._
 | `cfe8587` | Fase 3.9 | final production codebase review + sanity-check fixes |
 | `f4aad03` | Fase 3.9.1 | honesty of counters, status and copy |
 | `2f16540` | Fase 3.10 | project context + agent continuity (`AGENTS.md`, this file) |
-| `45fc54a` | Fase 4 | TinyCMS: archived status, real totals, honest admin states (see §7) |
-| _this commit_ | Fase 4.1 | admin authentication: real login gate on the existing `ADMIN_TOKEN` (see §7c) |
+| `45fc54a` | Fase 4 | admin CMS: archived status, real totals, honest admin states (see §7) |
+| `5805520` | Fase 4.1 | admin authentication: real login gate on the existing `ADMIN_TOKEN` (see §7c) |
+| _this commit_ | Fase 4.2 | admin CMS cleanup: no CMS naming, no unused admin helpers — functionality unchanged (see §7d) |
 
 Earlier work is documented per topic in `docs/FASE2A_ARCHIVE.md`, `docs/FASE2B_YOUTUBE.md`,
 `docs/FASE2C_PUBLIC_FRONTEND.md`, `docs/FASE2D_SEARCH_FILTERING.md`,
@@ -104,7 +105,8 @@ across the login, so a deep link such as `/admin/lectures/:id` opens that page a
 401/403 during use ends the session (`signOut`) instead of pretending the backend is down.
 
 **Style.** Neumorphic/spatial UI with the cream/olive/rose palette; no religious symbols or
-decorative clichés; the public site is free and needs no login.
+decorative clichés; the public site is free and needs no login. Fixed website texts (headings, labels,
+empty states, errors) live in the React components — there is no content layer or CMS for UI strings.
 
 ## 4. Production / deployment status
 
@@ -157,7 +159,7 @@ decorative clichés; the public site is free and needs no login.
 | `cd server && npm run test:imports` | live Archive.org + YouTube import regression | 19/19 |
 | `npm run test:e2e:production` | routes, embeds, error states, mobile, admin entry (login gate) | 64/64 |
 | `npm run test:e2e` | waveform, thumbnails, admin upload flow | 27/27 |
-| `npm run test:e2e:cms` | TinyCMS: real totals, draft→published→archived→restored, collection round-trip, 401 honesty | 28/28 |
+| `npm run test:e2e:cms` | admin CMS: real totals, draft→published→archived→restored, collection round-trip, 401 honesty | 28/28 |
 | `npm run test:e2e:auth` | Fase 4.1 gate: login required, wrong token, deep link, refresh, tampered session, sign-out, public site stays free | 42/42 |
 
 Browser specs take `SITE_URL`, `API_URL` and `ADMIN_TOKEN`; the server suite takes
@@ -169,7 +171,7 @@ own records — verify afterwards, and never point them at a database whose cont
 Known quirk: `test:imports` deliberately leaves the imported record in place (that is part of what it
 asserts), so run it against a throwaway database or remove the record afterwards.
 
-## 7. What Fase 4 (TinyCMS) changed (so it is not re-broken)
+## 7. What Fase 4 (the admin CMS) changed (so it is not re-broken)
 
 The admin CMS already existed (Fase 3). Fase 4 closed the gaps between it and the database, without
 touching the schema or adding dependencies:
@@ -235,6 +237,35 @@ touching the schema or adding dependencies:
   login (asserted by the suite). The auth test ids are `admin-login`, `admin-login-token`,
   `admin-login-submit`, `admin-login-message`, `admin-login-retry`, `admin-gate-checking`, `admin-signout`.
 
+## 7d. What Fase 4.2 (admin CMS cleanup) changed
+
+Nothing functional was reverted: Fase 4 (admin CMS: statuses, real totals, honest states) and Fase 4.1
+(login gate on `ADMIN_TOKEN`) are exactly as they were. What changed is naming and dead weight:
+
+- **One name, no CMS product talk.** The admin surface is called *the admin CMS* everywhere — code,
+  tests, `AGENTS.md` and these docs. There is no CMS framework, no product/codename, no content layer
+  and no configuration file for website strings anywhere in the project (it was checked repo-wide).
+- **Fixed website copy lives in the React components.** Headings, labels, empty states and error texts
+  are plain JSX. The only content layer is PostgreSQL behind the public API (`/api/contents`,
+  `/api/scholars`, `/api/subjects`); no table, file or admin screen manages UI text. The public site
+  stays free and needs no login.
+- **Unused admin helpers removed** (verified unused — declaration only, no reference in `src/`,
+  `tests/` or `server/`): in `src/admin/data.ts` `archiveContentTypeOptions`, `isYoutubeVideoUrl`,
+  `detectLectureSource`, `detectProvider`, `youtubeThumbnail`, `inferArchiveItemKind`,
+  `inferContentTypeFromKind`, plus the dead duplicate pair `parseYouTubeIdentifier` /
+  `getYouTubeEmbedUrl` (the app uses `getYoutubeEmbedUrl`); in `src/admin/ui.tsx` `SourcePreview` and
+  `CoverPreview`; in `src/lib/api.ts` `getAdminContent`, `listUploadedImages`, `deleteUploadedImage`.
+- **Kept on purpose:** the admin store/forms/import pages, the four e2e suites, the `test:e2e:cms`
+  script and `tests/e2e/cms.spec.mjs` (that is the admin-CMS browser suite), and every public route.
+
+Verified after the cleanup (fresh database, real Archive.org/YouTube imports as fixtures — 18 content
+records, 8 scholars, 11 subjects): `npx tsc --noEmit` clean in `./` and `./server`; `npm run build` →
+642.36 kB / 160.44 kB gzip; `test:all` green (uploads 25/25, readiness 44/44, env 13/13);
+`test:imports` 19/19; `test:e2e:cms` 28/28; `test:e2e:auth` 42/42; `test:e2e` 27/27;
+`test:e2e:production` 64/64. A repo-wide search for the old product name returns zero hits (outside
+the historical phase docs), the public routes render without login and every `/admin` route still
+sits behind the Fase 4.1 login.
+
 ## 8. Known remaining issues (not blockers)
 
 From `docs/FASE3_9_CODEBASE_REVIEW.md` § Restrisico's plus the 3.9.1 report:
@@ -257,13 +288,18 @@ From `docs/FASE3_9_CODEBASE_REVIEW.md` § Restrisico's plus the 3.9.1 report:
 9. **One shared admin token** — Fase 4.1 authenticates every operator with the single `ADMIN_TOKEN`;
    there are no per-user accounts, sessions, audit trail or rotation UI (a schema/design change that was
    out of scope for this phase).
+10. **Dead helpers outside the admin surface** were left alone in Fase 4.2 (they are unreferenced but
+    pre-date the CMS work): `src/lib/thumbnail.ts` `isUsableThumbnail` / `getEffectiveThumbnail`,
+    `src/lib/api.ts` `getPublicScholar`, `src/components/ui.tsx` `SectionLabel`. Safe to delete in a
+    later cleanup; removing them changes nothing at runtime.
 
 ## 9. Next step
 
-No open blockers: Fase 4.1 put the CMS behind a real login on the existing `ADMIN_TOKEN` (see §7c),
+No open blockers: Fase 4.2 removed the leftover naming and dead admin helpers without touching
+behaviour (§7d), Fase 4.1 put the admin CMS behind a real login on the existing `ADMIN_TOKEN` (§7c),
 Fase 4 closed the gaps between the admin and the database (§7), and every suite is green. The next step
-is a **new user instruction**; the items in §8 are the documented candidates if the goal is scale or
-hardening. Before starting: `git status`, `git log --oneline -3`, and re-read this file.
+is a **new user instruction**; the items in §8 are the documented candidates if the goal is scale,
+hardening or a cleanup. Before starting: `git status`, `git log --oneline -3`, and re-read this file.
 
 ## 10. How to keep this file accurate
 
