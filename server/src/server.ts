@@ -275,15 +275,22 @@ export async function buildApp() {
 
   // ── Optional frontend hosting: serve the built single-file SPA from Fastify ──
   // Set SERVE_FRONTEND=false to host the frontend separately (then set VITE_API_URL).
-  const { dir: frontendDir, index: indexFile, available: buildExists } = frontendBuild();
+  const { dir: frontendDir, available: buildExists } = frontendBuild();
   const serveFrontend = process.env.SERVE_FRONTEND !== 'false' && buildExists;
   if (serveFrontend) {
     await app.register(fastifyStatic, {
       root: frontendDir,
       prefix: '/',
-      decorateReply: false,
+      // Fase 5.4: `decorateReply` gives us `reply.sendFile` for the SPA fallback below, so a deep
+      // link is served by the static handler (async, ETag/Last-Modified, pre-compressed variant)
+      // instead of a synchronous read of the whole bundle on every request.
+      decorateReply: true,
       index: 'index.html', // GET / serves the built app; deep links fall through to the SPA fallback
       wildcard: true,
+      // The single-file build inlines the whole app into index.html (~646 kB). `npm run build`
+      // writes index.html.gz next to it; when the client sends `accept-encoding: gzip` this is what
+      // goes over the wire (~161 kB). No dependency: the file is produced by scripts/precompress.mjs.
+      preCompressed: true,
     });
   }
 
@@ -313,7 +320,10 @@ export async function buildApp() {
   app.setNotFoundHandler((req, reply) => {
     const url = req.url.split('?')[0];
     if (serveFrontend && req.method === 'GET' && !url.startsWith('/api/') && !url.startsWith('/uploads/')) {
-      return reply.type('text/html').send(fs.readFileSync(indexFile, 'utf8'));
+      // Fase 5.4: SPA fallback through the static handler — no blocking read of the whole bundle per
+      // request, and the pre-compressed index.html.gz is used when the client supports gzip.
+      // `index.html` is only touched when the build did not produce a gzip variant.
+      return reply.type('text/html').sendFile('index.html');
     }
     reply.code(404).send({ error: { code: 'NOT_FOUND', message: `Route ${req.method} ${req.url} not found` } });
   });

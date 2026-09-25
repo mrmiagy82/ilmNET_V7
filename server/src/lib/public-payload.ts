@@ -144,3 +144,82 @@ export function publicContent(row: any): Record<string, any> | null {
 export function publicList<T>(rows: any[] | null | undefined, mapper: (row: any) => T): T[] {
   return Array.isArray(rows) ? rows.map(mapper) : [];
 }
+
+/**
+ * Fase 5.4 — the *list* projection.
+ *
+ * A list response carries up to 100 records at once, so every byte per record is multiplied by 100.
+ * Measured on a 20 000-record database (Fase 5.4, §7j of `docs/CONTEXT.md`): one public list item
+ * was 3.5 kB, of which 733 B `metadata` (provider fields the cards never read — 733 B × 100 = 71 kB
+ * per response), 706 B `scholars` and 376 B `subjects` (full nested rows with `bio`, `specialty`,
+ * `description`). The cards only need the media keys of `metadata` (`src/lib/thumbnail.ts`) and the
+ * name/slug/accent of a linked scholar or subject.
+ *
+ * The **keys** of the payload do not change (`PUBLIC_CONTENT_KEYS`) — only the nested rows and the
+ * `metadata` object are reduced, so the API contract, the frontend and the tests keep working. The
+ * detail endpoints still return the full public shape (a detail page renders `bio`, tags, publisher,
+ * ISBN …). Anything not listed here simply does not travel with a list response.
+ */
+export const LIST_JOIN_SCHOLAR_KEYS = ['id', 'slug', 'name', 'initials', 'accent'] as const;
+export const LIST_JOIN_SUBJECT_KEYS = ['id', 'slug', 'name', 'group', 'accent'] as const;
+
+/**
+ * `metadata` reduced to the provider media keys the public cards use (`src/lib/thumbnail.ts`):
+ * `youtube.thumbnail`, `archive.thumbnail`/`archive.cover`/`archive.item.thumbnail`, `googleBooks
+ * .thumbnail` and the generic `thumbnail`/`image`/`cover`. Returns `null` when there is nothing to
+ * keep, so an empty object never inflates a list response.
+ */
+export function publicListMetadata(metadata: unknown): Record<string, any> | null {
+  const md: any = metadata && typeof metadata === 'object' ? metadata : null;
+  if (!md) return null;
+  const out: Record<string, any> = {};
+  const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v : null);
+  const youtubeThumb = str(md.youtube?.thumbnail);
+  if (youtubeThumb) out.youtube = { thumbnail: youtubeThumb };
+  const archive: Record<string, any> = {};
+  const archiveThumb = str(md.archive?.thumbnail);
+  if (archiveThumb) archive.thumbnail = archiveThumb;
+  const archiveCover = str(md.archive?.cover);
+  if (archiveCover) archive.cover = archiveCover;
+  const archiveItemThumb = str(md.archive?.item?.thumbnail);
+  if (archiveItemThumb) archive.item = { thumbnail: archiveItemThumb };
+  if (Object.keys(archive).length) out.archive = archive;
+  const googleThumb = str(md.googleBooks?.thumbnail);
+  if (googleThumb) out.googleBooks = { thumbnail: googleThumb };
+  for (const key of ['thumbnail', 'image', 'cover'] as const) {
+    const value = str(md[key]);
+    if (value) out[key] = value;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+function cardScholar(row: any) {
+  return row ? pick(row, LIST_JOIN_SCHOLAR_KEYS) : null;
+}
+
+function cardSubject(row: any) {
+  return row ? pick(row, LIST_JOIN_SUBJECT_KEYS) : null;
+}
+
+/** A content record for a **list** response: same keys, reduced nested rows and `metadata`. */
+export function publicContentList(row: any): Record<string, any> | null {
+  if (!row) return null;
+  const out = publicContent(row)!;
+  out.metadata = publicListMetadata(row.metadata);
+  out.scholars = Array.isArray(row.scholars)
+    ? row.scholars.map((join: any) => ({
+        contentId: join?.contentId ?? row.id ?? null,
+        scholarId: join?.scholarId ?? null,
+        role: join?.role ?? null,
+        scholar: cardScholar(join?.scholar),
+      }))
+    : [];
+  out.subjects = Array.isArray(row.subjects)
+    ? row.subjects.map((join: any) => ({
+        contentId: join?.contentId ?? row.id ?? null,
+        subjectId: join?.subjectId ?? null,
+        subject: cardSubject(join?.subject),
+      }))
+    : [];
+  return out;
+}

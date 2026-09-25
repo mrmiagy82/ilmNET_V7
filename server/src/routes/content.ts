@@ -8,7 +8,7 @@ import {
   updateContentSchema,
 } from '../lib/validation';
 import { toSlug, uniqueSlug } from '../utils/slug';
-import { publicContent, publicList } from '../lib/public-payload';
+import { publicContent, publicContentList, publicList } from '../lib/public-payload';
 
 function buildEmbedUrl(provider: string, sourceUrl: string, externalIdentifier?: string | null): string | null {
   const norm = normalizeProvider(provider);
@@ -82,7 +82,7 @@ export async function contentRoutes(app: FastifyInstance) {
     if (!parsed.success) {
       return reply.code(400).send({ error: { code: 'VALIDATION_ERROR', details: parsed.error.flatten() } });
     }
-    const { page, limit, q, sort, scholar, subject, language } = parsed.data;
+    const { page, limit, q, sort, scholar, subject, language, collection } = parsed.data;
     let { status, type, provider } = parsed.data as any;
 
     if (forcedStatus) status = forcedStatus;
@@ -108,6 +108,14 @@ export async function contentRoutes(app: FastifyInstance) {
 
     if (language) {
       where.language = language;
+    }
+
+    // Fase 5.4: exact series/collection filter (indexed column). The public series page and the
+    // "more from this collection" block on a detail page used `q=<collectionIdentifier>` — an
+    // ILIKE over nine columns that could not use an index and also matched *other* collections whose
+    // identifier merely starts with the same text. Equality is both correct and index-backed.
+    if (collection) {
+      where.collectionIdentifier = collection;
     }
 
     if (q) {
@@ -177,10 +185,12 @@ export async function contentRoutes(app: FastifyInstance) {
     // Fase 5.3 (audit I8): the public endpoints get the positive-list payload — never the raw row
     // with operator attribution (`createdBy`/`updatedBy`) or import bookkeeping (`importJobId`).
     // The admin list keeps the full row because the CMS shows attribution.
+    // Fase 5.4: a *list* response uses the reduced projection (media keys of `metadata`, card-shaped
+    // join rows) — the keys are identical, only the nested data is smaller.
     const isPublic = forcedStatus === 'published';
 
     return {
-      data: isPublic ? publicList(data, publicContent) : data,
+      data: isPublic ? publicList(data, publicContentList) : data,
       pagination: {
         page,
         limit,

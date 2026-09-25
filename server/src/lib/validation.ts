@@ -64,6 +64,10 @@ export const listContentQuerySchema = z.object({
   scholar: z.string().optional(),
   subject: z.string().optional(),
   language: z.string().optional(),
+  // Fase 5.4: exact series/collection filter. The public pages used to search the identifier as free
+  // text (`q=<collectionIdentifier>`), which cannot use the index and evaluated the ILIKE over every
+  // row; `collection` is an equality filter on the indexed `collectionIdentifier` column.
+  collection: z.string().max(300).optional(),
   q: z.string().optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),

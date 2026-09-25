@@ -26,7 +26,8 @@ import { prisma } from '../src/lib/prisma';
 import { getUploadsDir, listUploadFiles, uploadsHealth } from '../src/lib/storage';
 import { trustProxyIsEnabled, trustProxySetting } from '../src/lib/proxy';
 import { hashPassword } from '../src/lib/auth';
-import { INTERNAL_CONTENT_KEYS, PUBLIC_CONTENT_KEYS } from '../src/lib/public-payload';
+import { request as httpRequest } from 'node:http';
+import { INTERNAL_CONTENT_KEYS, LIST_JOIN_SCHOLAR_KEYS, PUBLIC_CONTENT_KEYS } from '../src/lib/public-payload';
 import { adminAuthPosture, assertAdminAccessPossible, legacyAdminTokenEnabled } from '../src/lib/env';
 
 // Fase 3.8.1: production refuses development/placeholder tokens, so the suite uses a
@@ -651,6 +652,7 @@ async function main() {
         subjectId = (await subjectRes.json().catch(() => ({})))?.data?.id ?? null;
         check(Boolean(scholarId && subjectId), 'session writes create the fixture scholar + subject');
 
+        const collectionId = `fase54-collection-${stamp}`;
         const baseContent = {
           type: 'audio',
           provider: 'archive',
@@ -658,6 +660,16 @@ async function main() {
           externalIdentifier: `fase53-${stamp}`,
           scholarIds: scholarId ? [scholarId] : [],
           subjectIds: subjectId ? [subjectId] : [],
+          collectionIdentifier: collectionId,
+          collectionTitle: `Fase 5.4 collection ${stamp}`,
+          // Fase 5.4: provider metadata that the cards render only as a thumbnail, plus fields that
+          // must stay out of a *list* response (tags/publisher/isbn are detail-page data).
+          metadata: {
+            archive: { thumbnail: 'https://archive.org/services/img/fase54-fixture', available_media: ['VBR MP3'] },
+            tags: ['fase54-tag'],
+            publisher: 'Fase 5.4 Publisher',
+            isbn: '978-0000000000',
+          },
         };
         const publishedRes = await fetch(`${noLegacyBase}/api/admin/contents`, {
           method: 'POST',
@@ -694,12 +706,49 @@ async function main() {
           row?.scholars?.[0]?.scholar?.metadata === undefined && row?.subjects?.[0]?.subject?.metadata === undefined,
           'nested scholar/subject metadata stays server-side',
         );
+        // Fase 5.4: a *list* carries only the media keys of `metadata` and card-shaped join rows; the
+        // detail payload keeps the full public shape (tags/publisher/ISBN are detail-page data).
+        check(
+          row?.metadata?.archive?.thumbnail === 'https://archive.org/services/img/fase54-fixture' &&
+            row?.metadata?.tags === undefined &&
+            row?.metadata?.publisher === undefined,
+          'a list item keeps only the provider media keys of metadata',
+        );
+        check(
+          row?.scholars?.[0]?.scholar?.name === `Payload Scholar ${stamp}` &&
+            row?.scholars?.[0]?.scholar?.bio === undefined &&
+            Object.keys(row?.scholars?.[0]?.scholar ?? {}).every((k: string) => LIST_JOIN_SCHOLAR_KEYS.includes(k as any)),
+          'a list item carries card-shaped nested scholars (name/slug/accent, no bio)',
+        );
+        const listBytes = JSON.stringify(listJson).length;
+
+        // Fase 5.4: exact collection filter — indexed equality instead of a nine-column ILIKE search.
+        const collectionRes = await fetch(`${noLegacyBase}/api/contents?limit=100&collection=${encodeURIComponent(collectionId)}`);
+        const collectionJson: any = await collectionRes.json();
+        check(
+          collectionRes.status === 200 &&
+            collectionJson.data.length === 1 &&
+            collectionJson.data[0].id === published?.id &&
+            collectionJson.pagination.total === 1,
+          'collection=<identifier> returns exactly that collection (index-backed equality)',
+        );
+        const unrelated = await fetch(`${noLegacyBase}/api/contents?limit=5&collection=fase54-nothing-${stamp}`);
+        check((await unrelated.json())?.pagination?.total === 0, 'an unknown collection returns an empty, honest total');
 
         const detailRes = await fetch(`${noLegacyBase}/api/contents/${encodeURIComponent(published?.slug ?? '')}`);
         const detailJson: any = await detailRes.json();
         check(
           detailRes.status === 200 && findKeysDeep(detailJson?.data, INTERNAL_CONTENT_KEYS as unknown as string[]).length === 0,
           'the public detail payload leaks no internal field either',
+        );
+        check(
+          detailJson?.data?.metadata?.publisher === 'Fase 5.4 Publisher' && detailJson?.data?.metadata?.isbn === '978-0000000000',
+          'the detail payload still carries the full provider metadata',
+        );
+        const detailBytes = JSON.stringify(detailJson).length;
+        check(
+          listBytes < detailBytes,
+          `a list item is smaller than a detail item (list ${listBytes} B vs detail ${detailBytes} B)`,
         );
 
         // The admin payload keeps attribution — the CMS shows it.
@@ -852,6 +901,38 @@ async function main() {
 
       const missingApi = await raw('GET', `${base}/api/does-not-exist`);
       check(missingApi.status === 404 && missingApi.json?.error?.code === 'NOT_FOUND', 'unknown API route still returns JSON 404');
+
+      // Fase 5.4: the single-file bundle is served pre-compressed when the client supports gzip, and
+      // a deep link goes through the static handler (sendFile) instead of a synchronous readFileSync.
+      const gzRoot = await fetch(`${base}/`, { headers: { 'accept-encoding': 'gzip' } });
+      const gzDeep = await fetch(`${base}/lectures`, { headers: { 'accept-encoding': 'gzip' } });
+      const identity = await fetch(`${base}/lectures`, { headers: { 'accept-encoding': 'identity' } });
+      const hasGzVariant = fs.existsSync(`${buildIndex}.gz`);
+      check(
+        hasGzVariant
+          ? gzRoot.headers.get('content-encoding') === 'gzip' && gzDeep.headers.get('content-encoding') === 'gzip'
+          : true,
+        `the gzip build is served compressed when the client asks for it (index.html.gz ${hasGzVariant ? 'present' : 'absent'})`,
+      );
+      check(
+        identity.headers.get('content-encoding') === null && (await identity.text()).includes('<div id="root"'),
+        'a client without gzip support still receives the full uncompressed app',
+      );
+      // Conditional request → 304. Note: `fetch` (undici) drops `if-none-match` on the way out, so this
+      // one check talks HTTP directly — curl and node:http both get the 304 the browser would get.
+      const etag = gzDeep.headers.get('etag');
+      const conditionalStatus = await new Promise<number>((resolve) => {
+        const req = httpRequest(
+          { host: '127.0.0.1', port: Number(new URL(base).port), path: '/lectures', method: 'GET', headers: { 'accept-encoding': 'gzip', 'if-none-match': etag ?? '' } },
+          (res) => {
+            res.resume();
+            resolve(res.statusCode ?? 0);
+          },
+        );
+        req.on('error', () => resolve(-1));
+        req.end();
+      });
+      check(conditionalStatus === 304, `the SPA fallback answers a conditional request with 304 (got ${conditionalStatus}, etag ${etag ?? 'none'})`);
     } else {
       fail('frontend build missing — run `npm run build` in the repo root first');
     }

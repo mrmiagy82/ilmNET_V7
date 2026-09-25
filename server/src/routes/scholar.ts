@@ -3,7 +3,7 @@ import { prisma } from '../lib/prisma';
 import { adminUsername } from '../lib/auth';
 import { createScholarSchema, updateScholarSchema } from '../lib/validation';
 import { toSlug, uniqueSlug } from '../utils/slug';
-import { publicContent, publicList, publicScholar } from '../lib/public-payload';
+import { publicContentList, publicList, publicScholar } from '../lib/public-payload';
 
 export async function scholarRoutes(app: FastifyInstance) {
   // Public reads expose published scholars only; the admin grid gets every status.
@@ -40,11 +40,14 @@ export async function scholarRoutes(app: FastifyInstance) {
       });
       if (!scholar) return reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'Scholar not found' } });
       const payload = publicScholar(scholar)!;
+      // Fase 5.4: the embedded list is a *list* projection (a scholar can have hundreds of linked
+      // records; the full public shape carried ~2,4 kB per record, most of it provider metadata the
+      // card never renders). Keys are unchanged, only the nested data is smaller.
       payload.contents = publicList(scholar.contents, (join: any) => ({
         contentId: join?.contentId ?? null,
         scholarId: join?.scholarId ?? null,
         role: join?.role ?? null,
-        content: publicContent(join?.content),
+        content: publicContentList(join?.content),
       }));
       return { data: payload };
     });

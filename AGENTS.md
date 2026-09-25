@@ -80,6 +80,12 @@ Details: `README.md` (overview), `docs/backend-architecture.md` (API + data mode
   `FORCE_HTTPS` exist for that reason — do not "simplify" them away (`docs/DEPLOYMENT.md` §5c).
 
 **Data**
+- **A list is not a detail.** Public list responses go through `publicContentList` (media-only
+  `metadata`, card-shaped join rows); detail responses keep the full public shape. The keys are the
+  same in both — never add a field to one without the other, and never re-add a heavy field to a list
+  "because it is convenient" (that is what Fase 5.4 measured away, §7j of `docs/CONTEXT.md`).
+- **A series/collection page filters with `collection=<identifier>`**, never with `q=` — an identifier
+  is a key, not a search term (index-backed equality vs a nine-branch `ILIKE` over every row).
 - **Public responses are positive lists.** `server/src/lib/public-payload.ts` decides what a visitor
   may see: never `createdBy`, `updatedBy`, `importJobId` — and never unpublished content, not even
   nested (a scholar page used to ship drafts). Add a field only by adding it there and to the tests;
@@ -110,7 +116,7 @@ Details: `README.md` (overview), `docs/backend-architecture.md` (API + data mode
 # frontend (repo root)
 npm install
 npm run dev                      # vite on :5173, proxies /api and /uploads to :3001
-npm run build                    # single-file dist/index.html
+npm run build                    # single-file dist/index.html + dist/index.html.gz (pre-compressed)
 npx tsc --noEmit                 # type check
 
 # backend

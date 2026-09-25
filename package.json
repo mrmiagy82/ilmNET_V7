@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node scripts/precompress.mjs",
     "preview": "vite preview",
     "test:e2e": "node tests/e2e/media.spec.mjs",
     "test:e2e:cms": "node tests/e2e/cms.spec.mjs",

@@ -14,7 +14,7 @@ een persistent uploads-volume en de volledige testset (server-suites + browser-e
 
 | Variabele | Verplicht | Betekenis |
 | --- | --- | --- |
-| `DATABASE_URL` | ja | Postgres-URL, bv. `postgresql://user:pass@host:5432/ilmnet?schema=public` |
+| `DATABASE_URL` | ja | Postgres-URL, bv. `postgresql://user:pass@host:5432/ilmnet?schema=public`. Optioneel erbij: `&connection_limit=<n>` (Prisma's pool, standaard `2 × CPU + 1`). `ops/*.sh` filteren Prisma-parameters er zelf uit voordat ze `pg_dump` aanroepen |
 | `NODE_ENV` | ja (prod) | `production` → admin-token verplicht, CORS-wildcard verboden, `secure`-cookies/fallbacks uit |
 | `ADMIN_TOKEN` | alleen als `ADMIN_LEGACY_TOKEN=true` | Uniek geheim, **minimaal 16 tekens** (`openssl rand -hex 32`). Alleen de fallback voor scripts/CI naast de sessie-login; in productie staat dit pad **standaard uit** (Fase 5.3). Bekende dev-/voorbeeldwaarden worden geweigerd |
 | `ADMIN_LEGACY_TOKEN` | nee | `true`/`false`. Zonder waarde: **aan in development, uit in productie** (Fase 5.3). Op `true` in productie is `ADMIN_TOKEN` verplicht; op `false` moet er minstens één actief beheerdersaccount bestaan, anders weigert de server te starten |
@@ -185,6 +185,12 @@ curl -s https://ilmnet.example/api/ready    # status ready + database up (goedko
 
 - `/` en diepe links (`/lectures`, `/books`, `/series/<id>`, `/lectures/<slug>`) geven 200 en
   renderen na een harde refresh (SPA-fallback).
+- **Levering van de frontend (Fase 5.4):**
+  ```bash
+  curl -sI -H 'Accept-Encoding: gzip' https://ilmnet.example/ | grep -i 'content-encoding\|content-length'
+  #   content-encoding: gzip   → de pre-gecomprimeerde build wordt geserveerd
+  curl -sI https://ilmnet.example/lectures | grep -i 'etag\|content-encoding'   # diepe link: 200 + ETag, geen gzip op verzoek zonder header
+  ```
 - Admin: `/admin` vraagt om gebruikersnaam + wachtwoord; na inloggen verschijnen drafts, imports en uploads (het dashboard toont de echte totalen).
 - Upload-test: voeg in het CMS een thumbnail toe, herlaad de pagina — het bestand moet daarna nog
   steeds geserveerd worden (bewijs dat `UPLOADS_DIR` op een volume staat).
@@ -308,6 +314,22 @@ server {
 }
 ```
 
+**Zet gzip aan voor de API-JSON (Fase 5.4, gemeten).** De app comprimeert de frontend-build zelf
+(§5), maar niet haar JSON — Fastify heeft geen ingebouwde compressie. Een publieke lijst met 100 items
+is ~236 kB; gecomprimeerd is dat ~40 kB, wat op een 3G-verbinding ~1 s scheelt. In de `http`- of
+`server`-context van nginx:
+
+```nginx
+gzip on;
+gzip_comp_level 5;
+gzip_min_length 1024;
+gzip_proxied any;
+gzip_vary on;
+gzip_types application/json application/javascript text/css text/plain image/svg+xml;
+# serveer de al gecomprimeerde frontend-build direct (scheelt de app werk):
+gzip_static on;   # optioneel: gebruikt dist/index.html.gz rechtstreeks
+```
+
 `X-Forwarded-For` moet door de proxy **gezet** worden (niet doorgegeven wat de client stuurde):
 `$proxy_add_x_forwarded_for` voegt het echte adres toe. Zet bij Cloudflare/CDN bovendien dat de
 `Referrer-Policy`-responsheader niet wordt overschreven (anders breekt de YouTube-speler, §7e van
@@ -366,9 +388,66 @@ token per direct waardeloos. Roteren kan zonder uitval: eerst een nieuw account,
 
 ---
 
+## 5e. Performance en schaal: wat te doen als de bibliotheek groeit (Fase 5.4)
+
+De Fase 5.4-metingen (20 000 records, `docs/CONTEXT.md` §7j) hebben één echt knelpunt opgelost in de
+code — het serie/collectie-pad is nu een index-lookup (596 ms → 26 ms) — en één bewust als hoststap
+achtergelaten: **vrije-tekstzoektocht**. Deze sectie is de ops-handleiding daarvoor, met de gemeten
+getallen zodat je zelf kunt beslissen wanneer het nodig is.
+
+| Omvang | `q=` zoektocht (p50, 1 verzoek tegelijk) | Opmerking |
+| --- | --- | --- |
+| ~25 records (huidige bibliotheek) | 2–4 ms | niets doen |
+| 20 000 records | 0,18–0,49 s (p95 ~0,55 s) | merkbaar traag; overweeg de index hieronder |
+| 20 000 records, 25 gelijktijdig | 2,5 s p50 / 5,0 s p95 | de zoektocht is dan duidelijk de bottleneck |
+
+**Waarom het traag is:** de zoektocht is bewust breed — `ILIKE '%q%'` over titel, beschrijving, slug,
+serie/collectie, taal én de namen van gekoppelde scholars en subjects (twee `EXISTS`). Dat kan geen
+gewone B-tree-index gebruiken; de teller (`pagination.total`, een échte telling) evalueert de hele
+voorwaarde over alle rijen.
+
+**De oplossing (databasewijziging — bewust niet in de app toegepast):**
+
+```sql
+-- Eenmalig per database. pg_trgm is een standaard-extensie (PostgreSQL 13+ mag dit als owner).
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+-- Indexen op precies de kolommen die de zoektocht doorzoekt:
+CREATE INDEX CONCURRENTLY IF NOT EXISTS contents_title_trgm        ON contents USING gin (title gin_trgm_ops);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS contents_description_trgm  ON contents USING gin (description gin_trgm_ops);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS contents_slug_trgm         ON contents USING gin (slug gin_trgm_ops);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS contents_series_trgm       ON contents USING gin (series gin_trgm_ops);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS contents_colltrgm          ON contents USING gin ("collectionTitle" gin_trgm_ops);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS contents_collid_trgm       ON contents USING gin ("collectionIdentifier" gin_trgm_ops);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS contents_language_trgm     ON contents USING gin (language gin_trgm_ops);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS scholars_name_trgm         ON scholars USING gin (name gin_trgm_ops);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS subjects_name_trgm         ON subjects USING gin (name gin_trgm_ops);
+```
+
+- Doe dit buiten de piek (`CONCURRENTLY`) en controleer daarna met `EXPLAIN ANALYZE` dat de zoektocht
+  de GIN-indexen pakt in plaats van een seq scan.
+- Zet het bewust **niet** in een Prisma-migratie: het is een omgevingsbeslissing per database (de index
+  kost schijfruimte en schrijfsnelheid bij imports), niet een vormwijziging van het datamodel.
+- Meet het effect opnieuw met dezelfde aanpak als §7j van `docs/CONTEXT.md` (latency-harness +
+  `EXPLAIN ANALYZE`) en leg de uitkomst vast.
+
+**Grote collecties importeren.** Een Archive.org-collectie met duizenden items wordt per preview
+bevestigd (maximaal 100 items per `confirm`-call); de `provider + externalIdentifier`-uniciteit zorgt
+dat een tweede run bijwerkt in plaats van dupliceert. Voor heel grote imports: bevestig in blokken en
+kijk naar `ImportJob.importedCount` — de API doet geen eigen rate limiting richting de providers.
+
+**Paginering voorbij 100 items.** De publieke lijsten vragen `limit=100` op en pagineren client-side
+(`pagination.total` is er al). Server-side paginering is een API- én UI-wijziging en staat als bekend
+punt in §8.2 van `docs/CONTEXT.md` — geen quick fix.
+
+---
+
 ## 6. Updaten en terugrollen
 
 1. `git pull` → `npm ci` (root + server) → `npm run build` + `server: npm run build`.
+   De root-build schrijft sinds Fase 5.4 ook **`dist/index.html.gz`** (via `scripts/precompress.mjs`).
+   Neem dat bestand mee in je deploy: de API serveert het met `content-encoding: gzip` zodra de browser
+   gzip accepteert (631 kB → 157 kB). Ontbreekt het, dan werkt alles — alleen ongecomprimeerd.
 2. `npx prisma migrate deploy` (idempotent; migraties zijn additief).
 3. Service herstarten (`systemctl restart ilmnet` / `docker compose up -d --build`).
 
@@ -489,6 +568,9 @@ config en het TLS-certificaat. Noteer die apart, zodat een herstel op een nieuwe
 | `ADMIN_TOKEN is set but the legacy token path is disabled in production` (waarschuwing) | Het token is genegeerd. Haal `ADMIN_TOKEN` uit de serviceomgeving, of zet `ADMIN_LEGACY_TOKEN=true` als een script het echt nodig heeft. |
 | `ADMIN_LEGACY_TOKEN=true is set, but ADMIN_TOKEN is missing` | Zet een productie-waardig `ADMIN_TOKEN` (`openssl rand -hex 32`) óf laat `ADMIN_LEGACY_TOKEN` weg om alleen op accounts te draaien. |
 | Upload geeft `415 … The uploaded bytes are not a supported image` | De bestandsinhoud is geen jpg/png/webp/gif/avif, ook al zegt de client iets anders (Fase 5.3 controleert de magic bytes). Converteer het bestand of kies een ander. |
+| Frontend wordt ongecomprimeerd geserveerd (631 kB) | `dist/index.html.gz` ontbreekt op de host. `npm run build` schrijft het (Fase 5.4); een deploy die alleen `index.html` kopieert werkt, maar mist de compressie. Zit er een proxy voor (nginx), gebruik dan `gzip_static on;`. |
+| Zoektocht (`?q=`) wordt traag bij een grote bibliotheek | Verwacht gedrag zonder trigram-index: de zoektocht doorzoekt negen kolommen met `ILIKE`. Zie §5e voor de exacte indexen en de gemeten getallen. |
+| `P2024: Timed out fetching a new connection from the connection pool` | De Prisma-pool is te klein voor je gelijktijdigheid. Zet `&connection_limit=<n>` in `DATABASE_URL` (default `2 × CPU + 1`) en houd het totaal onder Postgres' `max_connections` — zie §8.18 in `docs/CONTEXT.md`. |
 | `400 CONFIRM_REQUIRED` bij `DELETE …?hard=true` | Een hard delete moet de record noemen: `?hard=true&confirm=<id|slug>`. Wil je alleen verbergen, gebruik dan `DELETE` zónder `hard=true` (archiveert; terug te zetten). |
 | Login lukt, maar de CMS valt direct terug op het loginscherm | De sessiecookie is `Secure` en de site draait op platte `http://` (niet localhost). Zet TLS voor de reverse proxy of gebruik `https://`. |
 | `429 Too many sign-in attempts` | Throttle: 5 mislukte pogingen per gebruikersnaam+IP (20 per IP) per 15 minuten. Wacht het venster af of herstart de API (de teller is in-process). |

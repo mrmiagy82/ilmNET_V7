@@ -83,6 +83,9 @@ npm run test:e2e              # player/waveform, thumbnails, admin upload flow
 
 ## Production
 
+`npm run build` produces the single-file `dist/index.html` **plus** `dist/index.html.gz`; the API serves
+the compressed variant whenever the browser accepts gzip (631 kB → 157 kB, measured on a 3G profile).
+
 Health for orchestrators: `GET /api/health` is the deep check (database **and** upload storage,
 503 when either is unusable) and `GET /api/ready` is the cheap readiness probe a load balancer should
 use. Deployment hardening — proxy trust, `X-Forwarded-*`, TLS/HSTS, the no-public-port compose setup —
@@ -102,6 +105,11 @@ restore drill are covered in [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) § Backu
 The full runbook lives in [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md): required environment variables,
 systemd/pm2 and Docker Compose setups, the production-safe seed (`npm run seed:reference`), health
 checks (`/api/health` → 200/503) and rollback.
+
+Performance was measured, not guessed: `docs/CONTEXT.md` §7j holds the numbers for the public path
+(20 000-record database — list payload −35 %, the series filter index-backed at 596 → 26 ms, the
+pre-compressed bundle) and `docs/DEPLOYMENT.md` §5e the scaling steps that were deliberately left to
+the host.
 
 Two rules matter most:
 

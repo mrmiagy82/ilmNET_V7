@@ -5,8 +5,8 @@ Update it after every finished phase, commit, sanity check or significant discov
 Rules: only facts that are verifiable from the repository, Git history or existing docs — and
 **never** secrets, tokens or credentials.
 
-_Last updated: Fase 5.3 (data & security hardening: legacy token off by default, public payloads
-whitelisted, destructive deletes confirmed, uploads checked by magic bytes)._
+_Last updated: Fase 5.4 (performance & scale: measured on a 20 000-record database — list payloads
+reduced, series pages index-backed, the single-file bundle pre-compressed)._
 
 The last phases: Fase 5.1 closed the three blockers from the Fase 5 audit (backup + restore, honest
 footer links, TLS/HSTS with a provider-agnostic runbook, §7g). Fase 5.2 hardened the deployment
@@ -17,7 +17,11 @@ API gained a cheap readiness probe (§7h). Fase 5.3 then closed the data-safety 
 (I6/I7/I8/L4): the legacy shared token is off in production by default, public responses are built
 from a positive list (no `createdBy`/`updatedBy`/`importJobId`, and no draft content on a scholar
 page), an irreversible delete must name its record in the API and in the CMS, and uploads are
-recognised by their magic bytes instead of the client's `Content-Type` (§7i).
+recognised by their magic bytes instead of the client's `Content-Type` (§7i). Fase 5.4 then measured
+the public path against a real 20 000-record database and fixed what the numbers showed: a series page
+searched the whole table instead of using its index (0,60 s → 0,03 s), every list response carried
+~1,5 kB per record of data no card renders (−35 % bytes), and the single-file bundle was delivered
+uncompressed (631 kB → 157 kB over the wire, −2,3 s on a 3G profile) (§7j).
 
 ---
 
@@ -26,15 +30,15 @@ recognised by their magic bytes instead of the client's `Content-Type` (§7i).
 | | |
 | --- | --- |
 | Branch | `master` |
-| Codebase state described here | `504e353` (Fase 5.2) **plus** the Fase 5.3 changes in §7i — this document ships in the Fase 5.3 commit |
-| This document | updated in Fase 5.3; its own revision is visible with `git log -1 -- docs/CONTEXT.md` |
+| Codebase state described here | `5b1372d` (Fase 5.3) **plus** the Fase 5.4 changes in §7j — this document ships in the Fase 5.4 commit |
+| This document | updated in Fase 5.4; its own revision is visible with `git log -1 -- docs/CONTEXT.md` |
 | Working tree | clean (verified against `origin/master`) |
 | Repository | `github.com/mrmiagy82/ilmNET_V7` |
 | Size | 69 source files, ~15.6k lines in `src/` + `server/src/`; the admin (`src/admin/`, 20 files, ~6.5k lines) is the largest area |
-| Build (git-ignored artefact) | single-file `dist/index.html` (644.42 kB, 161.00 kB gzip, measured in Fase 4.5) |
-| Phase state | Fase 5.3 complete: the audit's data-safety items are closed — production runs on accounts (the legacy `ADMIN_TOKEN` needs an explicit `ADMIN_LEGACY_TOKEN=true` and a production boot without accounts refuses to start), public endpoints answer with a positive list instead of the raw row, hard deletes and scholar/subject deletes require `?confirm=<id|slug>` (typed in the CMS), uploads are validated by magic bytes, and `/api/health` no longer publishes the upload path (§7i) |
-| Roadmap | production finishing, UI/UX and performance toward the definitive live deployment (§9). The audit's Fase 5.4 (scale/speed) and 5.5 (polish/compliance) work is next; the remaining deploy work is host-side (§8.14) |
-| Open blockers | none in the repository. Host-side and not verifiable from the repo: terminating TLS, forwarding `X-Forwarded-Proto`, choosing `TRUST_PROXY` for the real topology, the nightly backup timer plus off-site copies, uptime/alerting, and public-API rate limiting (§8.14). Data-safety wise nothing is open: the last low-priority item is the `__Host-` cookie prefix (§8.15) |
+| Build (git-ignored artefact) | single-file `dist/index.html` (645.96 kB raw — Fase 5.4 serves the `dist/index.html.gz` variant of 156.96 kB when the client accepts gzip) |
+| Phase state | Fase 5.4 complete: the public path was measured on a 20 000-record database and only the measured bottlenecks were changed — the list projection (media keys of `metadata` + card-shaped join rows), the series/collection filter (indexed equality instead of a nine-column ILIKE), the SPA fallback through the static handler, and a pre-compressed single-file bundle. Free-text search and pagination beyond 100 items are **measured and documented**, not changed: they need a trigram index / server-side paging (§7j, §8.16–§8.18) |
+| Roadmap | production finishing, UI/UX and performance toward the definitive live deployment (§9). Fase 5.4 (scale/speed) is done; the audit's Fase 5.5 (polish/compliance) is next, and the remaining deploy work is host-side (§8.14) |
+| Open blockers | none in the repository. Host-side and not verifiable from the repo: terminating TLS, forwarding `X-Forwarded-Proto`, choosing `TRUST_PROXY` for the real topology, the nightly backup timer plus off-site copies, uptime/alerting, gzip for API JSON at the proxy, and public-API rate limiting (§8.14). Data-safety wise nothing is open: the last low-priority item is the `__Host-` cookie prefix (§8.15) |
 
 ## 2. Completed phases (from Git history)
 
@@ -61,7 +65,8 @@ recognised by their magic bytes instead of the client's `Content-Type` (§7i).
 | — (audit only) | Fase 5 | production readiness audit; read-only, no commit — three blockers: no backup/restore, TLS not proven, footer linked to a single page |
 | `a7d6865` | Fase 5.1 | production blockers closed: `ops/` backup + restore + drill, honest footer navigation, TLS/HSTS support (see §7g) |
 | `504e353` | Fase 5.2 | deployment hardening: proxy trust (`TRUST_PROXY`), safe forwarded-host handling, boot guards, no public Postgres/API port, readiness probe (see §7h) |
-| _this commit_ | Fase 5.3 | data & security hardening: legacy token off in production, whitelisted public payloads, confirmed destructive deletes, byte-verified uploads, no path leak in health (see §7i) |
+| `5b1372d` | Fase 5.3 | data & security hardening: legacy token off in production, whitelisted public payloads, confirmed destructive deletes, byte-verified uploads, no path leak in health (see §7i) |
+| _this commit_ | Fase 5.4 | performance & scale: measured on 20 000 records — reduced list payload, index-backed series filter, SPA fallback via the static handler, pre-compressed bundle (see §7j) |
 
 Earlier work is documented per topic in `docs/FASE2A_ARCHIVE.md`, `docs/FASE2B_YOUTUBE.md`,
 `docs/FASE2C_PUBLIC_FRONTEND.md`, `docs/FASE2D_SEARCH_FILTERING.md`,
@@ -104,6 +109,21 @@ server-side; `Content.metadata` **is** public because the public UI renders prov
 (archive `available_media`, `tags`, `publisher`, `isbn`). The admin endpoints keep returning the raw row
 (the CMS shows attribution). Uploads are typed by their magic bytes (`server/src/lib/image-type.ts`), not
 by the multipart `Content-Type`.
+
+**List vs detail payloads (Fase 5.4).** A *list* response (up to 100 records) uses the reduced
+projection in `public-payload.ts`: `publicContentList` keeps exactly the same top-level keys but
+carries only the media keys of `metadata` (`youtube.thumbnail`, `archive.*`, `googleBooks.thumbnail`,
+`thumbnail`/`image`/`cover` — everything `src/lib/thumbnail.ts` reads for a card) and card-shaped
+nested rows (`id, slug, name, initials, accent` for a scholar, `id, slug, name, group, accent` for a
+subject). A *detail* response keeps the full public shape (bio, tags, publisher, ISBN, the content a
+scholar page embeds). The public list also accepts `collection=<collectionIdentifier>` for an exact,
+index-backed series filter — `q=<identifier>` remains the free-text search it always was.
+
+**Delivery (Fase 5.4).** `npm run build` writes `dist/index.html.gz` with `node:zlib`
+(`scripts/precompress.mjs`, no dependency) and `@fastify/static` serves it when the client sends
+`accept-encoding: gzip` (`preCompressed: true`); a deep link goes through `reply.sendFile` (async,
+ETag/Last-Modified) instead of a synchronous `readFileSync` of the whole bundle. The API itself does
+not compress JSON — gzip for `/api` belongs in the reverse proxy (`docs/DEPLOYMENT.md` §5c).
 
 **API:** public reads `/api/contents`, `/api/v1/contents` (both force `status = published`),
 `/api/contents/:id|slug`, `/api/scholars`, `/api/subjects` (+ by id/slug), `/api/health`,
@@ -243,11 +263,11 @@ empty states, errors) live in the React components — there is no content layer
 | Command | What it covers | Last verified result |
 | --- | --- | --- |
 | `npx tsc --noEmit` (root + `server/`) | types | 0 errors (Fase 5.3) |
-| `npm run build` (root) | single-file production build | 645.98 kB / 161.40 kB gzip (Fase 5.3) |
-| `cd server && npm run test:all` | audit, uploads (**30**), production readiness (**103**, incl. TLS/HSTS, proxy trust, boot guards, readiness, public payload, delete confirmation, magic bytes, admin posture), env hardening (13), youtube (+ Data API fallback), **auth (69)** | green in Fase 5.3: exit 0, **288 ✅** (the live YouTube scrape check can still fail when Google throttles this IP — §8.11) |
+| `npm run build` (root) | single-file production build + `dist/index.html.gz` | 645.96 kB (156.96 kB gzip on the wire) — Fase 5.4 |
+| `cd server && npm run test:all` | audit (32), uploads (30), production readiness (**112**, incl. TLS/HSTS, proxy trust, boot guards, readiness, public payload, delete confirmation, magic bytes, admin posture, **list-projection + collection filter + gzip/304 of the SPA fallback**), env hardening (13), youtube (+ Data API fallback), **auth (69)** | Fase 5.4: audit 32, uploads 30, production **112**, env 13, auth 69 all green (**256 ✅**); the youtube suite aborted at its **live watch-page check** — this sandbox's YouTube access is throttled (302 → `/sorry`, §8.11), the suite is unaffected by Fase 5.4. With YouTube reachable the total is 297 |
 | `ops/backup.sh` + `ops/restore-drill.sh` | database + uploads backup, then a restore into a throwaway database with count and checksum comparison | drill PASSED in Fase 5.1 (seven tables + two upload files, §7g) |
 | `cd server && npm run test:imports` | live Archive.org + YouTube import regression | 19/19 whenever the provider answers; the live scrape check is the part that fails under Google's throttle (§8.11) |
-| `npm run test:e2e:production` | routes, embeds, **real YouTube playback**, error states, mobile, admin entry (login gate), **footer navigation (17 checks)** | 84/84 (Fase 5.1/5.3) |
+| `npm run test:e2e:production` | routes, embeds, **real YouTube playback**, error states, mobile, admin entry (login gate), **footer navigation (17 checks)** | 82/84 (Fase 5.4): the two failing checks are the live playback ones — verified to fail identically in a **bare YouTube embed outside the app** (`yt-probe`), so this sandbox's YouTube playback path is blocked, not the site (§8.11) |
 | `npm run test:e2e` | waveform, thumbnails, admin upload flow | 27/27 |
 | `npm run test:e2e:cms` | admin CMS: real totals, draft→published→archived→restored, collection round-trip, 401 honesty, **typed delete confirmation + `CONFIRM_REQUIRED`** | 34/34 (Fase 5.3) |
 | `npm run test:e2e:auth` | Fase 4.5 gate: username/password sign-in, 401s, cookie flags, deep link, refresh, tampered cookie, server-side logout, no credential in web storage, public site stays free | 60/60 |
@@ -269,6 +289,13 @@ working, matching `CORS_ORIGIN`). Mutating suites clean up their
 own records — verify afterwards, and never point them at a database whose content must be preserved.
 Known quirk: `test:imports` deliberately leaves the imported record in place (that is part of what it
 asserts), so run it against a throwaway database or remove the record afterwards.
+
+**State of these numbers (Fase 5.4):** the numbers above were measured in the same rebuilt sandbox
+(PostgreSQL 17.11). For Fase 5.4 the public path was measured on a purpose-built scale database
+(`ilmnet_perf`: 20 000 contents, 48 scholars, ~30 000 scholar links, ~38 000 subject links) next to
+the 25 real Archive.org/YouTube records in `ilmnet`/`ilmnet_prod`; the measurement scripts and the
+exact numbers are in §7j. Anything measured there was left in place only when the repository could
+confirm it; nothing was optimised without a number.
 
 **State of these numbers (Fase 5.3):** measured in the same rebuilt sandbox (PostgreSQL 17.11, real
 Archive.org/YouTube imports: 25 published records — 8 books, 7 videos, 10 audio — plus 8 scholars and
@@ -707,6 +734,101 @@ reason to keep the fallback, and §5d of `docs/DEPLOYMENT.md` says so explicitly
 were considered and left: the `__Host-` session cookie prefix (needs a code-level `Max-Age`/TTL review,
 §8.15), a public-API rate limit and the audit-log table (host/roadmap items, §8.4/§8.9).
 
+## 7j. What Fase 5.4 (performance & scale) changed — and what it measured
+
+Fase 5.4 started with measurement, not with code. A `ilmnet_perf` database was built to the same shape
+as production (20 000 contents — 20 % drafts, 80 % in 50 collections of 400 items, 48 scholars,
+29 883 scholar links, 37 751 subject links, archive-like `metadata` of ~800 B per record, descriptions
+of ~490 B) and the public endpoints were measured against it with a plain HTTP harness, `EXPLAIN
+(ANALYZE)`, `pg_stat_statements` and Chromium (including a throttled 3G profile). Everything below is
+that measurement; only the three bottlenecks that showed up were changed.
+
+### Measured before (20 000 records, one request at a time)
+
+| Endpoint | p50 | p95 | Response |
+| --- | --- | --- | --- |
+| `GET /api/contents?limit=100&type=lecture,video,audio` | 59 ms | 78 ms | 363 kB |
+| `GET /api/contents?limit=100&q=patience` (free text) | 175–490 ms | 218–548 ms | 363 kB |
+| series page: `GET /api/contents?limit=100&q=<collectionIdentifier>` | 282–596 ms | 348–640 ms | 362 kB |
+| `GET /api/scholars/:slug` (scholar with ~600 linked records) | 76 ms | 89 ms | **1414 kB** |
+| `GET /api/scholars` / `/api/subjects` | 3 ms / 2 ms | 5 ms / 2 ms | 15 kB / 3 kB |
+| single-file `index.html` on a 3G profile (1,6 Mbps) | DCL 3272 ms | — | **631 kB uncompressed** |
+
+Under 25 concurrent requests the same series path reached a p50 of **4,3 s** (p95 8,3 s) on this
+2-CPU sandbox, and the free-text search 2,5 s (p95 5,0 s) — the two paths that scan the table per
+request.
+
+`EXPLAIN (ANALYZE)` showed where the time goes: with `ORDER BY "updatedAt" DESC LIMIT 100` the planner
+cannot stop early, so every request evaluated a nine-branch `ILIKE` OR (including two correlated
+`EXISTS` over the join tables) across all 20 000 rows — twice, because the endpoint also asks for
+`pagination.total` in parallel. `pg_stat_statements` confirmed it: the two `SELECT … FROM contents`
+shapes and their `COUNT(*)` twins were the top four statements by total time (387–575 ms mean each).
+
+### The three changes
+
+1. **Series pages use the index instead of a table scan.** The public detail/series pages searched
+   their collection as free text (`q=<collectionIdentifier>`) and filtered client-side, because the
+   API had no exact filter. `GET /api/contents` now accepts `collection=<identifier>` (equality on the
+   indexed `collectionIdentifier` column, `server/src/lib/validation.ts` + `routes/content.ts`), and
+   `SeriesDetail.tsx` and the "more from this collection" block in `ContentDetail.tsx` use it.
+   *Measured:* **596 ms → 26 ms** (p50, same server, same data, 23×); under 25-way concurrency
+   **4 274 ms → 280 ms** (p95 8 324 → 451 ms). It also fixes a real correctness wart: `q=Pool3` used to
+   match `Pool30…Pool39` and could fill the 100-item page with other collections.
+2. **A list response no longer ships what a card cannot render.** `publicContentList` (in the Fase 5.3
+   positive-list module) keeps the same top-level keys but reduces `metadata` to the provider media
+   keys (`src/lib/thumbnail.ts` is the only public reader) and reduces the nested scholar/subject rows
+   to the card shape. *Measured:* list item 3 543 B → ~2 360 B, response **363 kB → 236 kB (−35 %)**,
+   scholar detail **1 414 kB → 1 011 kB (−29 %)**. The detail endpoints still return the full public
+   shape, and Fase 5.3's exact-key test keeps guarding the contract (only the nested data changed).
+3. **The bundle is delivered compressed.** `scripts/precompress.mjs` (new, `node:zlib`, no dependency)
+   writes `dist/index.html.gz` as part of `npm run build`, and both static registrations use
+   `preCompressed: true`; the SPA fallback now goes through `reply.sendFile` (async, ETag/Last-Modified,
+   `304` for repeat visitors) instead of a synchronous `readFileSync` of 646 kB per deep link.
+   *Measured on a Fast 3G profile (1,6 Mbps, 150 ms RTT), same server, `.gz` removed vs present:*
+   **wire 631 kB → 157 kB, DCL 3 272 ms → 952 ms (−71 %)**, whole page 889 kB → 415 kB.
+
+### What was measured and deliberately **not** changed
+
+- **Free-text search (0,18–0,49 s at 20 000 rows).** Every result is honest (`pagination.total` is a
+  real count, per the Fase 3.9 rule) and the query is deliberately broad: nine columns plus scholar and
+  subject names. The only real fix is an index — `CREATE EXTENSION pg_trgm` plus GIN trigram indexes on
+  the searched columns — which is a database change, so it is documented as a host-side scaling step
+  with the exact SQL (`docs/DEPLOYMENT.md` §5e) instead of being applied here. At the current library
+  size (25 records) the same query takes 2–4 ms; §8.16 keeps it on the list.
+- **Lists stop at 100 items** (client-side pagination, `pagination.total` already exists). Server-side
+  paging is an API + UI change; §8.2 stays open with the same wording as before.
+- **API JSON is not compressed in-app.** Fastify has no built-in compression and a new dependency was
+  not allowed, so gzip for `/api` is a reverse-proxy setting (exact nginx lines in
+  `docs/DEPLOYMENT.md` §5c). On the same 3G profile a 236 kB list response would drop to ~40 kB there.
+- **The Prisma connection pool** (default `2 × CPU + 1`, here 5) was not re-tuned: the measured
+  latency under 25-way concurrency is dominated by the queries that the three changes above removed,
+  not by waiting for a connection. Pool sizing stays a deployment decision (`connection_limit` in
+  `DATABASE_URL`, §8.18).
+- **Image loading was already correct**: the only `<img>` in the app (`MediaThumb`) is `loading="lazy"`
+  by default with a single `eager` opt-in on the detail hero; no change was needed.
+
+### Verified after (same harness, same database)
+
+| Endpoint | p50 before → after |
+| --- | --- |
+| series page (`collection=`) | 596 ms → **26 ms** |
+| series page under 25-way concurrency | 4 274 ms → **280 ms** (p95 8 324 → 451 ms) |
+| public list (100 items) | 363 kB → **236 kB** |
+| scholar detail | 1 414 kB → **1 011 kB** |
+| `index.html` on 3G | 631 kB / DCL 3 272 ms → **157 kB / DCL 952 ms** |
+| free-text search (unchanged path) | 0,18–0,49 s (documented, not fixed) |
+
+`npx tsc --noEmit` clean in `./` and `./server`; `npm run build` exit 0 (645.96 kB, and
+`dist/index.html.gz` 156.96 kB); server suites audit 32, uploads 30, production **112**, env 13 and auth
+69 green (256 checks; the youtube suite stops at its live watch-page check because this sandbox's
+YouTube access is throttled, §8.11); e2e production 82/84 (only the two live-playback checks fail, and
+a bare YouTube embed outside the app fails identically in this sandbox), admin-auth 60/60, cms 34/34,
+media 27/27.
+
+**Not changed on purpose:** no new dependency, no schema change, no redesign, no pagination rewrite.
+The measurement scripts (`/tmp/perfapi54.mjs`, `/tmp/perfseries54.mjs`, `perf-browser.tmp.mjs`,
+`perf-fixture.tmp.mjs`) were run from the sandbox and are not part of the repository.
+
 ## 8. Known remaining issues (not blockers)
 
 From `docs/FASE3_9_CODEBASE_REVIEW.md` § Restrisico's plus the 3.9.1 report:
@@ -715,7 +837,8 @@ From `docs/FASE3_9_CODEBASE_REVIEW.md` § Restrisico's plus the 3.9.1 report:
    splitting is impossible while `vite-plugin-singlefile` is active.
 2. **100-item lists** — public lists and the admin store fetch up to 100 items per request; growth
    needs server-side pagination / infinite scroll (`pagination.total` already exists, and the admin
-   now reports the real total next to the loaded page).
+   now reports the real total next to the loaded page). Fase 5.4 measured the per-item cost and cut it
+   by 35 % (§7j) but deliberately left the cap itself alone.
 3. **Search** is `ILIKE %q%` across several columns; thousands of records need a trigram/full-text
    index.
 4. **No rate limiting** on the public API (a reverse-proxy concern).
@@ -735,11 +858,16 @@ From `docs/FASE3_9_CODEBASE_REVIEW.md` § Restrisico's plus the 3.9.1 report:
     pre-date the CMS work): `src/lib/thumbnail.ts` `isUsableThumbnail` / `getEffectiveThumbnail`,
     `src/lib/api.ts` `getPublicScholar`, `src/components/ui.tsx` `SectionLabel`. Safe to delete in a
     later cleanup; removing them changes nothing at runtime.
-11. **YouTube throttles watch-page scrapes from datacenter IPs.** Google may answer the watch page
-    with `302 → google.com/sorry` (observed in the Fase 4.5 session after many live requests), which
-    fails the live checks in `server/test/youtube.test.ts` and `test:imports`. Embeds, playback and
-    `oEmbed` were unaffected. Setting `YOUTUBE_API_KEY` (Fase 4.3) or retrying later removes the
-    dependency on scraped pages — the same checks passed earlier in the same session.
+11. **YouTube throttles datacenter IPs.** Google may answer the watch page with `302 →
+    google.com/sorry` (observed in the Fase 4.5 session after many live requests), which fails the live
+    checks in `server/test/youtube.test.ts` and `test:imports`. Fase 5.4 saw the *same* restriction hit
+    playback as well: in that sandbox the two live playback checks of `tests/e2e/production.spec.mjs`
+    fail (`player state -1`, 0 `videoplayback` requests), and a **bare YouTube embed loaded from a
+    plain HTML page — outside this application — fails identically**, which is how the suite's failure
+    was attributed to the network rather than to the site. Embeds, `oEmbed` and the embed URL itself
+    (`HTTP 200`, 133 kB) keep working. Setting `YOUTUBE_API_KEY` (Fase 4.3) or retrying from an
+    unrestricted network removes the scraping dependency; the checks pass again when YouTube answers
+    the watch page normally.
 12. **The admin session cookie is `Secure`, so the CMS needs HTTPS** (or `localhost`/`127.0.0.1`,
     which browsers treat as trustworthy). A production deployment on plain `http://<host>` will log
     in and then appear signed out, because the browser refuses to store the cookie. Terminate TLS at
@@ -768,6 +896,21 @@ From `docs/FASE3_9_CODEBASE_REVIEW.md` § Restrisico's plus the 3.9.1 report:
     more) and needs one place to keep the `Max-Age`/expiry contract; do it together with any other
     cookie change.
 
+16. **Free-text search is the remaining table scan** (Fase 5.4 measured it: 0,18–0,49 s at 20 000
+    records, 2,5 s p50 under 25-way concurrency; unchanged since the series path was fixed). The fix is
+    `CREATE EXTENSION pg_trgm` plus GIN trigram indexes on the searched columns — a database change,
+    written out with the measured numbers in `docs/DEPLOYMENT.md` §5e and §7j. At the current library
+    size it is 2–4 ms, so it is a *when the library grows* step, not an open bug.
+17. **The API's JSON responses are not compressed by the app.** The frontend bundle is (Fase 5.4), but
+    a 236 kB list response is still 236 kB over the wire unless the reverse proxy gzips `/api`. Exact
+    nginx lines in `docs/DEPLOYMENT.md` §5c; measured potential on a 3G profile: ~236 kB → ~40 kB.
+18. **The Prisma connection pool** is at its default (`2 × CPU + 1`, 5 in this sandbox; Prisma logs
+    `connection_limit` guidance when it is tight). Fase 5.4 measured a 25-way concurrency burst and
+    found the latency came from the queries it fixed, not from pool waiting, so nothing was changed —
+    for a multi-instance deployment size the pool per instance against Postgres' own `max_connections`
+    (`connection_limit` in `DATABASE_URL`).
+
+
 ## 9. Next step
 
 No open blockers. Fase 4.5 replaced the shared token with real accounts, sessions and attribution
@@ -783,9 +926,11 @@ Fase 5.1 removed the three blockers that were verifiable in the repository; the 
   production (and its absence without an account stops the boot), public payloads are positive lists,
   hard deletes must name their record, uploads are validated by magic bytes, and the health payload no
   longer publishes the upload path.
-- **Phase 5.4 — scale and speed.** Server-side pagination and real totals on the public lists
-  (§8.2/I10), a trigram index for the `ILIKE` search (§8.3/L1), cache headers (L3) and a performance
-  budget next to the bundle measurement (L2/L12).
+- **Phase 5.4 — scale and speed (done, §7j).** Measured on a 20 000-record database: the series filter
+  is index-backed (596 → 26 ms), list responses are 35 % smaller, and the single-file bundle is
+  pre-compressed (631 → 157 kB, DCL 3 272 → 952 ms on 3G). Deliberately left as measured items:
+  server-side pagination past 100 items (§8.2), the trigram index for free-text search (§8.16) and
+  gzip for API JSON at the proxy (§8.17).
 - **Phase 5.5 — polish and compliance.** Self-hosted fonts and a privacy/contact page beyond the
   footer text (audit I5), `robots.txt`/`sitemap.xml`/favicon/Open Graph (L9), README and `.env.example`
   drift (L10).

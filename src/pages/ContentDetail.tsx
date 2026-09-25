@@ -129,7 +129,8 @@ function SeriesNav({ c }: { c: BackendContent }) {
     if (!c.collectionIdentifier) return;
     let cancelled = false;
     setLoading(true);
-    listPublishedContents({ limit: 100, q: c.collectionIdentifier })
+    // Fase 5.4: equality on the collection instead of a nine-column free-text search (see SeriesDetail)
+    listPublishedContents({ limit: 100, collection: c.collectionIdentifier })
       .then((res) => {
         if (cancelled) return;
         let filtered = (res.data as BackendContent[]).filter((x) => x.collectionIdentifier === c.collectionIdentifier && x.id !== c.id);
