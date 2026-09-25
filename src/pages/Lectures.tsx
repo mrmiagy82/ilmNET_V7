@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import PageHeader from '../components/PageHeader';
+import { usePageMeta } from '../lib/usePageMeta';
 import { SearchBar, FilterChips, Tag, EmptyState, StatRow } from '../components/ui';
 import { formatDuration } from '../data';
 import { listPublishedContents, listPublicScholars, listPublicSubjects, type BackendContent, type BackendScholar, type BackendSubject } from '@/lib/api';
@@ -137,6 +138,15 @@ function SkeletonCard() {
 }
 
 export default function Lectures() {
+  // Fase 5.5: this route previously shared index.html's title/description with every other page.
+  // The query string is intentionally not part of the title: a filtered view is the same page.
+  usePageMeta({
+    title: 'Lectures',
+    description:
+      'Islamic lectures and talks — full courses, single talks and ongoing series. Search and filter by scholar, subject or format; your filters live in the URL.',
+    path: '/lectures',
+  });
+
   const [searchParams, setSearchParams] = useSearchParams();
   const urlQ = searchParams.get('q') ?? '';
   const urlScholar = searchParams.get('scholar') ?? 'all';
@@ -313,14 +323,15 @@ export default function Lectures() {
             </div>
           ) : (
             <>
-              <p className="text-ink-muted mt-8 text-[0.86rem] font-medium">
+              {/* Fase 5.5: screen readers hear the result of a filter without moving focus. */}
+              <p className="text-ink-muted mt-8 text-[0.86rem] font-medium" role="status" aria-live="polite">
                 {contents.length} lectures found · {series.length} series, {standalone.length} singles
               </p>
 
               {series.length > 0 && (
                 <>
                   <h2 className="font-display text-ink mt-8 text-[1.35rem] font-extrabold tracking-[-0.02em]">Series & Playlists</h2>
-                  <p className="text-ink-muted mt-1 text-[0.82rem]">Een serie bundelt alle afleveringen — open de serie om episodes te zien.</p>
+                  <p className="text-ink-muted mt-1 text-[0.82rem]">A series gathers all its episodes — open the series to see them.</p>
                   <div className="mt-4 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                     {series.map((s) => (
                       <SeriesCard key={s.id} s={s} />
@@ -342,9 +353,16 @@ export default function Lectures() {
 
               {contents.length === 0 && (
                 <div className="mt-10">
-                  <EmptyState title="No lectures match" body="Try a different search term, scholar, subject or format. Your filters are shareable via the URL." />
+                  {/* Fase 5.5: distinguish "your filters exclude everything" from "nothing published yet". */}
+                  {hasActiveFilters ? (
+                    <EmptyState title="No lectures match" body="Try a different search term, scholar, subject or format. Your filters are shareable via the URL." />
+                  ) : (
+                    <EmptyState title="No lectures yet" body="Nothing has been published yet. Lectures and series appear here as soon as they are added." />
+                  )}
                   <div className="mt-6 flex justify-center">
-                    <button onClick={clearAll} className="bg-rose text-cream rounded-full px-6 py-3 text-[0.9rem] font-semibold">Clear all filters</button>
+                    {hasActiveFilters && (
+                      <button onClick={clearAll} className="bg-rose text-cream rounded-full px-6 py-3 text-[0.9rem] font-semibold">Clear all filters</button>
+                    )}
                   </div>
                 </div>
               )}

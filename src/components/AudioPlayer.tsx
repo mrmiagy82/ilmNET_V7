@@ -225,7 +225,7 @@ export default function AudioPlayer({ src, title, embedFallback, provider, sourc
               </a>
             )}
           </div>
-          <p className="text-ink-muted px-2 pb-2 text-[0.72rem]">Direct streaming niet beschikbaar — embedded player wordt getoond.</p>
+          <p className="text-ink-muted px-2 pb-2 text-[0.72rem]">Direct streaming unavailable — showing the embedded player.</p>
         </div>
       );
     }
@@ -253,7 +253,7 @@ export default function AudioPlayer({ src, title, embedFallback, provider, sourc
         </div>
         <span
           className={`hidden shrink-0 items-center gap-2 rounded-full px-3 py-1.5 text-[0.7rem] font-medium sm:flex ${live ? 'bg-rose/12 text-rose' : 'bg-sand text-ink-soft'}`}
-          title={live ? 'Waveform reageert op het echte audiosignaal' : 'Waveform start zodra de audio speelt'}
+          title={live ? 'Waveform follows the real audio signal' : 'Waveform starts as soon as the audio plays'}
           data-testid="waveform-status"
         >
           <span className={`h-1.5 w-1.5 rounded-full ${live ? 'bg-rose animate-pulse' : 'bg-ink-muted/40'}`} />
@@ -312,7 +312,7 @@ export default function AudioPlayer({ src, title, embedFallback, provider, sourc
       <audio ref={audioRef} src={src} crossOrigin="anonymous" preload="metadata" className="hidden" data-testid="audio-element" />
 
       <p className="text-ink-muted mt-4 text-[0.7rem]">
-        Rechtstreekse stream {provider === 'archive' ? 'via Archive.org' : ''} — waveform beweegt realtime met het audiosignaal (Web Audio API).
+        Direct stream {provider === 'archive' ? 'via Archive.org' : ''} — the waveform moves in realtime with the audio signal (Web Audio API).
       </p>
     </div>
   );

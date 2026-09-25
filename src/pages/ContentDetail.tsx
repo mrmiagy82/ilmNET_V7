@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import PageHeader from '../components/PageHeader';
 import { Tag } from '../components/ui';
 import { getPublishedContent, listPublishedContents, type BackendContent } from '@/lib/api';
@@ -8,6 +8,7 @@ import { getDownloadUrl, getAudioStreamUrl } from '@/lib/series';
 import { resolveCover, resolveThumbnail, resolveCardMedia } from '@/lib/thumbnail';
 import AudioPlaceholder from '@/components/AudioPlaceholder';
 import MediaThumb from '@/components/MediaThumb';
+import { usePageMeta } from '../lib/usePageMeta';
 
 function Embed({ c }: { c: BackendContent }) {
   const audioSrc = c.type === 'audio' ? getAudioStreamUrl(c) : null;
@@ -192,6 +193,29 @@ export default function ContentDetail({ expectedType }: { expectedType?: 'lectur
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const navigate = useNavigate();
+  // A slug can be opened through either detail route (the API resolves both), which used to render
+  // the same lecture at two URLs — duplicate content for crawlers and an ambiguous canonical. The
+  // library's own links use one form (books/documents under /books, everything else under
+  // /lectures), so that is the canonical one: Fase 5.5 keeps the URL the user opened *and* tells
+  // crawlers which address is the real one.
+  const isBookType = content ? content.type === 'book' || content.type === 'document' : expectedType === 'book';
+  const canonicalPath = content ? `/${isBookType ? 'books' : 'lectures'}/${content.slug}` : '';
+
+  // Fase 5.5: per-item title/description/social card. Called before any early return (hooks are
+  // unconditional), so the loading state keeps the site defaults and only a *finished* load that
+  // found nothing is marked noindex — a transient "Loading…" title must never reach a crawler.
+  const metaImage = content ? resolveThumbnail(content).src : null;
+  usePageMeta({
+    // An unknown slug is its own state: the tab should say so instead of showing the site title.
+    title: content?.title ?? (loading ? undefined : 'Content not found'),
+    description: content?.description ?? undefined,
+    type: 'article',
+    path: canonicalPath,
+    image: metaImage,
+    noindex: !loading && !content,
+  });
+
   useEffect(() => {
     if (!id) return;
     setLoading(true);
@@ -203,6 +227,12 @@ export default function ContentDetail({ expectedType }: { expectedType?: 'lectur
       .catch((e: any) => setError(e.message || 'Failed to load'))
       .finally(() => setLoading(false));
   }, [id, expectedType]);
+
+  // Same item, wrong section? Move to the canonical address (replace, so Back still leaves the page).
+  useEffect(() => {
+    if (!content || !canonicalPath) return;
+    if (window.location.pathname !== canonicalPath) navigate(canonicalPath, { replace: true });
+  }, [content, canonicalPath, navigate]);
 
   if (loading) {
     return (

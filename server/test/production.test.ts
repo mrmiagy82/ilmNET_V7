@@ -16,6 +16,9 @@
  *     updatedBy / importJobId, no draft content on a scholar page), destructive admin calls must
  *     name what they destroy, uploads are recognised by their bytes, the legacy token is off by
  *     default and health no longer publishes the upload path
+ *  9. crawler surface & headers (Fase 5.5): /robots.txt and /sitemap.xml are real responses built
+ *     from published rows only, the sitemap compresses and caches, a missing *file* is a 404 while a
+ *     missing *page* still gets the app shell, and the security headers are the documented set
  */
 import fs from 'fs';
 import path from 'path';
@@ -29,6 +32,8 @@ import { hashPassword } from '../src/lib/auth';
 import { request as httpRequest } from 'node:http';
 import { INTERNAL_CONTENT_KEYS, LIST_JOIN_SCHOLAR_KEYS, PUBLIC_CONTENT_KEYS } from '../src/lib/public-payload';
 import { adminAuthPosture, assertAdminAccessPossible, legacyAdminTokenEnabled } from '../src/lib/env';
+import { resetSeoCache } from '../src/routes/seo';
+import { gunzipSync } from 'node:zlib';
 
 // Fase 3.8.1: production refuses development/placeholder tokens, so the suite uses a
 // production-grade value (a real deployment provides its own via the process environment).
@@ -936,6 +941,201 @@ async function main() {
     } else {
       fail('frontend build missing — run `npm run build` in the repo root first');
     }
+
+  // ── 9. Crawler surface + security headers (Fase 5.5) ──
+  console.log('\n--- 9. robots.txt / sitemap.xml / 404s / headers (Fase 5.5) ---');
+  const savedPublicOrigin = process.env.PUBLIC_ORIGIN;
+  process.env.PUBLIC_ORIGIN = 'https://ilmnet.example';
+  resetSeoCache();
+  try {
+    const published = await prisma.content.findFirst({
+      where: { status: 'published' },
+      select: { slug: true, type: true, status: true },
+    });
+    const publishedSubject = await prisma.subject.findFirst({ where: { status: 'published' }, select: { slug: true } });
+
+    const robots = await fetch(`${base}/robots.txt`);
+    const robotsText = await robots.text();
+    check(robots.status === 200 && /text\/plain/.test(robots.headers.get('content-type') ?? ''), `GET /robots.txt is plain text (${robots.status})`);
+    check(/Disallow: \/admin/.test(robotsText), 'robots.txt keeps crawlers out of the CMS');
+    check(
+      robotsText.includes('Sitemap: https://ilmnet.example/sitemap.xml'),
+      'robots.txt points at the canonical (PUBLIC_ORIGIN) sitemap — never at a host from the request',
+    );
+
+    const sitemap = await fetch(`${base}/sitemap.xml`);
+    const sitemapXml = await sitemap.text();
+    check(
+      sitemap.status === 200 && /application\/xml/.test(sitemap.headers.get('content-type') ?? ''),
+      `GET /sitemap.xml is XML (${sitemap.status}, ${sitemap.headers.get('content-type')})`,
+    );
+    check(sitemapXml.includes('<loc>https://ilmnet.example/</loc>'), 'the sitemap lists the landing page on the canonical origin');
+    check(
+      ['/lectures', '/books', '/scholars', '/subjects'].every((p) => sitemapXml.includes(`<loc>https://ilmnet.example${p}</loc>`)),
+      'the sitemap lists the five public sections',
+    );
+    if (published) {
+      const section = published.type === 'book' || published.type === 'document' ? 'books' : 'lectures';
+      check(
+        sitemapXml.includes(`<loc>https://ilmnet.example/${section}/${published.slug}</loc>`),
+        `a published item is listed at its canonical path (/…/${section}/${published.slug})`,
+      );
+    } else {
+      fail('no published content available to verify the sitemap');
+    }
+    if (publishedSubject) {
+      check(
+        sitemapXml.includes(`<loc>https://ilmnet.example/subjects/${publishedSubject.slug}</loc>`),
+        'published subjects are listed',
+      );
+    }
+    check(!sitemapXml.includes(draft.slug), 'the draft probe from section 3 is absent from the sitemap');
+    check(
+      (sitemapXml.match(/<loc>/g) ?? []).length === (sitemapXml.match(/<\/loc>/g) ?? []).length,
+      'every <loc> is closed (well-formed enough for a crawler)',
+    );
+    check(
+      !/<loc>(?!https:\/\/ilmnet\.example)/.test(sitemapXml),
+      'every sitemap URL is absolute and on the canonical origin',
+    );
+
+    // `fetch` (undici) decompresses a gzip response itself and drops the header, so the compressed
+    // variant is measured with a raw HTTP request — the same trick as the 304 check above.
+    const gzRaw = await new Promise<{ status: number; encoding: string | undefined; vary: string | undefined; body: Buffer }>((resolve) => {
+      const req = httpRequest(
+        { host: '127.0.0.1', port: Number(new URL(base).port), path: '/sitemap.xml', method: 'GET', headers: { 'accept-encoding': 'gzip' } },
+        (res) => {
+          const chunks: Buffer[] = [];
+          res.on('data', (c) => chunks.push(Buffer.from(c)));
+          res.on('end', () =>
+            resolve({
+              status: res.statusCode ?? 0,
+              encoding: res.headers['content-encoding'] as string | undefined,
+              vary: res.headers.vary as string | undefined,
+              body: Buffer.concat(chunks),
+            }),
+          );
+        },
+      );
+      req.on('error', () => resolve({ status: -1, encoding: undefined, vary: undefined, body: Buffer.alloc(0) }));
+      req.end();
+    });
+    let gzText = '';
+    try {
+      gzText = gzRaw.encoding === 'gzip' ? gunzipSync(gzRaw.body).toString('utf8') : '';
+    } catch {
+      gzText = '';
+    }
+    check(
+      gzRaw.encoding === 'gzip' && gzText === sitemapXml,
+      `the sitemap is gzipped for clients that ask for it (${gzRaw.body.length} B compressed vs ${sitemapXml.length} B plain)`,
+    );
+    check(gzRaw.vary?.includes('accept-encoding') === true, 'the sitemap sets Vary: accept-encoding');
+
+    const sitemapAgain = await fetch(`${base}/sitemap.xml`);
+    check((await sitemapAgain.text()) === sitemapXml, 'the sitemap is cached (identical body on the second request)');
+
+    const unknownPage = await fetch(`${base}/this-page-does-not-exist`);
+    const unknownHtml = await unknownPage.text();
+    check(
+      unknownPage.status === 200 && unknownHtml.includes('<div id="root"'),
+      'an unknown *page* still gets the app shell (the client renders its own 404)',
+    );
+    for (const asset of ['/does-not-exist.png', '/robots-missing.txt', '/fonts/does-not-exist.woff2']) {
+      const res = await fetch(`${base}${asset}`);
+      const body = await res.json().catch(() => ({}));
+      check(
+        res.status === 404 && body?.error?.code === 'NOT_FOUND',
+        `a missing file is a real 404 instead of index.html (${asset} → ${res.status})`,
+      );
+    }
+    for (const asset of ['/favicon.svg', '/favicon.ico', '/apple-touch-icon.png', '/manifest.webmanifest', '/icon-512.png']) {
+      const res = await fetch(`${base}${asset}`);
+      check(res.status === 200, `the shipped icon/manifest set is served (${asset} → ${res.status})`);
+    }
+
+    const headers = await fetch(`${base}/`);
+    const policy = headers.headers.get('permissions-policy') ?? '';
+    check(policy.includes('camera=()') && policy.includes('geolocation=()'), 'Permissions-Policy switches off the unused capabilities');
+    check(!policy.includes('fullscreen'), 'Permissions-Policy leaves fullscreen/video features to the embeds (delegated per iframe)');
+    const csp = headers.headers.get('content-security-policy-report-only') ?? '';
+    check(
+      csp.includes("default-src 'self'") && csp.includes('frame-src https://www.youtube.com') && csp.includes("font-src 'self'"),
+      'the report-only CSP describes the real dependencies (self-hosted fonts, embed frames)',
+    );
+    check(headers.headers.get('content-security-policy') === null, 'no enforcing CSP is sent (the single-file build would need unsafe-inline scripts)');
+    check(
+      headers.headers.get('x-frame-options') === null && csp.includes('frame-ancestors') === false,
+      'framing is not restricted by the app itself (previews and embeds are allowed; the host decides)',
+    );
+    check(
+      (headers.headers.get('referrer-policy') ?? '') === 'strict-origin-when-cross-origin',
+      'the Referer policy YouTube requires (Fase 4.3.1) is unchanged',
+    );
+
+    // API JSON compression + per-file cache policy (both Fase 5.5). Measured with raw HTTP so the
+    // header is visible (undici would decompress and hide it).
+    const listPath = '/api/contents?limit=100';
+    const listGz = await new Promise<{ status: number; encoding: string | undefined; vary: string | undefined; body: Buffer }>((resolve) => {
+      const req = httpRequest(
+        { host: '127.0.0.1', port: Number(new URL(base).port), path: listPath, method: 'GET', headers: { 'accept-encoding': 'gzip' } },
+        (res) => {
+          const chunks: Buffer[] = [];
+          res.on('data', (c) => chunks.push(Buffer.from(c)));
+          res.on('end', () =>
+            resolve({
+              status: res.statusCode ?? 0,
+              encoding: res.headers['content-encoding'] as string | undefined,
+              vary: res.headers.vary as string | undefined,
+              body: Buffer.concat(chunks),
+            }),
+          );
+        },
+      );
+      req.on('error', () => resolve({ status: -1, encoding: undefined, vary: undefined, body: Buffer.alloc(0) }));
+      req.end();
+    });
+    const listPlain = await fetch(`${base}${listPath}`, { headers: { 'accept-encoding': 'identity' } });
+    const listPlainBody = await listPlain.text();
+    let listGzText = '';
+    try {
+      listGzText = listGz.encoding === 'gzip' ? gunzipSync(listGz.body).toString('utf8') : '';
+    } catch {
+      listGzText = '';
+    }
+    check(
+      listGz.encoding === 'gzip' && listGzText.length > 0,
+      `public JSON lists are gzipped for clients that accept it (${listGz.body.length} B on the wire vs ${listPlainBody.length} B uncompressed)`,
+    );
+    check(listGzText === listPlainBody, 'the compressed and uncompressed list responses carry the same body');
+    check(listGz.vary?.includes('accept-encoding') === true, 'the compressed list response announces Vary: accept-encoding');
+    const smallJson = await new Promise<{ encoding: string | undefined }>((resolve) => {
+      const req = httpRequest(
+        { host: '127.0.0.1', port: Number(new URL(base).port), path: '/api/health', method: 'GET', headers: { 'accept-encoding': 'gzip' } },
+        (res) => {
+          res.resume();
+          res.on('end', () => resolve({ encoding: res.headers['content-encoding'] as string | undefined }));
+        },
+      );
+      req.on('error', () => resolve({ encoding: undefined }));
+      req.end();
+    });
+    check(smallJson.encoding === undefined, 'a payload below the 1 kB threshold is sent uncompressed (no header overhead)');
+
+    const cachedFont = await fetch(`${base}/fonts/inter-400-latin.woff2`, { method: 'GET' });
+    check(
+      (cachedFont.headers.get('cache-control') ?? '').includes('max-age=604800'),
+      `self-hosted fonts are cached for a week instead of revalidated on every page (${cachedFont.headers.get('cache-control')})`,
+    );
+    const entryHtml = await fetch(`${base}/`);
+    check(
+      (entryHtml.headers.get('cache-control') ?? '').includes('max-age=0'),
+      `index.html itself still revalidates on every load, so a deploy is visible immediately (got "${entryHtml.headers.get('cache-control')}" / ${entryHtml.status})`,
+    );
+  } finally {
+    restoreEnv('PUBLIC_ORIGIN', savedPublicOrigin);
+    resetSeoCache();
+  }
   } catch (e: any) {
     fail(`unexpected error: ${e?.stack ?? e?.message ?? e}`);
   } finally {

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import PageHeader from '../components/PageHeader';
+import { usePageMeta } from '../lib/usePageMeta';
 import { SearchBar, FilterChips, Tag, EmptyState, StatRow } from '../components/ui';
 import { listPublicScholars, listPublicSubjects, listPublishedContents, type BackendScholar, type BackendSubject, type BackendContent } from '@/lib/api';
 
@@ -51,6 +52,13 @@ function SkeletonTile() {
 }
 
 export default function Scholars() {
+  usePageMeta({
+    title: 'Scholars',
+    description:
+      'Every item on ilmNet is traced back to its teacher. Follow a scholar’s lectures, books and series gathered in one place.',
+    path: '/scholars',
+  });
+
   const [query, setQuery] = useState('');
   const [specialty, setSpecialty] = useState<string | 'all'>('all');
   const [scholars, setScholars] = useState<BackendScholar[]>([]);

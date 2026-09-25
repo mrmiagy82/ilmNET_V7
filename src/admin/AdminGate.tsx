@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Mark } from '../components/Brand';
 import { useAdminAuth } from './auth';
 import AdminLogin from './AdminLogin';
+import { usePageMeta } from '../lib/usePageMeta';
 
 /**
  * Guards every `/admin/*` route.
@@ -12,6 +13,9 @@ import AdminLogin from './AdminLogin';
  */
 export default function AdminGate({ children }: { children: ReactNode }) {
   const { status } = useAdminAuth();
+
+  // Fase 5.5: the CMS and its sign-in screen must never show up in a search engine.
+  usePageMeta({ title: 'Admin', noindex: true });
 
   if (status === 'checking') {
     return (

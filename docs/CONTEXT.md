@@ -30,15 +30,15 @@ uncompressed (631 kB → 157 kB over the wire, −2,3 s on a 3G profile) (§7j).
 | | |
 | --- | --- |
 | Branch | `master` |
-| Codebase state described here | `5b1372d` (Fase 5.3) **plus** the Fase 5.4 changes in §7j — this document ships in the Fase 5.4 commit |
-| This document | updated in Fase 5.4; its own revision is visible with `git log -1 -- docs/CONTEXT.md` |
+| Codebase state described here | `7d090c7` (Fase 5.4) **plus** the Fase 5.5 changes in §7k — this document ships in the Fase 5.5 commit |
+| This document | updated in Fase 5.5; its own revision is visible with `git log -1 -- docs/CONTEXT.md` |
 | Working tree | clean (verified against `origin/master`) |
 | Repository | `github.com/mrmiagy82/ilmNET_V7` |
 | Size | 69 source files, ~15.6k lines in `src/` + `server/src/`; the admin (`src/admin/`, 20 files, ~6.5k lines) is the largest area |
-| Build (git-ignored artefact) | single-file `dist/index.html` (645.96 kB raw — Fase 5.4 serves the `dist/index.html.gz` variant of 156.96 kB when the client accepts gzip) |
-| Phase state | Fase 5.4 complete: the public path was measured on a 20 000-record database and only the measured bottlenecks were changed — the list projection (media keys of `metadata` + card-shaped join rows), the series/collection filter (indexed equality instead of a nine-column ILIKE), the SPA fallback through the static handler, and a pre-compressed single-file bundle. Free-text search and pagination beyond 100 items are **measured and documented**, not changed: they need a trigram index / server-side paging (§7j, §8.16–§8.18) |
-| Roadmap | production finishing, UI/UX and performance toward the definitive live deployment (§9). Fase 5.4 (scale/speed) is done; the audit's Fase 5.5 (polish/compliance) is next, and the remaining deploy work is host-side (§8.14) |
-| Open blockers | none in the repository. Host-side and not verifiable from the repo: terminating TLS, forwarding `X-Forwarded-Proto`, choosing `TRUST_PROXY` for the real topology, the nightly backup timer plus off-site copies, uptime/alerting, gzip for API JSON at the proxy, and public-API rate limiting (§8.14). Data-safety wise nothing is open: the last low-priority item is the `__Host-` cookie prefix (§8.15) |
+| Build (git-ignored artefact) | single-file `dist/index.html` (657.57 kB raw — the `dist/index.html.gz` variant of 159.34 kB is served when the client accepts gzip). Since Fase 5.5 the four webfont families live next to it in `dist/fonts/` as 14 subset `.woff2` files (582 kB in total, of which a page downloads only the 5–10 subsets it uses) |
+| Phase state | Fase 5.5 complete: the public site now carries per-route titles/descriptions/Open Graph, a real 404 page, self-hosted fonts (no Google request), `robots.txt`/`sitemap.xml`/favicon/manifest, a skip link, and the security headers the app can honestly set (§7k). Fase 5.4 background (still valid): the public path was measured on a 20 000-record database and only the measured bottlenecks were changed — the list projection (media keys of `metadata` + card-shaped join rows), the series/collection filter (indexed equality instead of a nine-column ILIKE), the SPA fallback through the static handler, and a pre-compressed single-file bundle. Free-text search and pagination beyond 100 items are **measured and documented**, not changed: they need a trigram index / server-side paging (§7j, §8.16–§8.18) |
+| Roadmap | production finishing, UI/UX and performance toward the definitive live deployment (§9). Fase 5.4 (scale/speed) and 5.5 (polish/compliance) are done; what remains is host-side deployment work (§8.14) and, if wanted, the Fase 5.6 operations block (CI, staging, account UI) |
+| Open blockers | none in the repository. Host-side and not verifiable from the repo: terminating TLS, forwarding `X-Forwarded-Proto`, choosing `TRUST_PROXY` for the real topology, the nightly backup timer plus off-site copies, uptime/alerting, gzip for API JSON at the proxy, public-API rate limiting, and the `frame-ancestors`/CSP decision (§8.14, §8.19). Fase 5.5's own host-only list is in §7k. Data-safety wise nothing is open: the last low-priority item is the `__Host-` cookie prefix (§8.15) |
 
 ## 2. Completed phases (from Git history)
 
@@ -66,7 +66,8 @@ uncompressed (631 kB → 157 kB over the wire, −2,3 s on a 3G profile) (§7j).
 | `a7d6865` | Fase 5.1 | production blockers closed: `ops/` backup + restore + drill, honest footer navigation, TLS/HSTS support (see §7g) |
 | `504e353` | Fase 5.2 | deployment hardening: proxy trust (`TRUST_PROXY`), safe forwarded-host handling, boot guards, no public Postgres/API port, readiness probe (see §7h) |
 | `5b1372d` | Fase 5.3 | data & security hardening: legacy token off in production, whitelisted public payloads, confirmed destructive deletes, byte-verified uploads, no path leak in health (see §7i) |
-| _this commit_ | Fase 5.4 | performance & scale: measured on 20 000 records — reduced list payload, index-backed series filter, SPA fallback via the static handler, pre-compressed bundle (see §7j) |
+| `7d090c7` | Fase 5.4 | performance & scale: measured on 20 000 records — reduced list payload, index-backed series filter, SPA fallback via the static handler, pre-compressed bundle (see §7j) |
+| _this commit_ | Fase 5.5 | production polish: self-hosted fonts, per-route meta + Open Graph, 404 page, `robots.txt`/`sitemap.xml`/favicon/manifest, skip link, honest empty states, English-only public copy, security headers, root-absolute asset URLs (see §7k) |
 
 Earlier work is documented per topic in `docs/FASE2A_ARCHIVE.md`, `docs/FASE2B_YOUTUBE.md`,
 `docs/FASE2C_PUBLIC_FRONTEND.md`, `docs/FASE2D_SEARCH_FILTERING.md`,
@@ -262,12 +263,12 @@ empty states, errors) live in the React components — there is no content layer
 
 | Command | What it covers | Last verified result |
 | --- | --- | --- |
-| `npx tsc --noEmit` (root + `server/`) | types | 0 errors (Fase 5.3) |
-| `npm run build` (root) | single-file production build + `dist/index.html.gz` | 645.96 kB (156.96 kB gzip on the wire) — Fase 5.4 |
-| `cd server && npm run test:all` | audit (32), uploads (30), production readiness (**112**, incl. TLS/HSTS, proxy trust, boot guards, readiness, public payload, delete confirmation, magic bytes, admin posture, **list-projection + collection filter + gzip/304 of the SPA fallback**), env hardening (13), youtube (+ Data API fallback), **auth (69)** | Fase 5.4: audit 32, uploads 30, production **112**, env 13, auth 69 all green (**256 ✅**); the youtube suite aborted at its **live watch-page check** — this sandbox's YouTube access is throttled (302 → `/sorry`, §8.11), the suite is unaffected by Fase 5.4. With YouTube reachable the total is 297 |
+| `npx tsc --noEmit` (root + `server/`) | types | 0 errors (Fase 5.5) |
+| `npm run build` (root) | single-file production build + `dist/index.html.gz` (+ `dist/fonts/`, favicons, manifest) | 657.57 kB raw / 159.34 kB gzip, plus 14 font subsets (582 kB, only the used subsets are downloaded) — Fase 5.5 |
+| `cd server && npm run test:all` | audit (32), uploads (30), production readiness (**147**, incl. TLS/HSTS, proxy trust, boot guards, readiness, public payload, delete confirmation, magic bytes, admin posture, list-projection, gzip/304 of the SPA fallback, **robots/sitemap/404s/headers/API-JSON compression/font caching**), env hardening (13), youtube (+ Data API fallback), **auth (69)** | Fase 5.5: audit 32, uploads 30, production **147**, env 13, auth 69 all green (**291 ✅**); the youtube suite stops at its **live watch-page check** — this sandbox's YouTube access is throttled (302 → `/sorry`, §8.11), unrelated to the change. With YouTube reachable the total is 332 |
 | `ops/backup.sh` + `ops/restore-drill.sh` | database + uploads backup, then a restore into a throwaway database with count and checksum comparison | drill PASSED in Fase 5.1 (seven tables + two upload files, §7g) |
 | `cd server && npm run test:imports` | live Archive.org + YouTube import regression | 19/19 whenever the provider answers; the live scrape check is the part that fails under Google's throttle (§8.11) |
-| `npm run test:e2e:production` | routes, embeds, **real YouTube playback**, error states, mobile, admin entry (login gate), **footer navigation (17 checks)** | 82/84 (Fase 5.4): the two failing checks are the live playback ones — verified to fail identically in a **bare YouTube embed outside the app** (`yt-probe`), so this sandbox's YouTube playback path is blocked, not the site (§8.11) |
+| `npm run test:e2e:production` | routes, embeds, **real YouTube playback**, error states, mobile, admin entry (login gate), **footer navigation (17 checks)** | 82/84 (re-run in Fase 5.5, unchanged): the two failing checks are the live playback ones — verified to fail identically in a **bare YouTube embed outside the app** (`yt-probe`), so this sandbox's YouTube playback path is blocked, not the site (§8.11) |
 | `npm run test:e2e` | waveform, thumbnails, admin upload flow | 27/27 |
 | `npm run test:e2e:cms` | admin CMS: real totals, draft→published→archived→restored, collection round-trip, 401 honesty, **typed delete confirmation + `CONFIRM_REQUIRED`** | 34/34 (Fase 5.3) |
 | `npm run test:e2e:auth` | Fase 4.5 gate: username/password sign-in, 401s, cookie flags, deep link, refresh, tampered cookie, server-side logout, no credential in web storage, public site stays free | 60/60 |
@@ -829,6 +830,140 @@ media 27/27.
 The measurement scripts (`/tmp/perfapi54.mjs`, `/tmp/perfseries54.mjs`, `perf-browser.tmp.mjs`,
 `perf-fixture.tmp.mjs`) were run from the sandbox and are not part of the repository.
 
+## 7k. What Fase 5.5 (production polish) changed — and what was deliberately left alone
+
+Instruction: read `AGENTS.md` and this file, check `git status`, then audit the existing production code on
+the polish points (SEO/metadata, accessibility and keyboard use, titles/descriptions/Open Graph, 404 and
+error pages, loading/error/empty states, favicon/manifest, privacy and security headers, external fonts and
+resources, API JSON compression/documentation, the pagination cap, mobile UX, stale copy and docs, real data
+on public pages). Functional changes are **not** part of it: no redesign, no new visual language, no new
+dependency, no schema change, no TinyCMS.
+
+### Measured before (production build on :3101, real database, Playwright)
+
+| Finding | Evidence |
+| --- | --- |
+| One static title/description for **every** route; no Open Graph, canonical or robots meta; nothing in `src/` ever touched `document.title` | 13 routes inspected: identical `<title>` "ilmNet — A quiet library for Islamic knowledge", `og:title` absent |
+| `/favicon.ico`, `/favicon.svg`, `/robots.txt`, `/sitemap.xml`, `/manifest.webmanifest` answered **HTTP 200 `text/html`** | the SPA fallback served `index.html` for any unknown path; `public/` did not exist |
+| Google Fonts on every page load | `fonts.googleapis.com` (stylesheet) + `fonts.gstatic.com` (4 woff2 files): visitor IP to a third party, two extra DNS/TLS round trips |
+| 4 Dutch sentences in the English public UI | `AudioPlayer.tsx` (3×), `Lectures.tsx` (1×) |
+| No skip link; the first tab stop was the nav | tab-order probe on `/` |
+| Headers: `nosniff`, `referrer-policy`, `x-permitted-cross-domain-policies` present; `permissions-policy`, CSP, HSTS (app-level) absent | response headers of `/` |
+| `path="*"` → **Landing**: a mistyped URL looked like a working home page | `src/App.tsx` + probe of `/dit-bestaat-niet` |
+| One item, two addresses (`/lectures/<book-slug>` and `/books/<book-slug>` both render) | `ContentDetail` accepted either route; no canonical link existed to resolve it |
+
+The audit note "the lists have no empty state" turned out to be **wrong**: `Lectures`, `Books`, `Scholars`,
+`Subjects`, `ContentDetail`, `SeriesDetail` and `SubjectDetail` all had loading, error and empty states
+(`EmptyState` in `src/components/ui.tsx`). What was real: the empty text for a *filtered* list ("try another
+search term") was also shown when the library itself was empty. That was fixed instead of adding states.
+
+### Changed
+
+1. **Self-hosted fonts (no third-party request at all).** `public/fonts/` holds 14 `.woff2` files — Inter
+   400/500/600 and Plus Jakarta Sans 500/600/700/800, latin + latin-ext — plus the SIL OFL licence files.
+   The `@font-face` rules with their original `unicode-range` values live at the top of `src/index.css`;
+   `index.html` no longer preconnects to or loads Google. A page downloads only the subsets it renders
+   (5–10 files, 47–83 kB each). Consequence: a visitor's IP never reaches Google before pressing play,
+   which removes the consent question for the fonts and two extra round trips on first load.
+2. **`robots.txt` and `sitemap.xml` are now real responses** (`server/src/routes/seo.ts`). Both are built
+   server-side from **published rows only**, with the canonical origin from `PUBLIC_ORIGIN` (falling back to
+   the request host only when it is unset). The sitemap lists the app's own routes — `/`, `/lectures`,
+   `/books`, `/scholars`, `/subjects`, `/series/<collection>`, `/subjects/<slug>` and
+   `/lectures|books/<slug>` — with `<lastmod>` where a row exists, is cached for an hour per origin, and is
+   gzipped on request (9 111 → 1 240 bytes on the fixture database). It respects the sitemap.org limits
+   (45 000 content URLs, newest first). `robots.txt` disallows `/admin` and `/api/`.
+3. **Per-route metadata** (`src/lib/usePageMeta.ts`, called by every public page and by the admin gate):
+   title, description, canonical, `og:title/description/type/url/site_name` and the Twitter equivalents.
+   The canonical is origin + pathname, so `/lectures?subject=tawheed` stays `/lectures`. `og:image` is only
+   emitted when a real thumbnail exists (see "deliberately not" below). A not-found detail page is
+   `noindex`, a transient "Loading…" state never sets a title, and the admin is `noindex, nofollow`.
+4. **A real 404 page** (`src/pages/NotFound.tsx`, route `path="*"`): same header/surface vocabulary as the
+   existing "content not found" state, `noindex`, the mistyped path shown, and links to the four sections.
+5. **Skip link + result announcements** (`src/components/Layout.tsx`): "Skip to content" is the first tab
+   stop, becomes a rose pill on focus (verified: hidden 1 px → visible, 146 px) and moves focus to
+   `<main id="main-content" tabIndex={-1}>` without navigating. The filter result lines on `/lectures` and
+   `/books` are `role="status" aria-live="polite"`.
+6. **Honest empty states and English-only copy.** A filtered list still says "No lectures/books match"; an
+   empty library says "No lectures/books yet" and no longer offers a "Clear all filters" button for filters
+   nobody set (mirrors the pattern `Scholars` already had). The four Dutch strings are English now; the scan
+   for Dutch text in the public UI returns zero.
+7. **Canonical address per item.** `ContentDetail` redirects (replace) to the section that owns the type —
+   books/documents under `/books`, everything else under `/lectures` — and sets the canonical link
+   accordingly, so one item no longer has two addresses for a crawler.
+8. **Security headers the app can honestly set** (`server.ts`): `permissions-policy` switching off what
+   ilmNet never uses (camera, geolocation, microphone, payment, usb, midi, serial, hid, bluetooth,
+   publickey-credentials-get), and a **report-only** `content-security-policy-report-only` that describes the
+   real dependencies (self-hosted fonts, `frame-src` for YouTube/Archive/Google Books). Features the embeds
+   are delegated (`accelerometer`, `gyroscope`, `fullscreen`) are deliberately **not** denied: a
+   Permissions-Policy denial cannot be re-delegated to a child frame.
+9. **Build fix: asset URLs are root-absolute again.** `vite-plugin-singlefile` forces `base: "./"`. With
+   BrowserRouter and deep links that resolves `url(./fonts/…)` and `href="./favicon.svg"` against the
+   *current route*: on `/lectures/<slug>` the browser asked for `/lectures/fonts/…` and `/lectures/favicon.svg`
+   — measured as 4 failed font requests and a favicon that only worked on `/`. `vite.config.ts` now passes the
+   plugin's documented `overrideConfig: { base: '/' }`.
+10. **A missing file is a 404.** The SPA fallback still answers unknown *pages* with the app shell (the
+    client renders its own 404), but a path that looks like a file (`/does-not-exist.png`, `/robots-missing.txt`,
+    `/fonts/does-not-exist.woff2`) now returns a JSON 404 instead of `index.html` with status 200. Slugs never
+    contain a dot (`toSlug` uses `slugify` with `strict`), so no real page is affected.
+
+### Deliberately not changed (with the reason)
+
+- **No enforcing CSP.** The single-file build inlines the whole app as an inline `<script>`, so a policy that
+  actually works would need `script-src 'unsafe-inline'` — a header that promises more than it delivers.
+  Report-only keeps the intended policy visible and one deployment away. Enforcing it needs a build change
+  (external, hashed bundles), which is a performance and architecture decision, not a polish step.
+- **No `X-Frame-Options` / `frame-ancestors`.** ilmNet is meant to be embeddable (link previews, the
+  development preview pane) and embeds third parties itself; who may frame the site is a host/proxy decision.
+- **No iframe `sandbox` on the embeds.** It would break the real playback paths this project already verified
+  (YouTube player, Archive.org player, Web Audio reading the stream). The embed URLs are derived from
+  provider identifiers stored by an authenticated operator, not from visitor input. Left as a documented
+  trade-off rather than a rushed "hardening".
+- **No privacy/contact page.** The technical part of audit I5 is done (self-hosted fonts; no third-party
+  request before you press play). The page itself needs the operator's identity, address and legal review,
+  none of which the repository contains — and inventing them would be exactly the fake content this project
+  forbids. Checklist for that page is in the Fase 5.5 report.
+- **No default social card.** `og:image` appears only where a real thumbnail exists; a designed 1200×630
+  default is an asset, not a code change.
+- **The 100-item list cap and the counters** (§8.2, measured in Fase 5.4) and **the free-text search**
+  (§8.16) stay as they are — measured items, not polish.
+
+### Verified after
+
+`npx tsc --noEmit` (root and `server/`) clean; `npm run build` → 657.57 kB raw / 159.34 kB gzip and the
+pre-compressed variant; the production suite **141 checks** (was 112; +29 for robots/sitemap/404s/headers);
+the other server suites 32 / 30 / 13 / 69; e2e `production` 82 (+2 environmental YouTube-playback checks),
+`cms` 34, `media` 27, `admin-auth` 60 — all green. Browser probes on the built app: fonts load from our own
+origin on every route with zero failed requests, titles/canonical/robots correct per route, canonical
+redirect works in both directions, skip link focuses `<main>`, `/favicon.ico|svg`, `/apple-touch-icon.png`,
+`/manifest.webmanifest` and both PNG icons answer 200 with the right content type on nested routes too.
+
+### Host-only (not solvable from this repository)
+
+- HSTS at the proxy for the real hostname (the app sends it over HTTPS; `max-age` and `includeSubDomains` are
+  a host decision — `docs/DEPLOYMENT.md` §5).
+- `frame-ancestors`/CSP promotion and any WAF/rate-limit rules (`docs/DEPLOYMENT.md` §5f).
+- Serving the sitemap on the *published* domain: it uses `PUBLIC_ORIGIN`, so that variable must be set to the
+  real `https://…` origin in production (a wrong value produces a sitemap pointing at the wrong host —
+  visible in `/sitemap.xml` within a second).
+- Submitting the sitemap to Google/Bing Search Console; nothing in the repo can do that.
+- An operator identity/contact address for the privacy page.
+
+### Fase 5.5 — the two remaining delivery items (measured on the same 20 000-record database)
+
+The Fase 5.5 audit re-read the public path and found two things worth changing. Both are measured, not
+guessed:
+
+| | Before | After | Evidence |
+| --- | --- | --- | --- |
+| API JSON was sent uncompressed — the biggest download of a list page | `/api/contents?limit=100` 239 150 B, `/api/scholars` 15 495 B, `/api/subjects` 3 233 B on the wire | 31 566 B (13,2 %), 2 626 B (16,9 %), 1 057 B (32,7 %) | `curl -H 'accept-encoding: gzip'` against the same server and the same content. Implemented with `node:zlib` in an `onSend` hook (no dependency: text-like payloads only, above 1 kB only, only when gzip was requested, never when a content-encoding is already set, never for streams) |
+| Files next to `index.html` (fonts, icons, manifest) were revalidated on **every** navigation | 5–6 conditional requests per repeat page view (Playwright on a detail page: 5 × 304 on the second load) | 0 revalidations within a week (`cache-control: public, max-age=604800` for everything but `index.html`, which stays `max-age=0` so a deploy is visible immediately) | `setHeaders` in the `@fastify/static` registration. The `.gz` variant of `index.html` is matched too — a test caught that the compressed entry point would otherwise have been cached for a week |
+
+Browser check on the same library over a throttled 3G profile (1,6 Mbps / 150 ms), `/lectures`: API bytes
+per page load **260 939 → 36 299 B (−86,1 %)** and DCL/load **3 324 → 962 ms** with everything compressed
+(bundle from 5.4 + API from 5.5); the same run with `accept-encoding: identity` — no compression at all —
+is the 3 324 ms figure. Deep links keep going through the static handler, so the frontend needed no change.
+
+
 ## 8. Known remaining issues (not blockers)
 
 From `docs/FASE3_9_CODEBASE_REVIEW.md` § Restrisico's plus the 3.9.1 report:
@@ -901,15 +1036,36 @@ From `docs/FASE3_9_CODEBASE_REVIEW.md` § Restrisico's plus the 3.9.1 report:
     `CREATE EXTENSION pg_trgm` plus GIN trigram indexes on the searched columns — a database change,
     written out with the measured numbers in `docs/DEPLOYMENT.md` §5e and §7j. At the current library
     size it is 2–4 ms, so it is a *when the library grows* step, not an open bug.
-17. **The API's JSON responses are not compressed by the app.** The frontend bundle is (Fase 5.4), but
-    a 236 kB list response is still 236 kB over the wire unless the reverse proxy gzips `/api`. Exact
-    nginx lines in `docs/DEPLOYMENT.md` §5c; measured potential on a 3G profile: ~236 kB → ~40 kB.
+17. **API JSON compression was added in Fase 5.5** — a 100-item list on the 20 000-record database
+    goes out as 31 566 B instead of 239 150 B (13,2 %), and a list page over 3G drops from 260 939 B to
+    36 299 B of API data (§7j). It is done in the app with `node:zlib`, so it works without proxy
+    configuration; a proxy may still gzip the rest (uploaded images are already compressed and are left
+    alone by both). `docs/DEPLOYMENT.md` §5c keeps the nginx lines for deployments that prefer to do it
+    at the edge.
 18. **The Prisma connection pool** is at its default (`2 × CPU + 1`, 5 in this sandbox; Prisma logs
     `connection_limit` guidance when it is tight). Fase 5.4 measured a 25-way concurrency burst and
     found the latency came from the queries it fixed, not from pool waiting, so nothing was changed —
     for a multi-instance deployment size the pool per instance against Postgres' own `max_connections`
     (`connection_limit` in `DATABASE_URL`).
 
+
+19. **A privacy/contact page is still missing** (audit I5, partially closed in Fase 5.5). What the
+    repository can fix is done: the fonts are self-hosted, so a visitor's browser talks to no third party
+    until they open a page with an embedded player, and the embedded YouTube player is the only
+    third-party load (it also loads its own fonts inside its frame). The page itself needs the operator's
+    identity, a contact address and a legal review — none of which belong in a code change. Content
+    checklist: what is logged (IP, user agent, timestamps) and why; that there is no visitor account and
+    no analytics; that the admin session cookie exists only for signed-in operators; which third parties
+    are contacted when a player is opened (YouTube, Archive.org, Google Books) and under which terms;
+    how to request removal of a link. Linked from the footer once it exists.
+20. **An enforcing Content-Security-Policy needs a build change.** Fase 5.5 ships a report-only policy
+    that matches the real dependencies. Enforcing it would require `script-src 'unsafe-inline'` because
+    the single-file build inlines the app as an inline `<script>`; a real policy needs external, hashed
+    bundles (which also re-opens the code-splitting question Fase 3.9 measured as pointless). One
+    deliberate step, not a header flip.
+21. **`frame-ancestors`/`X-Frame-Options` and the CSP promotion belong to the host** (`docs/DEPLOYMENT.md`
+    §5f). The app deliberately sends no framing rule: ilmNet is embeddable and embeds third parties
+    itself; a preview pane or a link-preview card would break.
 
 ## 9. Next step
 
@@ -931,9 +1087,17 @@ Fase 5.1 removed the three blockers that were verifiable in the repository; the 
   pre-compressed (631 → 157 kB, DCL 3 272 → 952 ms on 3G). Deliberately left as measured items:
   server-side pagination past 100 items (§8.2), the trigram index for free-text search (§8.16) and
   gzip for API JSON at the proxy (§8.17).
-- **Phase 5.5 — polish and compliance.** Self-hosted fonts and a privacy/contact page beyond the
-  footer text (audit I5), `robots.txt`/`sitemap.xml`/favicon/Open Graph (L9), README and `.env.example`
-  drift (L10).
+- **Phase 5.5 — polish and compliance (done, §7k + §7j).** Self-hosted fonts (audit I5, the technical
+  half), `robots.txt`/`sitemap.xml`/favicon/manifest/Open Graph (L9), per-route titles and descriptions,
+  a real 404 page, a skip link, English-only public copy, honest empty states, the security headers the
+  app can set, and API JSON compression with per-file caching on top of Fase 5.4. Left to the host or the
+  owner, with the reason in §7k: an enforcing CSP (needs external bundles), `frame-ancestors`, and the
+  privacy/contact page (needs the operator's identity — the checklist is now §8.19).
+
+**What is left after 5.5 is not code**: deploy on the real host (TLS, `PUBLIC_ORIGIN`, proxy trust,
+backups, monitoring — §8.14), submit the sitemap once DNS is live, then decide between the Fase 5.6
+operations block (CI, staging, account UI, §8.9) and the measured scale items (§8.16 trigram search,
+§8.2 pagination) when the library actually grows.
 
 TinyCMS is **not** on the roadmap: the name, the CMS framework and a content layer for website texts
 are scrapped permanently (Fase 4.2/4.5.1, §7d) and must never be reintroduced. The remaining

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import PageHeader from '../components/PageHeader';
+import { usePageMeta } from '../lib/usePageMeta';
 import { SearchBar, FilterChips, Tag, EmptyState, StatRow } from '../components/ui';
 import { listPublishedContents, listPublicScholars, listPublicSubjects, type BackendContent, type BackendScholar, type BackendSubject } from '@/lib/api';
 import { groupByCollection, type SeriesGroup } from '@/lib/series';
@@ -114,6 +115,13 @@ function SkeletonCard() {
 }
 
 export default function Books() {
+  usePageMeta({
+    title: 'Books',
+    description:
+      'Classical texts and contemporary works in the ilmNet library — search by title, subject or scholar. Free to read, always linked to the original source.',
+    path: '/books',
+  });
+
   const [searchParams, setSearchParams] = useSearchParams();
   const urlQ = searchParams.get('q') ?? '';
   const urlScholar = searchParams.get('scholar') ?? 'all';
@@ -277,14 +285,15 @@ export default function Books() {
             </div>
           ) : (
             <>
-              <p className="text-ink-muted mt-8 text-[0.86rem] font-medium">
+              {/* Fase 5.5: screen readers hear the result of a filter without moving focus. */}
+              <p className="text-ink-muted mt-8 text-[0.86rem] font-medium" role="status" aria-live="polite">
                 {contents.length} books found · {series.length} collections, {standalone.length} singles
               </p>
 
               {series.length > 0 && (
                 <>
                   <h2 className="font-display text-ink mt-8 text-[1.35rem] font-extrabold tracking-[-0.02em]">Collections</h2>
-                  <p className="text-ink-muted mt-1 text-[0.82rem]">Een collectie bundelt alle titels — open de collectie om boeken te zien.</p>
+                  <p className="text-ink-muted mt-1 text-[0.82rem]">A collection gathers all its titles — open the collection to see the books.</p>
                   <div className="mt-4 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                     {series.map((s) => (
                       <CollectionCard key={s.id} s={s} />
@@ -306,9 +315,17 @@ export default function Books() {
 
               {contents.length === 0 && (
                 <div className="mt-10">
-                  <EmptyState title="No books match" body="Try a different search term, scholar, subject or edition. Your filters are shareable via the URL." />
+                  {/* Fase 5.5: with no filters set, "try another search term" was advice about
+                      filters the visitor had not applied yet — an empty library needs its own text. */}
+                  {hasActiveFilters ? (
+                    <EmptyState title="No books match" body="Try a different search term, scholar, subject or edition. Your filters are shareable via the URL." />
+                  ) : (
+                    <EmptyState title="No books yet" body="The book shelf is still empty. Titles appear here as soon as they are published." />
+                  )}
                   <div className="mt-6 flex justify-center">
-                    <button onClick={clearAll} className="bg-rose text-cream rounded-full px-6 py-3 text-[0.9rem] font-semibold">Clear all filters</button>
+                    {hasActiveFilters && (
+                      <button onClick={clearAll} className="bg-rose text-cream rounded-full px-6 py-3 text-[0.9rem] font-semibold">Clear all filters</button>
+                    )}
                   </div>
                 </div>
               )}

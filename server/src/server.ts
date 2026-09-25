@@ -2,6 +2,8 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import Fastify from 'fastify';
+import { gzip as gzipCallback } from 'zlib';
+import { promisify } from 'util';
 import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
 import sensible from '@fastify/sensible';
@@ -17,6 +19,7 @@ import { subjectRoutes } from './routes/subject';
 import { importRoutes } from './routes/import';
 import { uploadRoutes } from './routes/uploads';
 import { authRoutes } from './routes/auth';
+import { seoRoutes } from './routes/seo';
 import {
   clearedSessionCookieHeader,
   readSessionCookie,
@@ -32,6 +35,57 @@ import {
   trustProxyIsEnabled,
   trustProxySetting,
 } from './lib/proxy';
+
+/**
+ * Fase 5.5 — security headers that can be set safely from the app itself.
+ *
+ * Not here on purpose:
+ *  - `strict-transport-security`: already sent by the hook below, and only over HTTPS (a proxy that
+ *    terminates TLS must set it too, see docs/DEPLOYMENT.md §5).
+ *  - `x-frame-options` / CSP `frame-ancestors`: ilmNet is meant to be embeddable (link previews,
+ *    the development preview pane). Deciding who may frame the site belongs to the host/proxy.
+ *  - an *enforcing* CSP: the build inlines the app into index.html (Fase 5.4), so it would need
+ *    `script-src 'unsafe-inline'`. Documented as a follow-up rather than half-enforced here.
+ */
+const PERMISSIONS_POLICY =
+  'camera=(), geolocation=(), microphone=(), payment=(), usb=(), midi=(), serial=(), hid=(), bluetooth=(), ' +
+  'publickey-credentials-get=()';
+
+const CSP_REPORT_ONLY = [
+  "default-src 'self'",
+  // 'unsafe-inline' + the YouTube origins: the embed loads its own scripts in its frame, while the
+  // inline bootstrap script comes from the single-file build.
+  "script-src 'self' 'unsafe-inline'",
+  // Tailwind writes inline styles (neu-raised/neu-inset shadows and the aurora gradients).
+  "style-src 'self' 'unsafe-inline'",
+  "font-src 'self'",
+  "img-src 'self' data: blob: https://i.ytimg.com https://*.archive.org https://books.google.com",
+  "media-src 'self' blob: https://*.archive.org",
+  "frame-src https://www.youtube.com https://www.youtube-nocookie.com https://*.archive.org https://books.google.com",
+  "connect-src 'self' https://*.archive.org",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+].join('; ');
+
+const gzipAsync = promisify(gzipCallback);
+
+/**
+ * Compress text responses (Fase 5.5).
+ *
+ * Why in the app: the biggest thing a visitor downloads from the API is a public list payload — 48 kB
+ * for 100 records on the fixture library, ~131–236 kB on the 20 000-record library (Fase 5.4 §7j).
+ * That JSON went out uncompressed; the frontend bundle was pre-compressed in 5.4 and the JSON part
+ * was left to the reverse proxy, which means any deployment without proxy gzip pays full price for
+ * every list request. `node:zlib` is built in, so this needs no dependency (the alternative,
+ * `@fastify/compress`, would be a new one).
+ *
+ * Rules: only for clients that asked for gzip, only for text-like payloads, only above 1 kB (below
+ * that the header overhead is not worth it), never when a content-encoding is already set (the
+ * pre-compressed bundle and the sitemap route manage their own), and never for streams (uploads).
+ */
+const COMPRESSIBLE_TYPE = /^(?:text\/|application\/(?:json|xml|javascript|manifest\+json)|[a-z-]+\/[a-z0-9.+-]*\+json)/i;
+const COMPRESS_MIN_BYTES = 1024;
 
 const PORT = parseInt(process.env.PORT || '3001', 10);
 const HOST = process.env.HOST || '0.0.0.0';
@@ -149,6 +203,18 @@ export async function buildApp() {
     // YouTube requires the Referer for embedded players (Fase 4.3.1): never weaken this value.
     reply.header('referrer-policy', 'strict-origin-when-cross-origin');
     reply.header('x-permitted-cross-domain-policies', 'none');
+    // Fase 5.5: capabilities this app never uses are switched off for the whole origin. Only
+    // features we do not touch are listed — the YouTube/Archive embeds get `allow="…"` on the
+    // iframe and would lose those features if they were denied here (a Permissions-Policy denial
+    // cannot be re-delegated to a child frame), which is why accelerometer/gyroscope/fullscreen are
+    // deliberately absent from the list below.
+    reply.header('permissions-policy', PERMISSIONS_POLICY);
+    // Content-Security-Policy: report-only on purpose. The single-file build inlines the whole app
+    // as an inline <script>, so an enforcing policy would need `script-src 'unsafe-inline'` — a
+    // policy that pretends more than it delivers. Report-only keeps the intended allowlist visible
+    // (and ready to promote) without the chance of a blank page in production. See
+    // docs/DEPLOYMENT.md §5f for what to change to enforce it.
+    reply.header('content-security-policy-report-only', CSP_REPORT_ONLY);
     // HSTS (Fase 5.1) — only on a request that really arrived over HTTPS: direct TLS or a proxy
     // that sets `x-forwarded-proto` (trustProxy). Over plain HTTP a browser ignores it anyway, so
     // sending it would only be misleading. `includeSubDomains`/`preload` are deliberately NOT set:
@@ -158,6 +224,24 @@ export async function buildApp() {
       reply.header('strict-transport-security', `max-age=${hsts}`);
     }
     return payload;
+  });
+
+  // ── Response compression (Fase 5.5) — see the note above `COMPRESSIBLE_TYPE` ──
+  app.addHook('onSend', async (req, reply, payload) => {
+    if (req.method === 'HEAD') return payload;
+    if (reply.getHeader('content-encoding')) return payload;
+    if (!/\bgzip\b/.test(String(req.headers['accept-encoding'] ?? ''))) return payload;
+    if (typeof payload !== 'string' && !Buffer.isBuffer(payload)) return payload;
+    const buf = Buffer.isBuffer(payload) ? payload : Buffer.from(payload, 'utf8');
+    if (buf.length < COMPRESS_MIN_BYTES) return payload;
+    if (!COMPRESSIBLE_TYPE.test(String(reply.getHeader('content-type') ?? ''))) return payload;
+
+    const gzipped = await gzipAsync(buf);
+    reply.header('content-encoding', 'gzip');
+    reply.removeHeader('content-length');
+    const vary = String(reply.getHeader('vary') ?? '');
+    if (!/accept-encoding/i.test(vary)) reply.header('vary', vary ? `${vary}, accept-encoding` : 'accept-encoding');
+    return gzipped;
   });
 
   // ── HTTP → HTTPS (opt-in, provider-agnostic) ──
@@ -291,6 +375,17 @@ export async function buildApp() {
       // writes index.html.gz next to it; when the client sends `accept-encoding: gzip` this is what
       // goes over the wire (~161 kB). No dependency: the file is produced by scripts/precompress.mjs.
       preCompressed: true,
+      // Cache policy per file (Fase 5.5). index.html must be revalidated on every load — otherwise a
+      // deploy stays invisible for returning visitors until their cache expires. The files next to it
+      // (fonts, icons, manifest, licences; 582 kB of fonts in total) never change within a release and
+      // were revalidated on *every* navigation: up to ten conditional round trips per page view, which
+      // on a 3G connection is pure latency. Seven days is short enough to pick up a replaced asset.
+      setHeaders: (reply, filePath) => {
+        // `.gz` matters: with `accept-encoding: gzip` the pre-compressed variant is what gets served,
+        // so the rule has to recognise both names (a test caught exactly that).
+        const entry = /index\.html(\.gz)?$/.test(filePath);
+        reply.header('cache-control', entry ? 'public, max-age=0' : 'public, max-age=604800');
+      },
     });
   }
 
@@ -308,6 +403,7 @@ export async function buildApp() {
     return reply.code(500).send({ error: { code: 'INTERNAL_ERROR', message: 'Internal Server Error' } });
   });
 
+  await app.register(seoRoutes);
   await app.register(authRoutes);
   await app.register(healthRoutes);
   await app.register(contentRoutes);
@@ -316,10 +412,16 @@ export async function buildApp() {
   await app.register(importRoutes);
   await app.register(uploadRoutes);
 
-  // 404 — JSON for the API, index.html for browser routes (hash router + deep links)
+  // 404 — JSON for the API, index.html for browser routes (client-side router + deep links)
   app.setNotFoundHandler((req, reply) => {
     const url = req.url.split('?')[0];
-    if (serveFrontend && req.method === 'GET' && !url.startsWith('/api/') && !url.startsWith('/uploads/')) {
+    // Fase 5.5: only route-like paths get the app shell. A path that looks like a file
+    // (`/favicon.ico`, `/robots.txt`, `/sitemap.xml`, `/some-image.png`) is a request for an asset:
+    // answering it with 200 + index.html told crawlers and browsers that a missing file exists.
+    // Slugs never contain a dot (slugify with `strict`, server/src/utils/slug.ts), so no real page
+    // is affected.
+    const looksLikeFile = /\.[a-z0-9]{1,8}$/i.test(url);
+    if (serveFrontend && req.method === 'GET' && !looksLikeFile && !url.startsWith('/api/') && !url.startsWith('/uploads/')) {
       // Fase 5.4: SPA fallback through the static handler — no blocking read of the whole bundle per
       // request, and the pre-compressed index.html.gz is used when the client supports gzip.
       // `index.html` is only touched when the build did not produce a gzip variant.

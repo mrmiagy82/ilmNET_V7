@@ -25,6 +25,7 @@ import LectureDetail from './pages/LectureDetail';
 import BookDetail from './pages/BookDetail';
 import SeriesDetail from './pages/SeriesDetail';
 import SubjectDetail from './pages/SubjectDetail';
+import NotFound from './pages/NotFound';
 
 export default function App() {
   return (
@@ -70,7 +71,9 @@ export default function App() {
             <Route path="scholars" element={<Scholars />} />
             <Route path="subjects" element={<Subjects />} />
             <Route path="subjects/:id" element={<SubjectDetail />} />
-            <Route path="*" element={<Landing />} />
+            {/* Fase 5.5: unknown paths get a real 404 page instead of a second copy of the landing
+                page — the address in the bar never matches what is on screen otherwise. */}
+            <Route path="*" element={<NotFound />} />
           </Route>
         </Routes>
     </BrowserRouter>

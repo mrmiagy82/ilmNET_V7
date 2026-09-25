@@ -191,6 +191,25 @@ curl -s https://ilmnet.example/api/ready    # status ready + database up (goedko
   #   content-encoding: gzip   → de pre-gecomprimeerde build wordt geserveerd
   curl -sI https://ilmnet.example/lectures | grep -i 'etag\|content-encoding'   # diepe link: 200 + ETag, geen gzip op verzoek zonder header
   ```
+- **Crawler-oppervlak (Fase 5.5):**
+  ```bash
+  curl -s https://ilmnet.example/robots.txt   # Allow: / · Disallow: /admin · Disallow: /api/ · Sitemap: <PUBLIC_ORIGIN>/sitemap.xml
+  curl -s https://ilmnet.example/sitemap.xml  # alleen gepubliceerde items, absolute URL's op de canoniche origin
+  curl -sI https://ilmnet.example/favicon.ico | head -1        # 200 image/…
+  curl -s -o /dev/null -w '%{http_code}\n' https://ilmnet.example/geen-pagina.png   # 404 (geen index.html)
+  ```
+  Een ontbrekende **pagina** geeft nog steeds 200 + de app (de client toont zelf de 404-pagina); een
+  ontbrekend **bestand** (pad met extensie) geeft 404. Staat er in de sitemap de verkeerde host, dan is
+  `PUBLIC_ORIGIN` niet gezet of fout — dat is de enige variabele die erin terechtkomt.
+- **Compressie (Fase 5.4/5.5):** de bundel komt uit `dist/index.html.gz`, en tekstuele API-responses
+  worden in de app ge-gzipt (`node:zlib`, geen dependency) zodra de client erom vraagt. Controleren:
+  ```bash
+  curl -sI -H 'Accept-Encoding: gzip' https://ilmnet.example/lectures | grep -i content-encoding
+  curl -s -H 'Accept-Encoding: gzip' -o /dev/null -w '%{size_download}\n' 'https://ilmnet.example/api/contents?limit=100'
+  #   ~31 kB op een bibliotheek van 20 000 records (was 239 kB); zie docs/CONTEXT.md §7j
+  curl -sI https://ilmnet.example/fonts/inter-400-latin.woff2 | grep -i cache-control   # max-age=604800
+  curl -sI https://ilmnet.example/ | grep -i cache-control                              # max-age=0 (deploy meteen zichtbaar)
+  ```
 - Admin: `/admin` vraagt om gebruikersnaam + wachtwoord; na inloggen verschijnen drafts, imports en uploads (het dashboard toont de echte totalen).
 - Upload-test: voeg in het CMS een thumbnail toe, herlaad de pagina — het bestand moet daarna nog
   steeds geserveerd worden (bewijs dat `UPLOADS_DIR` op een volume staat).
@@ -286,6 +305,13 @@ TRUST_PROXY=true
 - `FORCE_HTTPS=true` zonder vertrouwde proxy wordt **geweigerd bij het starten**: de app ziet dan
   altijd `http` en zou elke request naar zichzelf verwijzen. Hetzelfde geldt voor `FORCE_HTTPS=true`
   zonder enig toegestaan redirect-doel (`PUBLIC_ORIGIN` of een host in `CORS_ORIGIN`/`ALLOWED_HOSTS`).
+
+**Compressie hoeft de proxy niet meer te doen.** Sinds Fase 5.5 gzipt de app zelf alle tekstuele
+responses (JSON, HTML, XML) wanneer de client erom vraagt; een `gzip on;` in de proxy blijft onschadelijk
+(en helpt voor alles wat er later bijkomt), maar is geen voorwaarde meer voor een kleine API-respons. Wat
+de proxy **wel** moet blijven doen: `X-Forwarded-*` zetten en `TRUST_PROXY`-conform doorgeven (§5c hierboven),
+HTTP→HTTPS afhandelen of `FORCE_HTTPS` ondersteunen (§5b), en/of `frame-ancestors` + een enforcing CSP
+toevoegen als de host dat wil (§5f).
 
 ### De proxy zelf
 
@@ -441,6 +467,35 @@ kijk naar `ImportJob.importedCount` — de API doet geen eigen rate limiting ric
 punt in §8.2 van `docs/CONTEXT.md` — geen quick fix.
 
 ---
+
+## 5f. Crawlers, headers en de CSP-beslissing (Fase 5.5)
+
+Wat de app zelf doet (en wat je dus niet meer hoeft te regelen):
+
+| Header / endpoint | Waarde | Waarom |
+| --- | --- | --- |
+| `/robots.txt`, `/sitemap.xml` | server-side gegenereerd, gepubliceerde records, canoniche origin | vóór 5.5 gaf de SPA-fallback hier `index.html` met status 200 op terug |
+| `permissions-policy` | camera, geolocation, microphone, payment, usb, midi, serial, hid, bluetooth, publickey-credentials-get uit | de app gebruikt ze niet; `accelerometer`/`gyroscope`/`fullscreen` staan er bewust **niet** in, want dat zijn precies de features die de YouTube/Archive-embeds via hun `allow`-attribuut krijgen en een document-level verbod kun je niet meer aan een iframe delegeren |
+| `content-security-policy-report-only` | `default-src 'self'`, eigen fonts, `frame-src` voor YouTube/Archive/Google Books | een *rapporterende* policy: de browser blokkeert niets, je ziet in de console wat een enforcing policy zou raken |
+| `x-frame-options` / `frame-ancestors` | **niet** gezet | ilmNet is bedoeld om in te sluiten (linkpreviews, preview-panelen) en sluit zelf third-party players in; wie mag framen is een hostbeslissing |
+| `strict-transport-security` | alleen op HTTPS-requests (app), `max-age` via `HSTS_MAX_AGE` | zie §5b; zet op de proxy dezelfde of strengere waarde, en pas `includeSubDomains`/`preload` toe als élk subdomein HTTPS-only is |
+| `cache-control` | `index.html` (en `.gz`) `max-age=0`; fonts/icons/manifest `max-age=604800` | de app moet direct na een deploy zichtbaar zijn; de vaste bestanden ernaast hoeven niet elke navigatie opnieuw gevalideerd te worden |
+
+**Een enforcing CSP aanzetten** kan pas na een buildwijziging: de single-file build zet de hele app als
+inline `<script>` in `index.html`, dus een echte policy zou `'unsafe-inline'` nodig hebben en dan vooral
+schijnveiligheid opleveren. Wil je het echt, dan moet de bundel naar externe bestanden met hashes
+(`build.assetsInlineLimit`/single-file plugin uitzetten) — dat raakt ook de leveringsPerformance van
+Fase 5.4 en is dus een bewuste stap, geen headeraanpassing. `frame-ancestors` kun je wél al op de proxy
+zetten als je zeker weet dat er nooit ingesloten wordt.
+
+**Sitemap indienen.** Zodra DNS en TLS live staan: `https://<host>/robots.txt` controleren (de
+`Sitemap:`-regel komt uit `PUBLIC_ORIGIN`) en `/sitemap.xml` aanmelden bij Google Search Console en
+Bing Webmaster Tools. De sitemap wordt een uur gecached en volgt de database, dus nieuwe imports staan
+er binnen het uur in zonder redeploy.
+
+**Privacy-/contactpagina (open item).** De technische kant is klaar (self-hosted fonts, geen analytics,
+geen bezoekersaccounts). De pagina zelf vraagt om de identiteit en het contactadres van de beheerder en
+een juridische blik — die horen niet in een codecommit. Inhoud-checklist: `docs/CONTEXT.md` §8.19.
 
 ## 6. Updaten en terugrollen
 

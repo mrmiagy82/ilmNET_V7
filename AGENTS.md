@@ -29,7 +29,13 @@ content wizard, CRUD, thumbnail uploads and bulk import from Archive.org and You
   Fastify+Prisma API directly, and fixed copy lives in the React components.
 
 - **Frontend**: React 19, React Router 7, Tailwind v4, Vite — built as a **single `index.html`**
-  (`vite-plugin-singlefile`), served by the API in the default deployment.
+  (`vite-plugin-singlefile`), served by the API in the default deployment. Since Fase 5.5 the build also
+  ships `dist/fonts/` (self-hosted Inter + Plus Jakarta Sans — never go back to Google Fonts),
+  the favicon/manifest set, per-route metadata through `src/lib/usePageMeta.ts`, a real 404 page
+  (`path="*"`) and a skip link; `vite.config.ts` passes `overrideConfig: { base: '/' }` to the
+  single-file plugin, because a relative base breaks every asset URL on a deep link. The API adds
+  `robots.txt`/`sitemap.xml` (`server/src/routes/seo.ts`), gzips text responses, and caches everything
+  but `index.html` for a week.
 - **Backend**: Fastify 5, Prisma 6, PostgreSQL, zod validation; single generic `contents` table with
   provider/type enums instead of separate lecture/book tables.
 - **Tests**: Playwright browser specs (`tests/e2e/*.spec.mjs`) plus `tsx` suites

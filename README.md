@@ -85,6 +85,11 @@ npm run test:e2e              # player/waveform, thumbnails, admin upload flow
 
 `npm run build` produces the single-file `dist/index.html` **plus** `dist/index.html.gz`; the API serves
 the compressed variant whenever the browser accepts gzip (631 kB → 157 kB, measured on a 3G profile).
+Next to it, `dist/fonts/` holds the 14 self-hosted font subsets (Inter + Plus Jakarta Sans, latin and
+latin-ext, SIL OFL) and `dist/favicon.svg|.ico`, `dist/apple-touch-icon.png`, `dist/icon-192|512.png`
+and `dist/manifest.webmanifest` are the icon set. Text responses from the API are gzipped in the app
+(`node:zlib`), so a 100-item list on a 20 000-record library goes out as ~31 kB instead of ~239 kB, and
+`/robots.txt` + `/sitemap.xml` are generated from the published records on the canonical origin.
 
 Health for orchestrators: `GET /api/health` is the deep check (database **and** upload storage,
 503 when either is unusable) and `GET /api/ready` is the cheap readiness probe a load balancer should

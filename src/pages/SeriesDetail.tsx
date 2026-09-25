@@ -6,6 +6,7 @@ import { listPublishedContents, type BackendContent } from '@/lib/api';
 import { resolveThumbnail, resolveCover } from '@/lib/thumbnail';
 import MediaThumb from '@/components/MediaThumb';
 import { formatDuration } from '../data';
+import { usePageMeta } from '../lib/usePageMeta';
 
 function EpisodeRow({ c, idx }: { c: BackendContent; idx: number }) {
   const isBook = c.type === 'book' || c.type === 'document';
@@ -44,6 +45,18 @@ export default function SeriesDetail() {
   const [items, setItems] = useState<BackendContent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Fase 5.5: title/description from the collection itself (see ContentDetail for the noindex rule).
+  const firstItem = items[0];
+  const seriesTitle = firstItem?.collectionTitle || firstItem?.series || (decoded ? decoded.replace(/[-_]/g, ' ') : undefined);
+  usePageMeta({
+    title: seriesTitle,
+    description: firstItem?.description ?? undefined,
+    type: 'article',
+    image: firstItem ? resolveThumbnail(firstItem).src : null,
+    path: decoded ? `/series/${encodeURIComponent(decoded)}` : '',
+    noindex: !loading && items.length === 0,
+  });
 
   useEffect(() => {
     if (!decoded) return;

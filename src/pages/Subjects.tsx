@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import PageHeader from '../components/PageHeader';
+import { usePageMeta } from '../lib/usePageMeta';
 import { FilterChips, EmptyState, StatRow } from '../components/ui';
 import { listPublicSubjects, listPublishedContents, type BackendSubject, type BackendContent } from '@/lib/api';
 import { subjectGroups, formatCount } from '../data';
@@ -55,6 +56,13 @@ function SkeletonTile() {
 }
 
 export default function Subjects() {
+  usePageMeta({
+    title: 'Subjects',
+    description:
+      'Browse the ilmNet library by subject — every lecture, book and series that belongs to a discipline, grouped the way the tradition already is.',
+    path: '/subjects',
+  });
+
   const [group, setGroup] = useState<string | 'all'>('all');
   const [subjects, setSubjects] = useState<BackendSubject[]>([]);
   const [contents, setContents] = useState<BackendContent[]>([]);

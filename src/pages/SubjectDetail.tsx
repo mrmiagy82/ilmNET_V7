@@ -4,7 +4,8 @@ import PageHeader from '../components/PageHeader';
 import { Tag } from '../components/ui';
 import { listPublishedContents, listPublicSubjects, getPublicSubject, type BackendContent, type BackendSubject } from '@/lib/api';
 import { groupByCollection, type SeriesGroup } from '@/lib/series';
-import { resolveCardMedia } from '@/lib/thumbnail';
+import { resolveCardMedia, resolveThumbnail } from '@/lib/thumbnail';
+import { usePageMeta } from '../lib/usePageMeta';
 import MediaThumb from '@/components/MediaThumb';
 
 function SeriesCard({ s }: { s: SeriesGroup }) {
@@ -58,6 +59,16 @@ export default function SubjectDetail() {
   const [contents, setContents] = useState<BackendContent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Fase 5.5: title from the subject, image from the first item; noindex only after the load failed
+  // or the subject turned out not to exist.
+  usePageMeta({
+    title: subject?.name,
+    description: subject?.description ?? undefined,
+    image: contents[0] ? resolveThumbnail(contents[0]).src : null,
+    path: decoded ? `/subjects/${encodeURIComponent(decoded)}` : '',
+    noindex: !loading && !subject,
+  });
 
   useEffect(() => {
     if (!decoded) return;
@@ -142,7 +153,7 @@ export default function SubjectDetail() {
           {seriesLectures.length > 0 && (
             <div>
               <h2 className="font-display text-ink text-[1.35rem] font-extrabold">Series — {subject.name}</h2>
-              <p className="text-ink-muted mt-1 text-[0.82rem]">Relevante series eerst — open een serie om alle afleveringen te zien (bv. Tahawiyyah → Lezing 1-4).</p>
+              <p className="text-ink-muted mt-1 text-[0.82rem]">Relevant series first — open a series to see all its episodes (e.g. Tahawiyyah → Lectures 1-4).</p>
               <div className="mt-4 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                 {seriesLectures.map((s) => <SeriesCard key={s.id} s={s} />)}
               </div>
