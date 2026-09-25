@@ -77,7 +77,7 @@ export default function BooksPage() {
       />
 
       <div className="bg-sand/70 neu-inset mt-10 rounded-[28px] p-4 sm:p-5">
-        <SearchBar value={query} onChange={setQuery} placeholder="Search title, author, URL… (covers Archive.org, PDFs, Google Books)" />
+        <SearchBar value={query} onChange={setQuery} placeholder="Search title, author, URL… (covers Archive.org, PDFs, Google Books)" label="Search books" />
         <div className="mt-4 flex flex-col gap-3">
           <FilterChips
             options={[

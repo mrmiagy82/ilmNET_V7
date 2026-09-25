@@ -680,11 +680,24 @@ de sha256 van elk bestand met het manifest.
 ```bash
 DATABASE_URL="postgresql://ilmnet:pass@localhost:5432/ilmnet?schema=public" \
 BACKUP_DIR=/var/backups/ilmnet UPLOADS_DIR=/var/lib/ilmnet/uploads ops/restore-drill.sh
-# → drill PASSED — the backup set restores into an empty database with matching counts.
+# → drill PASSED — the backup set restored into an empty database and N comparison(s) against
+#   ilmnet-manifest-<tijdstip>.txt matched.
 ```
 
+Het manifest hoort bij de set: de drill zoekt het **naast de dump** en anders in `BACKUP_DIR`. Staat
+het er niet, dan stopt hij met exit 1 in plaats van een restore te doen die niets kan verifiëren — en
+ook een run waarin geen enkele waarde te vergelijken viel eindigt met exit 3. Daarmee betekent
+"PASSED" altijd "zoveel waarden kwamen na een echte restore overeen". Wil je een set terugzetten
+*zonder* die controle (bijvoorbeeld een oude dump zonder manifest), gebruik dan `ops/restore.sh`.
+
 Draai deze oefening bij de eerste deploy en daarna bijvoorbeeld maandelijks; een `FAIL` betekent dat
-je back-up niet terug te zetten is en dat je dat **nu** wilt weten.
+je back-up niet terug te zetten is en dat je dat **nu** wilt weten. Voor een off-site kopie werkt
+dezelfde opdracht vanaf de kopie zelf, zolang dump én manifest daar samen staan:
+
+```bash
+DATABASE_URL="postgresql://ilmnet:pass@localhost:5432/ilmnet?schema=public" \
+ops/restore-drill.sh --dump /mnt/offsite/ilmnet-db-<tijdstip>.dump --drop-after
+```
 
 ### Wat er bewust niet in de back-up zit
 
@@ -773,7 +786,8 @@ laat een stilte zelf een alarm zijn.
 # handmatig, één keer:
 BASE_URL=http://127.0.0.1:3001 BACKUP_DIR=/var/backups/ilmnet UPLOADS_DIR=/var/lib/ilmnet/uploads \
 DATABASE_URL="postgresql://ilmnet:…@localhost:5432/ilmnet" ops/healthcheck.sh
-#   → regels per check + "result: OK (7 checks)"; exit 0 gezond, 1 bij een fout, 2 bij een ontbrekend hulpmiddel
+#   → regels per check (inclusief de release die /api/health meldt) + "result: OK (8 checks)";
+#     exit 0 gezond, 1 bij een fout, 2 bij een ontbrekend hulpmiddel
 
 # automatisch (elke 5 minuten):
 sudo install -m 0644 ops/systemd/ilmnet-healthcheck.service ops/systemd/ilmnet-healthcheck.timer /etc/systemd/system/
@@ -785,9 +799,13 @@ sudo systemctl daemon-reload && sudo systemctl enable --now ilmnet-healthcheck.t
 systemctl list-timers ilmnet-healthcheck.timer
 ```
 
-Opties: `--quiet` (alleen bijzonderheden, voor de timer), `--strict` (een waarschuwing is óók exit 1),
-`--base https://ilmnet.example` (controleer de publieke site in plaats van de socket). Op een https-URL
-controleert hij ook de HSTS-header van de app.
+Opties: `--quiet` (voor de timer: een gezonde run zwijgt, maar een gefaalde run schrijft zijn
+FAIL-regels, de release en de samenvatting altijd naar stderr — dus in het journal), `--strict` (een
+waarschuwing is óók exit 1), `--base https://ilmnet.example` (controleer de publieke site in plaats van
+de socket). De watchdog controleert de API (health/readiness), de uploads-map, de nieuwste back-up, de
+schijfruimte en optioneel de database; **TLS-headers controleert hij niet**. HSTS verifieer je apart met
+`curl -sI https://<domein>/ | grep -i strict-transport-security` (§5b) of met `ops/deploy-check.sh` op
+een https-URL — die check zit daar wél in (check 11).
 
 ### 9b. Waar gaat een alert naartoe
 

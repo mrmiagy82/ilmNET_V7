@@ -6,14 +6,23 @@ export function SearchBar({
   value,
   onChange,
   placeholder,
+  label,
 }: {
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
+  /**
+   * Accessible name of the field (Fase 5.6.1). A placeholder is a hint, not a name: screen readers
+   * announced this input as an unnamed edit field. Every SearchBar now carries an `aria-label` —
+   * callers pass a short real label; without one the placeholder text is used, so no call site can
+   * end up nameless again.
+   */
+  label?: string;
 }) {
+  const accessibleName = label ?? placeholder ?? 'Search';
   return (
     <div className="bg-cream neu-inset flex w-full items-center gap-3 rounded-[22px] px-5 py-3.5">
-      <svg viewBox="0 0 24 24" className="text-ink-muted h-5 w-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <svg viewBox="0 0 24 24" aria-hidden="true" className="text-ink-muted h-5 w-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
         <circle cx="11" cy="11" r="7" />
         <path d="m20 20-3.2-3.2" />
       </svg>
@@ -21,6 +30,7 @@ export function SearchBar({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder ?? 'Search…'}
+        aria-label={accessibleName}
         className="text-ink placeholder:text-ink-muted w-full bg-transparent text-[0.98rem] outline-none"
       />
       {value && (

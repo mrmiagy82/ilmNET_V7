@@ -50,7 +50,7 @@ export default function ScholarsPage() {
       />
 
       <div className="bg-sand/70 neu-inset mt-10 rounded-[28px] p-4 sm:p-5">
-        <SearchBar value={query} onChange={setQuery} placeholder="Search by name or field…" />
+        <SearchBar value={query} onChange={setQuery} placeholder="Search by name or field…" label="Search scholars" />
         <div className="mt-4">
           <FilterChips
             options={[

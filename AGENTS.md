@@ -142,7 +142,9 @@ npm run admin:list
 
 # backups / restore (Fase 5.1) — see docs/DEPLOYMENT.md § Backup en herstel
 DATABASE_URL=… UPLOADS_DIR=… BACKUP_DIR=… ops/backup.sh    # dump + uploads + manifest
-DATABASE_URL=… ops/restore-drill.sh                       # prove the newest set restores (safe)
+DATABASE_URL=… ops/restore-drill.sh                       # prove the newest set restores (safe; refuses
+                                                          # to run without the set's manifest, and names
+                                                          # how many comparisons matched)
 ops/restore.sh --dump <file> --database-url <url>         # real restore (explicit target)
 OFFSITE_TARGET=<host:/path|/mnt/x> ops/offsite-copy.sh --latest   # copy sets off this host (verifies sha256)
 
@@ -152,11 +154,17 @@ BASE_URL=… ops/deploy-check.sh --expect-commit <sha>      # post-deploy / post
 ops/alert.sh --subject "test" --body "…" --dry-run        # alert route: webhook (ALERT_WEBHOOK_URL) / mail
 
 # tests
-cd server && npm run test:all    # audit, uploads, production readiness, env guards, youtube
+cd server && npm run test:all    # audit, uploads, production readiness, env guards, ops, youtube, auth
 cd server && npm run test:imports        # live Archive.org/YouTube import regression
 npm run test:e2e:production      # needs a running server + built frontend (SITE_URL/API_URL/ADMIN_TOKEN)
 npm run test:e2e                 # media: waveform, thumbnails, admin upload flow
 ```
+
+**Test data (do not skip this):** the production readiness suite (`server`) and
+`npm run test:e2e:production` need **published content** in the target database — they look for real
+records and never create them. On a reference-only database the production suite reports 149/154. Import
+a few records through the admin importers first; the exact numbers are in `docs/CONTEXT.md` §6
+(*Test-data condition*).
 
 Environment overrides used by the browser specs: `SITE_URL`, `API_URL`, `ADMIN_TOKEN` (for the
 fixtures their Node side creates), `ADMIN_USERNAME`/`ADMIN_PASSWORD` (the account the browser signs
@@ -168,7 +176,8 @@ verify that they did, and never point a mutating suite at a database whose conte
 
 - [ ] `npx tsc --noEmit` clean in both `./` and `./server`
 - [ ] `npm run build` succeeds
-- [ ] the relevant test suites pass (and their output is quoted in the report)
+- [ ] the relevant test suites pass (and their output is quoted in the report) — for the production and
+      production-e2e suites that needs a database with **published content** (§3)
 - [ ] `git status` reviewed — no stray files, no secrets, no build output added
 - [ ] commit message in the project's style: `Fase <n> <short description>` (or a plain imperative
       subject for chores)

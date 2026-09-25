@@ -6,7 +6,9 @@
 #   ops/restore-drill.sh --dump <file> [--uploads <file>]
 #
 # What it does:
-#   1. picks a backup set (newest manifest in BACKUP_DIR, or the files you pass);
+#   1. picks a backup set (newest manifest in BACKUP_DIR, or the files you pass) **together with its
+#      manifest** — the manifest is what the drill compares against, so without one there is nothing
+#      to verify and the drill refuses to run instead of reporting a success it cannot prove;
 #   2. restores the database into a THROWAWAY database (<DRILL_DATABASE>, default
 #      ilmnet_restore_drill) through the real ops/restore.sh — so the documented procedure is
 #      what gets tested, not a parallel code path;
@@ -16,8 +18,13 @@
 #   5. reports how the live database differs from the backup (informative: drift since the
 #      backup is normal, that is what a backup is for).
 #
+# The manifest is looked up next to the dump first (that is how an off-site copy arrives), then in
+# BACKUP_DIR. Exit code 3 is returned when a comparison failed **or** when not a single value could
+# be compared, so "PASSED" always means "this many values matched after a real restore".
+#
 # Env: DATABASE_URL (live database, for step 5) · BACKUP_DIR · UPLOADS_DIR · DRILL_DATABASE.
-# Exit codes: 0 drill passed · 1 usage/config error · 2 a required tool is missing · 3 failed.
+# Exit codes: 0 drill passed · 1 usage/config error (including a missing manifest) · 2 a required tool
+# is missing · 3 the drill failed or nothing was verified.
 #
 # NO new dependencies. The drill database is left in place for inspection; pass --drop-after to
 # remove it at the end of a successful run.
@@ -37,7 +44,7 @@ DROP_AFTER=0
 die() { echo "error: $*" >&2; exit "${2:-3}"; }
 info() { echo "  $*"; }
 
-usage() { sed -n '2,24p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit "${1:-1}"; }
+usage() { sed -n '2,30p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit "${1:-1}"; }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -52,6 +59,40 @@ while [[ $# -gt 0 ]]; do
     *)                 echo "error: unknown argument: $1" >&2; usage 1 ;;
   esac
 done
+
+# ── 1. pick the backup set and its manifest ──────────────────────────────────
+# Every backup set shares one timestamp: <prefix>-{db,uploads,manifest}-<stamp>.<ext>
+MANIFEST=""
+if [[ -z "$DUMP" ]]; then
+  MANIFEST="$(find "$BACKUP_DIR" -maxdepth 1 -name "${PREFIX}-manifest-*.txt" -printf '%T@ %p\n' 2>/dev/null \
+    | sort -rn | head -1 | cut -d' ' -f2-)"
+  [[ -n "$MANIFEST" ]] || die "no backup set found in $BACKUP_DIR — run ops/backup.sh first" 1
+  DUMP_NAME="$(sed -n 's/^dump=\([^ ]*\).*/\1/p' "$MANIFEST" | head -1)"
+  [[ -n "$DUMP_NAME" ]] || die "manifest $MANIFEST does not name a dump" 3
+  DUMP="$BACKUP_DIR/$DUMP_NAME"
+  if [[ -z "$UPLOADS_ARCHIVE" ]]; then
+    UPLOADS_NAME="$(sed -n 's/^uploads=\([^ ]*\).*/\1/p' "$MANIFEST" | head -1)"
+    [[ -n "$UPLOADS_NAME" && "$UPLOADS_NAME" != "(none)" ]] && UPLOADS_ARCHIVE="$BACKUP_DIR/$UPLOADS_NAME"
+  fi
+  info "backup set : $MANIFEST"
+else
+  BASE="$(basename "$DUMP")"
+  STAMP="${BASE#*-db-}"; STAMP="${STAMP%.dump}"
+  # Next to the dump itself first: that is how an off-site copy arrives (the whole set is copied),
+  # and requiring BACKUP_DIR was what made the drill skip every comparison silently.
+  for candidate in "$(dirname "$DUMP")/${PREFIX}-manifest-${STAMP}.txt" "$BACKUP_DIR/${PREFIX}-manifest-${STAMP}.txt"; do
+    if [[ -f "$candidate" ]]; then MANIFEST="$candidate"; break; fi
+  done
+  if [[ -z "$UPLOADS_ARCHIVE" ]]; then
+    for candidate in "$(dirname "$DUMP")/${PREFIX}-uploads-${STAMP}.tar.gz" "$BACKUP_DIR/${PREFIX}-uploads-${STAMP}.tar.gz"; do
+      if [[ -f "$candidate" ]]; then UPLOADS_ARCHIVE="$candidate"; break; fi
+    done
+  fi
+fi
+
+[[ -f "$DUMP" ]] || die "dump not found: $DUMP" 1
+[[ -n "$MANIFEST" && -f "$MANIFEST" ]] || die "no manifest for $(basename "$DUMP") — looked next to the dump ($(dirname "$DUMP")/${PREFIX}-manifest-<stamp>.txt) and in $BACKUP_DIR. A drill compares the restore against the manifest, so without one it cannot verify anything and refuses to run (use ops/restore.sh for an unverified restore)." 1
+[[ -n "$DATABASE_URL" ]] || die "DATABASE_URL is required — the drill creates the throwaway database on that server" 1
 
 for tool in psql pg_restore tar; do
   command -v "$tool" >/dev/null 2>&1 || die "required tool not found: $tool (PostgreSQL client tools)" 2
@@ -92,40 +133,12 @@ libpq_url() {
 
 url_with_db() { printf '%s' "$1" | sed -E "s#^(.*/)([^/?]+)(\?.*)?\$#\1${2}\3#"; }
 
-# ── 1. pick the backup set ───────────────────────────────────────────────────
-# Every backup set shares one timestamp: <prefix>-{db,uploads,manifest}-<stamp>.<ext>
-if [[ -z "$DUMP" ]]; then
-  MANIFEST="$(find "$BACKUP_DIR" -maxdepth 1 -name "${PREFIX}-manifest-*.txt" -printf '%T@ %p\n' 2>/dev/null \
-    | sort -rn | head -1 | cut -d' ' -f2-)"
-  [[ -n "$MANIFEST" ]] || die "no backup set found in $BACKUP_DIR — run ops/backup.sh first" 1
-  DUMP_NAME="$(sed -n 's/^dump=\([^ ]*\).*/\1/p' "$MANIFEST" | head -1)"
-  [[ -n "$DUMP_NAME" ]] || die "manifest $MANIFEST does not name a dump" 3
-  DUMP="$BACKUP_DIR/$DUMP_NAME"
-  if [[ -z "$UPLOADS_ARCHIVE" ]]; then
-    UPLOADS_NAME="$(sed -n 's/^uploads=\([^ ]*\).*/\1/p' "$MANIFEST" | head -1)"
-    [[ -n "$UPLOADS_NAME" && "$UPLOADS_NAME" != "(none)" ]] && UPLOADS_ARCHIVE="$BACKUP_DIR/$UPLOADS_NAME"
-  fi
-  info "backup set : $MANIFEST"
-else
-  BASE="$(basename "$DUMP")"
-  STAMP="${BASE#*-db-}"; STAMP="${STAMP%.dump}"
-  CANDIDATE="$BACKUP_DIR/${PREFIX}-manifest-${STAMP}.txt"
-  [[ -f "$CANDIDATE" ]] && MANIFEST="$CANDIDATE" || MANIFEST=""
-  if [[ -z "$UPLOADS_ARCHIVE" ]]; then
-    CANDIDATE="$BACKUP_DIR/${PREFIX}-uploads-${STAMP}.tar.gz"
-    [[ -f "$CANDIDATE" ]] && UPLOADS_ARCHIVE="$CANDIDATE" || true
-  fi
-fi
-
-[[ -f "$DUMP" ]] || die "dump not found: $DUMP" 1
-[[ -n "$DATABASE_URL" ]] || die "DATABASE_URL is required — the drill creates the throwaway database on that server" 1
-
 # ── 2. expected values from the manifest ─────────────────────────────────────
-expected() { [[ -n "$MANIFEST" ]] && sed -n "s/^$1=\([0-9]*\).*/\1/p" "$MANIFEST" | head -1; return 0; }
+expected() { sed -n "s/^$1=\([0-9]*\).*/\1/p" "$MANIFEST" | head -1; return 0; }
 
 echo "ilmNet restore drill — $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 info "dump       : $DUMP"
-info "manifest   : ${MANIFEST:-none (manifest comparisons are skipped)}"
+info "manifest   : $MANIFEST"
 info "drill db   : $DRILL_DATABASE"
 info "live db    : $(mask_url "$DATABASE_URL")"
 
@@ -146,8 +159,9 @@ fi
 
 # ── 4. compare ───────────────────────────────────────────────────────────────
 echo
-echo "── verification ──"
+echo "── verification against $(basename "$MANIFEST") ──"
 FAILED=0
+COMPARED=0
 count_in() { psql "$2" -tAc "SELECT count(*) FROM \"$1\"" 2>/dev/null | tr -d ' ' || echo "n/a"; }
 
 printf '  %-18s %10s %10s %10s   %s\n' "table" "manifest" "restored" "live" "verdict"
@@ -155,21 +169,28 @@ for table in contents scholars subjects content_scholars content_subjects import
   want="$(expected "$table")"
   got="$(count_in "$table" "$DRILL_URL")"
   live="$(count_in "$table" "$SOURCE_LIBPQ_URL")"
-  verdict="no manifest entry"
-  if [[ -n "$want" ]]; then
+  if [[ -z "$want" ]]; then
+    verdict="not in the manifest"
+  else
+    COMPARED=$((COMPARED + 1))
     if [[ "$want" == "$got" ]]; then verdict="PASS"; else verdict="FAIL (expected $want)"; FAILED=1; fi
   fi
   printf '  %-18s %10s %10s %10s   %s\n' "$table" "${want:-–}" "${got:-n/a}" "${live:-n/a}" "$verdict"
 done
 
 if [[ -n "$UPLOADS_ARCHIVE" ]]; then
-  want_files="$(sed -n 's/^uploads=.* files=\([0-9]*\).*/\1/p' "$MANIFEST" 2>/dev/null | head -1 || true)"
+  want_files="$(sed -n 's/^uploads=.* files=\([0-9]*\).*/\1/p' "$MANIFEST" | head -1 || true)"
   got_files="$(find "$TMP_UPLOADS" -type f ! -name '.gitkeep' | wc -l | tr -d ' ')"
-  if [[ -n "$want_files" && "$want_files" != "$got_files" ]]; then
-    printf '  %-18s %10s %10s %10s   %s\n' "uploads (files)" "$want_files" "$got_files" "–" "FAIL"
-    FAILED=1
+  if [[ -z "$want_files" ]]; then
+    printf '  %-18s %10s %10s %10s   %s\n' "uploads (files)" "–" "$got_files" "–" "not in the manifest"
   else
-    printf '  %-18s %10s %10s %10s   %s\n' "uploads (files)" "${want_files:-–}" "$got_files" "–" "PASS"
+    COMPARED=$((COMPARED + 1))
+    if [[ "$want_files" == "$got_files" ]]; then
+      printf '  %-18s %10s %10s %10s   %s\n' "uploads (files)" "$want_files" "$got_files" "–" "PASS"
+    else
+      printf '  %-18s %10s %10s %10s   %s\n' "uploads (files)" "$want_files" "$got_files" "–" "FAIL"
+      FAILED=1
+    fi
   fi
   # Integrity per file: everything in the archive must match the live file byte for byte.
   same=0; differ=0; missing=0
@@ -185,13 +206,20 @@ if [[ -n "$UPLOADS_ARCHIVE" ]]; then
       differ=$((differ + 1)); echo "      differs: $rel" >&2
     fi
   done < <(find "$TMP_UPLOADS" -type f ! -name '.gitkeep' -print0)
-  if [[ "$differ" -eq 0 ]]; then
-    printf '  %-18s %10s %10s %10s   %s\n' "uploads (sha256)" "$same" "$same" "–" "PASS"
-  else
+  if [[ "$differ" -gt 0 ]]; then
     printf '  %-18s %10s %10s %10s   %s\n' "uploads (sha256)" "–" "$differ" "–" "FAIL"
     FAILED=1
+  elif [[ "$same" -gt 0 ]]; then
+    COMPARED=$((COMPARED + 1))
+    printf '  %-18s %10s %10s %10s   %s\n' "uploads (sha256)" "$same" "$same" "–" "PASS"
+  elif [[ "$got_files" -eq 0 ]]; then
+    printf '  %-18s %10s %10s %10s   %s\n' "uploads (sha256)" "0" "0" "–" "PASS (the set has no files)"
+  else
+    # Every archived file is gone from UPLOADS_DIR: the set still restores, but nothing could be
+    # compared. Say so instead of printing a PASS that proves nothing.
+    printf '  %-18s %10s %10s %10s   %s\n' "uploads (sha256)" "–" "0" "–" "not compared (all $got_files file(s) drifted)"
   fi
-  [[ "$missing" -gt 0 ]] && info "$missing archived file(s) no longer exist in $UPLOADS_DIR (deleted since the backup — normal drift)"
+  if [[ "$missing" -gt 0 ]]; then info "$missing archived file(s) no longer exist in $UPLOADS_DIR (deleted since the backup — normal drift)"; fi
   info "uploads extracted into a temporary directory (the live $UPLOADS_DIR was not touched)"
 fi
 
@@ -203,7 +231,13 @@ else
   info "no content rows in the restored database (empty library is a valid state)"
 fi
 
-if [[ "$DROP_AFTER" -eq 1 && "$FAILED" -eq 0 ]]; then
+# ── 5. verdict ───────────────────────────────────────────────────────────────
+# A drill that compared nothing is not a passed drill: both a failed comparison and an empty
+# comparison must end in exit 3, so "PASSED" always carries a number.
+VERDICT_OK=1
+if [[ "$FAILED" -eq 1 || "$COMPARED" -eq 0 ]]; then VERDICT_OK=0; fi
+
+if [[ "$DROP_AFTER" -eq 1 && "$VERDICT_OK" -eq 1 ]]; then
   psql "$(url_with_db "$SOURCE_LIBPQ_URL" postgres)" -q -c "DROP DATABASE IF EXISTS \"$DRILL_DATABASE\";" || true
   info "drill database dropped (--drop-after)"
 else
@@ -212,9 +246,13 @@ else
 fi
 
 echo
-if [[ "$FAILED" -eq 0 ]]; then
-  echo "drill PASSED — the backup set restores into an empty database with matching counts."
+if [[ "$VERDICT_OK" -eq 1 ]]; then
+  echo "drill PASSED — the backup set restored into an empty database and $COMPARED comparison(s) against $(basename "$MANIFEST") matched."
   exit 0
 fi
-echo "drill FAILED — see the verdict column above." >&2
+if [[ "$FAILED" -eq 1 ]]; then
+  echo "drill FAILED — see the verdict column above." >&2
+  exit 3
+fi
+echo "drill FAILED — the restore ran, but not one value could be compared against $(basename "$MANIFEST"): the restore is unverified." >&2
 exit 3

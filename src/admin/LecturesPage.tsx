@@ -85,7 +85,7 @@ export default function LecturesPage() {
       />
 
       <div className="bg-sand/70 neu-inset mt-10 rounded-[28px] p-4 sm:p-5">
-        <SearchBar value={query} onChange={setQuery} placeholder="Search title, scholar, series… (also scans URL / Archive identifier)" />
+        <SearchBar value={query} onChange={setQuery} placeholder="Search title, scholar, series… (also scans URL / Archive identifier)" label="Search lectures" />
         <div className="mt-4 flex flex-col gap-3">
           <FilterChips
             options={[

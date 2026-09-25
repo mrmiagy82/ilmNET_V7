@@ -273,7 +273,7 @@ export default function Lectures() {
           <div className="bg-sand/70 neu-inset sticky top-[88px] z-30 rounded-[34px] p-4 sm:p-6">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
               <div className="lg:flex-1">
-                <SearchBar value={inputQ} onChange={setInputQ} placeholder="Search lectures, scholars, series…" />
+                <SearchBar value={inputQ} onChange={setInputQ} placeholder="Search lectures, scholars, series…" label="Search lectures" />
               </div>
               {hasActiveFilters && (
                 <button

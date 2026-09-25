@@ -14,6 +14,13 @@
 #      without this; a backup you have not received is not a backup)
 #   5. free disk space   → above DISK_CRIT/DISK_WARN percent on DISK_PATHS
 #   6. optional database → `SELECT 1` + reported size    (only when DATABASE_URL is set)
+#   7. release identity   → the version/commit /api/health reports, in the log and in the alert, so an
+#      incident says which release was live
+#
+# `--quiet` (for the timer) prints nothing on a healthy run, but a failing run always writes its FAIL
+# lines, the release and the summary to stderr — the journal must show why the watchdog exited 1. A
+# warning on its own stays quiet under --quiet (with --strict, which makes a warning a failure, it is
+# printed as well) so a timer does not repeat the same warning every five minutes.
 #
 # Env: BASE_URL · HEALTH_URL · READY_URL · UPLOADS_DIR · BACKUP_DIR · BACKUP_PREFIX ·
 #      BACKUP_MAX_AGE_HOURS (default 30, 0 = skip) · DISK_PATHS (default: BACKUP_DIR and UPLOADS_DIR) ·
@@ -49,7 +56,7 @@ WARNED=0
 declare -a REPORT=()
 
 die() { echo "error: $*" >&2; exit "${2:-3}"; }
-usage() { sed -n '2,34p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit "${1:-3}"; }
+usage() { sed -n '2,32p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit "${1:-3}"; }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -70,52 +77,61 @@ done
 ok()   { REPORT+=("OK   $*"); }
 warn() { REPORT+=("WARN $*"); WARNED=1; }
 bad()  { REPORT+=("FAIL $*"); FAILED=1; }
-say()  { [[ "$QUIET" -eq 1 ]] || printf '  %s\n' "$*"; }
+# --quiet keeps a healthy run silent (cron/timer mail only when something is wrong) but must never
+# swallow the reason a run failed: the failing lines, the release and the summary still go to stderr, so
+# `journalctl -u ilmnet-healthcheck` shows them. say() must also never return non-zero in quiet mode —
+# it used to end the script through `set -e` before a single line was printed.
+say()  { if [[ "$QUIET" -eq 1 ]]; then return 0; fi; printf '  %s\n' "$*"; }
 
 # Read one flat JSON string field without pulling in a JSON parser: the API answers compact JSON,
 # and we only ever need a handful of fixed keys.
 json_field() { printf '%s' "$1" | grep -o -m1 "\"$2\":\"[^\"]*\"" | cut -d'"' -f4 || true; }
 
 # ── 1 + 2. HTTP checks ───────────────────────────────────────────────────────
+# The response body is handed back through the variable named by the fifth argument (`printf -v`), so a
+# caller can read it. The release used to come from a temp file this function deleted before anything
+# read it, which is why the watchdog could never report which release was live.
 check_http() {
-  local label="$1" url="$2" expect_field="$3" expect_value="$4"
-  local body status code
-  body="$(curl -sS --max-time "$CURL_TIMEOUT" -o /tmp/ilmnet-healthcheck.$$ -w '%{http_code}' "$url" 2>/dev/null || true)"
+  local label="$1" url="$2" expect_field="$3" expect_value="$4" out_var="${5:-}"
+  local tmp body code json
+  tmp="$(mktemp)"
+  body="$(curl -sS --max-time "$CURL_TIMEOUT" -o "$tmp" -w '%{http_code}' "$url" 2>/dev/null || true)"
   code="${body:-000}"
+  json="$(cat "$tmp" 2>/dev/null || true)"
+  rm -f "$tmp"
+  if [[ -n "$out_var" ]]; then printf -v "$out_var" '%s' "$json"; fi
 
   if [[ "$code" != "200" ]]; then
     local detail=""
     [[ "$code" == "503" ]] && detail=" (the API is up but reports degraded/unready — see its JSON body)"
     bad "$label $url → HTTP $code$detail"
-    return
+    return 0
   fi
-  local json
-  json="$(cat /tmp/ilmnet-healthcheck.$$ 2>/dev/null || true)"
   if [[ -n "$expect_field" ]]; then
     local got
     got="$(json_field "$json" "$expect_field")"
     if [[ "$got" != "$expect_value" ]]; then
       bad "$label $url → HTTP 200 but $expect_field=\"$got\" (expected \"$expect_value\")"
-      return
+      return 0
     fi
   fi
   ok "$label $url → HTTP 200${expect_field:+ · $expect_field=$expect_value}"
+  return 0
 }
 
-rm -f /tmp/ilmnet-healthcheck.$$
-check_http "health" "$HEALTH_URL" "status" "ok"
+HEALTH_JSON=""
+check_http "health" "$HEALTH_URL" "status" "ok" HEALTH_JSON
 check_http "ready " "$READY_URL" "status" "ready"
 
-# Report the release the API claims to run (useful in the alert message and the log).
+# Report the release the API claims to run (in the log and in the alert message). Empty when the health
+# check itself failed — the release is then simply unknown, not guessed.
 RELEASE=""
-if [[ -f /tmp/ilmnet-healthcheck.$$ ]]; then
-  HEALTH_JSON="$(cat /tmp/ilmnet-healthcheck.$$ 2>/dev/null || true)"
+if [[ -n "$HEALTH_JSON" ]]; then
   RELEASE="$(json_field "$HEALTH_JSON" version)"
   COMMIT="$(json_field "$HEALTH_JSON" commit)"
-  [[ -n "$COMMIT" ]] && RELEASE="$RELEASE ($COMMIT)"
+  if [[ -n "$COMMIT" ]]; then RELEASE="$RELEASE ($COMMIT)"; fi
 fi
-rm -f /tmp/ilmnet-healthcheck.$$
-[[ -n "$RELEASE" ]] && ok "release reported by /api/health: $RELEASE"
+if [[ -n "$RELEASE" ]]; then ok "release reported by /api/health: $RELEASE"; fi
 
 # ── 3. uploads directory ────────────────────────────────────────────────────
 if [[ -n "$UPLOADS_DIR" ]]; then
@@ -207,9 +223,20 @@ if [[ -n "$DATABASE_URL" ]]; then
 fi
 
 # ── report + alert ──────────────────────────────────────────────────────────
-if [[ "$QUIET" -eq 0 || "$FAILED" -eq 1 || "$WARNED" -eq 1 ]]; then
-  say "ilmNet watchdog — $(date -Is) — ${BASE_URL}"
+if [[ "$QUIET" -eq 0 ]]; then
+  printf '  ilmNet watchdog — %s — %s\n' "$(date -Is)" "${BASE_URL}"
   for line in "${REPORT[@]}"; do say "$line"; done
+elif [[ "$FAILED" -eq 1 || ( "$STRICT" -eq 1 && "$WARNED" -eq 1 ) ]]; then
+  # A failing run leaves evidence in the journal even under --quiet, because the systemd unit starts
+  # this script with --quiet and a silent failure would otherwise be invisible without an alert channel.
+  # A WARN alone stays quiet (except with --strict, which turns it into a failure) so a timer does not
+  # fill the journal with the same warning every five minutes.
+  printf 'ilmNet watchdog — %s — %s\n' "$(date -Is)" "${BASE_URL}" >&2
+  for line in "${REPORT[@]}"; do
+    if [[ "$line" == FAIL* ]]; then printf '  %s\n' "$line" >&2
+    elif [[ "$STRICT" -eq 1 && "$line" == WARN* ]]; then printf '  %s\n' "$line" >&2; fi
+  done
+  if [[ -n "$RELEASE" ]]; then printf '  release: %s\n' "$RELEASE" >&2; fi
 fi
 
 summary=""
@@ -224,15 +251,24 @@ fi
 if [[ "$summary" != "OK" ]]; then
   if [[ -n "${ALERT_WEBHOOK_URL:-}" || -n "${ALERT_MAIL_TO:-}" ]]; then
     body="$(printf '%s\n' "${REPORT[@]}")"
-    severity="warning"; [[ "$FAILED" -eq 1 ]] && severity="critical"
+    severity="warning"; if [[ "$FAILED" -eq 1 ]]; then severity="critical"; fi
     "$SELF_DIR/alert.sh" --subject "ilmNet healthcheck $summary on $(hostname)" \
       --body "$body${RELEASE:+$'\n'release: $RELEASE}" --severity "$severity" || true
   else
-    say "  (set ALERT_WEBHOOK_URL or ALERT_MAIL_TO to receive this by alert instead of only in the log)"
+    # Say this out loud even in quiet mode: it is the difference between "somebody was told" and
+    # "this failure exists only in a journal nobody reads".
+    no_channel="(no alert channel configured: set ALERT_WEBHOOK_URL or ALERT_MAIL_TO — the lines above are the only copy)"
+    if [[ "$QUIET" -eq 1 ]]; then printf '  %s\n' "$no_channel" >&2; else printf '  %s\n' "$no_channel"; fi
   fi
 fi
 
-say "result: $summary (${#REPORT[@]} checks)"
+if [[ "$QUIET" -eq 1 ]]; then
+  if [[ "$FAILED" -eq 1 || ( "$STRICT" -eq 1 && "$WARNED" -eq 1 ) ]]; then
+    printf '  result: %s (%s checks)\n' "$summary" "${#REPORT[@]}" >&2
+  fi
+else
+  say "result: $summary (${#REPORT[@]} checks)"
+fi
 if [[ "$FAILED" -eq 1 ]]; then
   exit 1
 fi

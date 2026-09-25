@@ -130,7 +130,7 @@ export default function Scholars() {
       <section className="px-5 pb-24 sm:px-6 lg:pb-32">
         <div className="mx-auto max-w-[1180px]">
           <div className="bg-sand/70 neu-inset sticky top-[88px] z-30 rounded-[34px] p-4 sm:p-6">
-            <SearchBar value={query} onChange={setQuery} placeholder="Search by scholar or field…" />
+            <SearchBar value={query} onChange={setQuery} placeholder="Search by scholar or field…" label="Search scholars" />
             <div className="mt-4">
               <FilterChips options={subjectOptions} active={specialty} onChange={setSpecialty} allLabel="All fields" />
             </div>

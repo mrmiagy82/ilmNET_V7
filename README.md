@@ -72,14 +72,21 @@ only: never in a `VITE_*` variable, the database, the bundle or the repository.
 ```bash
 # backend (needs PostgreSQL + server/.env)
 cd server
-npm run test:all              # audit, uploads, production readiness, env guards, youtube
+npm run test:all              # audit, uploads, production readiness, env guards, ops, youtube, auth
 npm run test:env              # production env/security regression (13 checks)
+npm run test:ops              # ops scripts: alert payload, watchdog, unit exit codes, drill guard (21 checks)
 npm run test:imports          # live Archive.org/YouTube import regression (needs a running server)
 
 # browser end-to-end (needs a running server + built frontend)
-npm run test:e2e:production   # routes, deep links, error states, mobile, admin
+npm run test:e2e:production   # routes, deep links, error states, mobile, admin, accessible search fields
+npm run test:e2e:auth         # admin sign-in gate, cookie flags, server-side logout
+npm run test:e2e:cms          # admin CMS: real totals, statuses, typed delete confirmation
 npm run test:e2e              # player/waveform, thumbnails, admin upload flow
 ```
+
+The server's production suite and the production e2e suite need **published content** in the database —
+they look for real records and never invent one. On a reference-only database (`npm run seed:reference`)
+the production suite reports 149/154; `docs/CONTEXT.md` §6 (*Test-data condition*) has the exact numbers.
 
 ## Production
 
@@ -104,8 +111,10 @@ cannot be undone must name the record they destroy (`?confirm=<id|slug>`, typed 
 
 Operational scripts live in [`ops/`](ops/README.md): `backup.sh` (database dump + uploads archive +
 manifest), `restore.sh` (explicit target, refuses destructive guesses), `restore-drill.sh` (proves a
-backup set restores into a throwaway database), `offsite-copy.sh` (copies the sets off the host and
-verifies them against the manifest), `healthcheck.sh` (watchdog for health, backup freshness and disk),
+backup set restores into a throwaway database and compares it against the set's manifest — it refuses to
+run without one and names how many comparisons matched), `offsite-copy.sh` (copies the sets off the host
+and verifies them against the manifest), `healthcheck.sh` (watchdog for health, the release the API
+reports, backup freshness and disk; `--quiet` never hides a failure),
 `alert.sh` (webhook/mail alerts) and `deploy-check.sh` (post-deploy smoke test that also proves *which*
 release is live). Systemd timers/services and a logrotate example are included; what only the host can
 do is listed explicitly in [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) §9f.
@@ -137,9 +146,12 @@ pre-launch review of this codebase.
 
 Feature-complete for the current phase and verified end-to-end: 154 production-readiness checks
 (including TLS/HSTS, proxy trust, payload whitelists and the crawler surface), 30 upload/thumbnail
-checks, 13 env-hardening checks, 69 admin-authentication checks, 32 audit checks, 19 import-regression
-checks, 84 production e2e checks and 60 admin-auth e2e checks, and the backup/restore drill succeeds
-against real data — most recently **from an off-site copy** (Fase 5.6). Known scale limits (single-file
+checks, 13 env-hardening checks, 21 ops-script checks (alert payload escaping, the watchdog's release
+line and `--quiet` visibility, systemd exit codes, the restore-drill guard), 69 admin-authentication
+checks, 32 audit checks, 19 import-regression checks, 93 production e2e checks (including the accessible
+names of the search fields) and 60 admin-auth e2e checks, and the backup/restore drill proves a set
+restores with a stated number of comparisons — most recently **from an off-site copy** (Fase 5.6/5.6.1).
+These suites need published content in the database (see *Tests*). Known scale limits (single-file
 bundle, 100-item client pagination, `ILIKE` search) are listed in the Fase 3.9 review; what still has to
 happen on a real host is in `docs/CONTEXT.md` §8.14 and the explicitly host-only checklist in
 `docs/DEPLOYMENT.md` §9f.

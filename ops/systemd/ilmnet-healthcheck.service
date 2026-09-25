@@ -8,9 +8,10 @@
 #   sudo systemctl daemon-reload && sudo systemctl enable --now ilmnet-healthcheck.timer
 #
 # A failing check sends an alert through ops/alert.sh when ALERT_WEBHOOK_URL / ALERT_MAIL_TO are set
-# in that environment file; without them the result only lands in the journal (`journalctl -u
-# ilmnet-healthcheck`). OnFailure is a second safety net: if the unit itself dies (script error), the
-# alert unit runs.
+# in that environment file. Without them the failure is still visible: `--quiet` only silences a
+# healthy run, so `journalctl -u ilmnet-healthcheck` always shows the FAIL lines and the release of a
+# run that exited 1. OnFailure is a second safety net: if the unit itself dies (script error, missing
+# tool), the alert unit runs.
 [Unit]
 Description=ilmNet watchdog (health, readiness, backup freshness, disk)
 Documentation=file:/opt/ilmnet/docs/DEPLOYMENT.md
@@ -26,6 +27,8 @@ ExecStart=/opt/ilmnet/ops/healthcheck.sh --quiet
 User=ilmnet
 Group=ilmnet
 TimeoutStartSec=2min
-# A non-zero exit from the script (a failed check) is expected and already alerted on; do not turn it
-# into a unit failure that fires OnFailure a second time for the same reason.
-SuccessExitStatus=0 1 2
+# Exit 1 means "a check failed". That is expected, handled and already visible (journal + alert), so it
+# must not fire OnFailure a second time for the same reason. Exit 2 (missing tool) and 3 (usage error)
+# are NOT expected: those leave the unit failed and trigger OnFailure on purpose — a watchdog that
+# cannot run is itself an incident, and it used to pass for success.
+SuccessExitStatus=0 1

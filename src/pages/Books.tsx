@@ -241,7 +241,7 @@ export default function Books() {
           <div className="bg-sand/70 neu-inset sticky top-[88px] z-30 rounded-[34px] p-4 sm:p-6">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
               <div className="lg:flex-1">
-                <SearchBar value={inputQ} onChange={setInputQ} placeholder="Search titles, authors, descriptions…" />
+                <SearchBar value={inputQ} onChange={setInputQ} placeholder="Search titles, authors, descriptions…" label="Search books" />
               </div>
               {hasActiveFilters && (
                 <button onClick={clearAll} className="bg-cream neu-raised-sm text-ink hover:text-rose shrink-0 rounded-full px-5 py-3 text-[0.86rem] font-semibold transition-colors">

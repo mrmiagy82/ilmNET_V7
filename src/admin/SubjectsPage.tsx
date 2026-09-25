@@ -52,7 +52,7 @@ export default function SubjectsPage() {
       />
 
       <div className="bg-sand/70 neu-inset mt-10 rounded-[28px] p-4 sm:p-5">
-        <SearchBar value={query} onChange={setQuery} placeholder="Search subjects…" />
+        <SearchBar value={query} onChange={setQuery} placeholder="Search subjects…" label="Search subjects" />
         <div className="mt-4 flex flex-col gap-3">
           <FilterChips
             options={subjectGroups.map((g) => ({ value: g, label: g }))}

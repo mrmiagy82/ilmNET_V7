@@ -21,6 +21,10 @@
 #     service unit is marked failed. The delivery problem is reported on stderr instead.
 #   - message text is sanitised before it leaves the host: credentials in URLs and token-looking
 #     strings are redacted, so an alert cannot become a secret leak in someone's chat channel.
+#   - every value in the JSON payload is escaped, not just the body: a quote in a subject (systemd
+#     passes the failing unit name through `%i`) used to reach the receiver as invalid JSON while
+#     this script still reported success. One builder (`json_payload`) is shared by the dry run and
+#     the real POST so they cannot drift apart.
 #   - `--dry-run` prints exactly what would be sent, and sends nothing. Use it to test a webhook
 #     setup without triggering a false incident.
 #
@@ -38,7 +42,7 @@ DRY_RUN=0
 FROM_STDIN=0
 
 die() { echo "error: $*" >&2; exit "${2:-3}"; }
-usage() { sed -n '2,26p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit "${1:-3}"; }
+usage() { sed -n '2,34p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit "${1:-3}"; }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -68,8 +72,20 @@ sanitize() {
 }
 # JSON string escaping without jq/python: backslashes, quotes and real newlines (the last one matters —
 # a multi-line alert must stay readable in Slack/Discord instead of being flattened into one line).
+# Control characters that would otherwise make the payload invalid JSON (a quote in a systemd `%i`
+# unit name used to reach the receiver raw) are escaped too — every value that goes into the payload
+# runs through this function, not just the body.
 json_escape() {
-  printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | awk 'BEGIN {ORS="\\n"} {print}' | sed 's/\\n$//'
+  printf '%s' "$1" \
+    | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e 's/\t/\\t/g' -e 's/\r//g' -e 's/\x08/\\b/g' -e 's/\x0c/\\f/g' \
+    | awk 'BEGIN {ORS="\\n"} {print}' | sed 's/\\n$//'
+}
+
+# One place builds the payload so the dry run and the real POST cannot drift apart.
+json_payload() {
+  printf '{"service":"%s","host":"%s","severity":"%s","subject":"%s","timestamp":"%s","body":"%s"}' \
+    "$(json_escape "$SERVICE_NAME")" "$(json_escape "$HOSTNAME_SHORT")" "$(json_escape "$SEVERITY")" \
+    "$(json_escape "$SUBJECT_CLEAN")" "$(json_escape "$STAMP")" "$(json_escape "$BODY_CLEAN")"
 }
 
 SUBJECT_CLEAN="$(printf '%s' "$SUBJECT" | sanitize)"
@@ -87,8 +103,7 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   echo "$TEXT"
   if [[ -n "${ALERT_WEBHOOK_URL:-}" ]]; then
     echo "── would POST to ALERT_WEBHOOK_URL (${ALERT_WEBHOOK_URL%%\?*}): ──"
-    printf '{"service":"%s","host":"%s","severity":"%s","subject":"%s","timestamp":"%s","body":"%s"}\n' \
-      "$SERVICE_NAME" "$HOSTNAME_SHORT" "$SEVERITY" "$SUBJECT_CLEAN" "$STAMP" "$(json_escape "$BODY_CLEAN")"
+    printf '%s\n' "$(json_payload)"
   else
     echo "── ALERT_WEBHOOK_URL is not set (a webhook POST is skipped) ──"
   fi
@@ -104,8 +119,7 @@ if [[ -n "${ALERT_WEBHOOK_URL:-}" ]]; then
     echo "alert: ALERT_WEBHOOK_URL is set but curl is not installed — webhook skipped" >&2
     problems=1
   else
-    payload="$(printf '{"service":"%s","host":"%s","severity":"%s","subject":"%s","timestamp":"%s","body":"%s"}' \
-      "$SERVICE_NAME" "$HOSTNAME_SHORT" "$SEVERITY" "$SUBJECT_CLEAN" "$STAMP" "$(json_escape "$BODY_CLEAN")")"
+    payload="$(json_payload)"
     if curl -sS --max-time "${ALERT_TIMEOUT:-10}" -X POST -H 'Content-Type: application/json' \
         --data-binary "$payload" "$ALERT_WEBHOOK_URL" >/dev/null 2>&1; then
       delivered=1

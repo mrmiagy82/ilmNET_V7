@@ -344,7 +344,32 @@ async function main() {
   check(navButtons > 0, `mobile navigation controls are present and tappable (${navButtons} buttons)`);
   await mobile.close();
 
-  // third-party embed scripts (archive.org / YouTube) and the deliberate missing-file 404 are expected
+  console.log('\n--- 8. Accessible names for the search fields (Fase 5.6.1) ---');
+// The end-audit measured one unnamed input on each of these routes: a placeholder is a hint, not an
+// accessible name, so a screen reader announced "edit text" with no label.
+for (const path of ['/lectures', '/books', '/scholars']) {
+  await page.goto(`${SITE}${path}`);
+  await page.waitForTimeout(700);
+  const inputs = await page.$$eval('input', (els) =>
+    els.map((el) => ({
+      name: el.getAttribute('aria-label') ?? el.getAttribute('aria-labelledby') ?? el.labels?.[0]?.textContent ?? '',
+      placeholder: el.getAttribute('placeholder') ?? '',
+      placeholderOnly: !el.getAttribute('aria-label') && !el.getAttribute('aria-labelledby') && !el.labels?.length,
+    })),
+  );
+  check(inputs.length > 0, `${path} renders an input to name (${inputs.length} input(s))`);
+  check(
+    inputs.every((i) => i.name.trim().length > 0),
+    `${path}: every input has an accessible name (${inputs.map((i) => i.name || 'UNNAMED').join(' | ')})`,
+  );
+  const search = inputs.filter((i) => i.placeholder);
+  check(
+    search.length > 0 && search.every((i) => !i.placeholderOnly),
+    `${path}: the search field is named by aria-label, not by its placeholder (${search.map((i) => i.name).join(' | ') || 'none'})`,
+  );
+}
+
+// third-party embed scripts (archive.org / YouTube) and the deliberate missing-file 404 are expected
   const realErrors = consoleErrors.filter(
     (e) =>
       !/favicon|ERR_ABORTED|Failed to load resource/i.test(e) &&

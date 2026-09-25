@@ -5,8 +5,10 @@ Update it after every finished phase, commit, sanity check or significant discov
 Rules: only facts that are verifiable from the repository, Git history or existing docs — and
 **never** secrets, tokens or credentials.
 
-_Last updated: Fase 5.4 (performance & scale: measured on a 20 000-record database — list payloads
-reduced, series pages index-backed, the single-file bundle pre-compressed)._
+_Last updated: Fase 5.6.1 (audit fixes after the Fase 5.1–5.6 end-audit: the restore drill can no
+longer pass without comparing anything, the alert payload escapes every value, the watchdog reports the
+release and never hides a failure behind `--quiet`, the search fields have real accessible names, and
+the HSTS/test-data claims are corrected — §7m)._
 
 The last phases: Fase 5.1 closed the three blockers from the Fase 5 audit (backup + restore, honest
 footer links, TLS/HSTS with a provider-agnostic runbook, §7g). Fase 5.2 hardened the deployment
@@ -30,14 +32,14 @@ uncompressed (631 kB → 157 kB over the wire, −2,3 s on a 3G profile) (§7j).
 | | |
 | --- | --- |
 | Branch | `master` |
-| Codebase state described here | `dd33ea6` (Fase 5.5) **plus** the Fase 5.6 changes in §7l — this document ships in the Fase 5.6 commit |
+| Codebase state described here | `dd33ea6` (Fase 5.5) + Fase 5.6 (§7l) + Fase 5.6.1 (§7m) — this document ships in the Fase 5.6.1 commit |
 | This document | updated in Fase 5.6; its own revision is visible with `git log -1 -- docs/CONTEXT.md` |
 | Working tree | clean (verified against `origin/master`) |
 | Repository | `github.com/mrmiagy82/ilmNET_V7` |
-| Size | 69 source files, ~15.6k lines in `src/` + `server/src/`; the admin (`src/admin/`, 20 files, ~6.5k lines) is the largest area |
-| Build (git-ignored artefact) | single-file `dist/index.html` (657.57 kB raw — the `dist/index.html.gz` variant of 159.34 kB is served when the client accepts gzip). Since Fase 5.5 the four webfont families live next to it in `dist/fonts/` as 14 subset `.woff2` files (582 kB in total, of which a page downloads only the 5–10 subsets it uses) |
-| Phase state | **Fase 5.6 complete**: the operations layer is written down and testable from the repository — a watchdog (health, readiness, backup freshness, disk, optional database), alert delivery, an off-site copy script that verifies itself against the manifest, a post-deploy/rollback smoke test, release identity in `/api/health`, `LOG_LEVEL`, systemd units and a logrotate example. What remains for a host is listed verbatim in §7l and `docs/DEPLOYMENT.md` §9f. Fase 5.5 background (still valid): the public site now carries per-route titles/descriptions/Open Graph, a real 404 page, self-hosted fonts (no Google request), `robots.txt`/`sitemap.xml`/favicon/manifest, a skip link, and the security headers the app can honestly set (§7k). Fase 5.4 background (still valid): the public path was measured on a 20 000-record database and only the measured bottlenecks were changed — the list projection (media keys of `metadata` + card-shaped join rows), the series/collection filter (indexed equality instead of a nine-column ILIKE), the SPA fallback through the static handler, and a pre-compressed single-file bundle. Free-text search and pagination beyond 100 items are **measured and documented**, not changed: they need a trigram index / server-side paging (§7j, §8.16–§8.18) |
-| Roadmap | production finishing, UI/UX and performance toward the definitive live deployment (§9). Fase 5.4 (scale/speed), 5.5 (polish/compliance) and 5.6 (operations/monitoring) are done; what is left is host-side work (§8.14, `docs/DEPLOYMENT.md` §9f) and the optional follow-ups (CI, staging, account UI — §9) |
+| Size | 77 files under `src/` + `server/src/` (76 of them `.ts`/`.tsx`, 17 158 lines; `find src server/src -type f \| wc -l`); the admin (`src/admin/`, 20 files, 6 572 lines) is the largest area |
+| Build (git-ignored artefact) | single-file `dist/index.html` (657.81 kB raw / 657 806 B — the `dist/index.html.gz` variant of 159.38 kB (163 210 B) is served when the client accepts gzip; measured after the Fase 5.6.1 build). Since Fase 5.5 the four webfont families live next to it in `dist/fonts/` as 14 subset `.woff2` files (582 kB in total, of which a page downloads only the 5–10 subsets it uses) |
+| Phase state | **Fase 5.6 complete**: the operations layer is written down and testable from the repository — a watchdog (health, readiness, backup freshness, disk, optional database), alert delivery, an off-site copy script that verifies itself against the manifest, a post-deploy/rollback smoke test, release identity in `/api/health`, `LOG_LEVEL`, systemd units and a logrotate example. What remains for a host is listed verbatim in §7l and `docs/DEPLOYMENT.md` §9f. Fase 5.5 background (still valid): the public site now carries per-route titles/descriptions/Open Graph, a real 404 page, self-hosted fonts (no Google request), `robots.txt`/`sitemap.xml`/favicon/manifest, a skip link, and the security headers the app can honestly set (§7k). Fase 5.4 background (still valid): the public path was measured on a 20 000-record database and only the measured bottlenecks were changed — the list projection (media keys of `metadata` + card-shaped join rows), the series/collection filter (indexed equality instead of a nine-column ILIKE), the SPA fallback through the static handler, and a pre-compressed single-file bundle. Free-text search and pagination beyond 100 items are **measured and documented**, not changed: they need a trigram index / server-side paging (§7j, §8.16–§8.18). Fase 5.6.1 closed the four operational defects and the accessibility defect that the Fase 5.1–5.6 end-audit reproduced, plus the documentation claims that were wrong (§7m) |
+| Roadmap | production finishing, UI/UX and performance toward the definitive live deployment (§9). Fase 5.4 (scale/speed), 5.5 (polish/compliance), 5.6 (operations/monitoring) and 5.6.1 (audit fixes) are done; what is left is host-side work (§8.14, `docs/DEPLOYMENT.md` §9f) and the optional follow-ups (CI, staging, account UI — §9) |
 | Open blockers | none in the repository. Host-side and not verifiable from the repo (Fase 5.6 turned as much of this as possible into scripts and documented steps, §7l): terminating TLS, forwarding `X-Forwarded-Proto`, choosing `TRUST_PROXY` for the real topology, the nightly backup timer plus off-site copies, uptime/alerting, gzip for API JSON at the proxy, public-API rate limiting, and the `frame-ancestors`/CSP decision (§8.14, §8.19). Fase 5.5's own host-only list is in §7k. Data-safety wise nothing is open: the last low-priority item is the `__Host-` cookie prefix (§8.15) |
 
 ## 2. Completed phases (from Git history)
@@ -68,7 +70,8 @@ uncompressed (631 kB → 157 kB over the wire, −2,3 s on a 3G profile) (§7j).
 | `5b1372d` | Fase 5.3 | data & security hardening: legacy token off in production, whitelisted public payloads, confirmed destructive deletes, byte-verified uploads, no path leak in health (see §7i) |
 | `7d090c7` | Fase 5.4 | performance & scale: measured on 20 000 records — reduced list payload, index-backed series filter, SPA fallback via the static handler, pre-compressed bundle (see §7j) |
 | `dd33ea6` | Fase 5.5 | production polish: API JSON compression, self-hosted fonts, per-route meta + Open Graph, 404 page, `robots.txt`/`sitemap.xml`/favicon/manifest, skip link, honest empty states, English-only public copy, security headers, root-absolute asset URLs (see §7k) |
-| _this commit_ | Fase 5.6 | operations & monitoring: watchdog (`healthcheck.sh`), alert delivery (`alert.sh`), off-site copy with manifest verification (`offsite-copy.sh`), post-deploy/rollback smoke test (`deploy-check.sh`), release identity + `LOG_LEVEL` in the API, systemd units + logrotate example, host-only checklist (see §7l) |
+| `0011ac6` | Fase 5.6 | operations & monitoring: watchdog (`healthcheck.sh`), alert delivery (`alert.sh`), off-site copy with manifest verification (`offsite-copy.sh`), post-deploy/rollback smoke test (`deploy-check.sh`), release identity + `LOG_LEVEL` in the API, systemd units + logrotate example, host-only checklist (see §7l) |
+| _this commit_ | Fase 5.6.1 | audit fixes from the Fase 5.1–5.6 end-audit: the restore drill refuses to pass without a comparison, `alert.sh` escapes every JSON value, the watchdog reports the release and prints failures even with `--quiet`, the systemd unit no longer treats a script error as success, `SearchBar` has a real accessible name, and the wrong HSTS/`archive.*`/test-data claims are corrected (see §7m) |
 
 Earlier work is documented per topic in `docs/FASE2A_ARCHIVE.md`, `docs/FASE2B_YOUTUBE.md`,
 `docs/FASE2C_PUBLIC_FRONTEND.md`, `docs/FASE2D_SEARCH_FILTERING.md`,
@@ -114,8 +117,10 @@ by the multipart `Content-Type`.
 
 **List vs detail payloads (Fase 5.4).** A *list* response (up to 100 records) uses the reduced
 projection in `public-payload.ts`: `publicContentList` keeps exactly the same top-level keys but
-carries only the media keys of `metadata` (`youtube.thumbnail`, `archive.*`, `googleBooks.thumbnail`,
-`thumbnail`/`image`/`cover` — everything `src/lib/thumbnail.ts` reads for a card) and card-shaped
+carries only the media keys `metadata` needs for a card (`youtube.thumbnail`, `googleBooks.thumbnail`,
+`archive.thumbnail`, `archive.cover`, `archive.item.thumbnail`, `thumbnail`/`image`/`cover` — precisely
+the keys `src/lib/thumbnail.ts` reads; the *rest* of an `archive` object, e.g. its file list, is
+detail-only) and card-shaped
 nested rows (`id, slug, name, initials, accent` for a scholar, `id, slug, name, group, accent` for a
 subject). A *detail* response keeps the full public shape (bio, tags, publisher, ISBN, the content a
 scholar page embeds). The public list also accepts `collection=<collectionIdentifier>` for an exact,
@@ -275,14 +280,14 @@ empty states, errors) live in the React components — there is no content layer
 | --- | --- | --- |
 | `npx tsc --noEmit` (root + `server/`) | types | 0 errors (Fase 5.5) |
 | `npm run build` (root) | single-file production build + `dist/index.html.gz` (+ `dist/fonts/`, favicons, manifest) | 657.57 kB raw / 159.34 kB gzip, plus 14 font subsets (582 kB, only the used subsets are downloaded) — Fase 5.5 |
-| `cd server && npm run test:all` | audit (32), uploads (30), production readiness (**154**, incl. TLS/HSTS, proxy trust, boot guards, readiness, public payload, delete confirmation, magic bytes, admin posture, list-projection, gzip/304 of the SPA fallback, robots/sitemap/404s/headers/API-JSON compression/font caching, **release identity + `LOG_LEVEL`**), env hardening (13), youtube (+ Data API fallback), **auth (69)** | Fase 5.6: audit 32, uploads 30, production **154**, env 13, auth 69 all green (**298 ✅**); the youtube suite stops at its **live watch-page check** — this sandbox's YouTube access is throttled (302 → `/sorry`, §8.11), unrelated. With YouTube reachable the total is 339 |
+| `cd server && npm run test:all` | audit (32), uploads (30), production readiness (**154**, incl. TLS/HSTS, proxy trust, boot guards, readiness, public payload, delete confirmation, magic bytes, admin posture, list-projection, gzip/304 of the SPA fallback, robots/sitemap/404s/headers/API-JSON compression/font caching, **release identity + `LOG_LEVEL`**), env hardening (13), **`ops` script regression (21, §7m)**, youtube (+ Data API fallback), **auth (69)** | Fase 5.6.1, with published content in the database: audit 32, uploads 30, production **154**, env 13, ops **21**, youtube 14+ cases, auth 69 — **all green, exit 0** (**319 ✅**). Needs content: on a reference-only database the production suite reports **149/154** (§ *Test-data condition*) |
 | `ops/backup.sh` + `ops/restore-drill.sh` | database + uploads backup, then a restore into a throwaway database with count and checksum comparison | PASSED in Fase 5.1 (seven tables + two upload files, §7g) and again in Fase 5.6, that time **from an off-site copy** made by `ops/offsite-copy.sh` (25/8/11 rows and 50+50 joins matching the manifest, §7l) |
-| `ops/healthcheck.sh` · `ops/alert.sh` · `ops/deploy-check.sh` | watchdog (health, readiness, backup freshness, disk, database), alert delivery to a webhook/mail, and an 11-check post-deploy/rollback proof | Fase 5.6: watchdog `OK (7 checks)` on a healthy host and exit 1 with an alert delivered on a dead API / missing backup; deploy check **11 passed, 0 failed** against the production build (§7l) |
+| `ops/healthcheck.sh` · `ops/alert.sh` · `ops/deploy-check.sh` | watchdog (health, readiness, **the release the API reports**, backup freshness, disk, database), alert delivery to a webhook/mail, and an eleven-check post-deploy/rollback proof | Fase 5.6.1: watchdog `result: OK (8 checks)` on a healthy host, **0 bytes** on a healthy `--quiet` run and exit 1 with its FAIL lines + release on stderr on a failing one; the 21-check `ops` regression in the server suite covers the payload escaping, the release line, `--quiet`, the unit's exit codes and the manifest guard (§7m); deploy check **11 passed, 0 failed** against the production build (§7l) |
 | `cd server && npm run test:imports` | live Archive.org + YouTube import regression | 19/19 whenever the provider answers; the live scrape check is the part that fails under Google's throttle (§8.11) |
-| `npm run test:e2e:production` | routes, embeds, **real YouTube playback**, error states, mobile, admin entry (login gate), **footer navigation (17 checks)** | 82/84 (re-run in Fase 5.5, unchanged): the two failing checks are the live playback ones — verified to fail identically in a **bare YouTube embed outside the app** (`yt-probe`), so this sandbox's YouTube playback path is blocked, not the site (§8.11) |
-| `npm run test:e2e` | waveform, thumbnails, admin upload flow | 27/27 |
-| `npm run test:e2e:cms` | admin CMS: real totals, draft→published→archived→restored, collection round-trip, 401 honesty, **typed delete confirmation + `CONFIRM_REQUIRED`** | 34/34 (Fase 5.3) |
-| `npm run test:e2e:auth` | Fase 4.5 gate: username/password sign-in, 401s, cookie flags, deep link, refresh, tampered cookie, server-side logout, no credential in web storage, public site stays free | 60/60 |
+| `npm run test:e2e:production` | routes, embeds, **real YouTube playback**, error states, mobile, admin entry (login gate), footer navigation (17 checks), **accessible names for the search fields (9 checks, Fase 5.6.1)** | Fase 5.6.1: **93/93** (84 + 9) against the production build with 25 published records. Needs published content — a YouTube video, an `RenewingOurIntentions` audio record, an Archive book, a scholar and a subject — and stops at the first missing fixture on an empty library. YouTube throttling can turn the two live-playback checks red (§8.11) |
+| `npm run test:e2e` | waveform, thumbnails, admin upload flow | 27/27 in Fase 5.6; **21/27** in Fase 5.6.1 — all six red checks read the live archive.org stream (playback position, waveform frames/heights), and archive.org itself answered 302 → **500** on the file and **502** on `/metadata` from this sandbox at that moment: external availability (§8.14), not the site |
+| `npm run test:e2e:cms` | admin CMS: real totals, draft→published→archived→restored, collection round-trip, 401 honesty, **typed delete confirmation + `CONFIRM_REQUIRED`** | 34/34 (Fase 5.3), re-run 34/0 in Fase 5.6.1 |
+| `npm run test:e2e:auth` | Fase 4.5 gate: username/password sign-in, 401s, cookie flags, deep link, refresh, tampered cookie, server-side logout, no credential in web storage, public site stays free | 60/60, re-run 60/0 in Fase 5.6.1 |
 
 Browser specs take `SITE_URL`, `API_URL`, `ADMIN_TOKEN` (for their API fixtures) and sign the
 browser in with `ADMIN_USERNAME`/`ADMIN_PASSWORD` (usernames default to `e2e-admin` for the
@@ -301,6 +306,20 @@ working, matching `CORS_ORIGIN`). Mutating suites clean up their
 own records — verify afterwards, and never point them at a database whose content must be preserved.
 Known quirk: `test:imports` deliberately leaves the imported record in place (that is part of what it
 asserts), so run it against a throwaway database or remove the record afterwards.
+
+**Test-data condition (Fase 5.6.1).** Two suites need *published content* in the target database and do
+not create it themselves, so a green run says as much about the data as about the code:
+
+- `cd server && npm run test:all` → the production suite reports **149/154** on a database that only has
+  the reference seed: 2 checks need a published record and 3 compare gzip on a response that stays below
+  the 1 kB compression threshold while the library is empty. With content present it is **154/154**.
+- `npm run test:e2e:production` → its fixtures are real records (a YouTube video, an
+  `RenewingOurIntentions` Archive audio item, an Archive book, a scholar, a subject); on an empty library
+  it stops at the first missing fixture.
+
+Populate the database before judging a red suite: import a handful of records through the admin
+importers, or run `cd server && npm run test:imports` once (that suite deliberately leaves one record
+behind).
 
 **State of these numbers (Fase 5.4):** the numbers above were measured in the same rebuilt sandbox
 (PostgreSQL 17.11). For Fase 5.4 the public path was measured on a purpose-built scale database
@@ -1011,9 +1030,10 @@ and document the rest without pretending it ran. No new dependencies, no schema 
 1. **`ops/healthcheck.sh` — the watchdog.** Checks the deep health endpoint and readiness, uploads
    writability (with a write probe), **backup freshness** (`BACKUP_MAX_AGE_HOURS`, default 30), free disk
    space (`DISK_WARN_PERCENT`/`DISK_CRIT_PERCENT`, default 85/95) and optionally the database
-   (`SELECT 1` + size). Exit 0/1, `--quiet` for timers, `--strict`, `--base`. It sends an alert when
-   nothing is wrong? No — only when something is: alerts on failure, and it says so explicitly when no
-   channel is configured.
+   (`SELECT 1` + size). Exit 0/1, `--quiet` for timers, `--strict`, `--base`. It alerts on failure —
+   and only on failure — and it says so explicitly when no channel is configured. What this paragraph
+   used to claim about the release and about `--quiet` was wrong; §7m records what was actually
+   measured and fixed.
 2. **`ops/alert.sh` — delivery that cannot break the caller.** JSON POST to `ALERT_WEBHOOK_URL` (Slack,
    Discord, Mattermost, ntfy, Healthchecks.io, Uptime Kuma, a relay) and/or `mail` to `ALERT_MAIL_TO`,
    always a copy on stderr, credentials/tokens redacted out of the message, `--dry-run` to test the route
@@ -1078,6 +1098,45 @@ monitoring script useless without anyone noticing.
 
 That is the whole remaining operational surface: nothing in it is a code change, and every item has a
 command or a table in `docs/DEPLOYMENT.md` §9.
+
+## 7m. What Fase 5.6.1 (audit fixes) changed — the Fase 5.1–5.6 end-audit, closed
+
+Instruction: read `AGENTS.md`, this file and the end-audit report, fix **only** the defects the read-only
+end-audit had reproduced, add regression tests for them, correct the documentation claims that were
+wrong, and report which audit points deliberately stay open. No new dependencies, no schema change, no
+redesign, no TinyCMS.
+
+### Fixed (each with the test that pins it)
+
+| # | Reproduced in the audit | Now | Regression test |
+| --- | --- | --- | --- |
+| **P1** | `ops/restore-drill.sh` printed *"drill PASSED — … with matching counts"* and exited 0 while **nothing** was compared: without `BACKUP_DIR` it looked for the manifest in the wrong place, printed "no manifest entry" for all seven tables and skipped every comparison — an off-site set was unverified but green | The manifest is looked up **next to the dump** first (that is how an off-site copy arrives), then in `BACKUP_DIR`; without a manifest the drill refuses to run (exit 1); comparisons are counted and printed, and **0 comparisons is exit 3**. Measured on the same set: the old script → `PASSED`, exit 0; the new script → `drill FAILED — … not one value could be compared`, exit 3; with the manifest beside the dump → `8 comparison(s) … matched`, exit 0 | `server/test/ops.test.ts` (guards + exit codes) and the before/after run above |
+| **P2** | `ops/alert.sh` escaped only the body: `--subject` with a `"` produced invalid JSON at the receiver (`PARSE-ERROR … position 78`) while the script exited 0 | One shared builder (`json_payload`) escapes **every** value for both `--dry-run` and the real POST — backslash, quote, newline, tab, CR, backspace, form feed — and the credential/token redaction is unchanged | `ops.test.ts`: a local receiver parses a POST whose subject contains `"`, the subject round-trips, a tab in the body is escaped, a URL password is still `***` |
+| **P3** | The watchdog deleted the `/api/health` body before reading it, so the release (`version (commit)`) could never reach the log or the alert — that check simply never fired | `check_http` hands the body back through `printf -v`; the log shows `OK release reported by /api/health: 1.0.0 (0011ac6)` and the alert body gains `release: …` | `ops.test.ts`: a stub API proves the log line, and a stub whose `/api/ready` answers 503 proves the release reaches the failing `--quiet` output |
+| **P15** | A failing run with `--quiet` (exactly what the systemd unit starts) wrote **0 bytes** and exited 1, and `SuccessExitStatus=0 1 2` counted a missing tool as success — a fault could stay invisible without an alert channel | `--quiet` still silences a healthy run, but a failing one always writes its FAIL lines, the release and the summary to stderr (a WARN alone stays quiet; `--strict` prints it too); the unit accepts exit 0/1 only, so exit 2/3 fail the unit and fire `OnFailure` | `ops.test.ts`: healthy `--quiet` = 0 bytes/exit 0; failing `--quiet` = exit 1 with `FAIL …`, `result: FAIL` and the "no alert channel" hint on stderr; the unit file is asserted to contain `SuccessExitStatus=0 1` |
+| **P16** | `SearchBar` rendered `<input placeholder="…">` with no label, `aria-label` or `aria-labelledby` (measured on `/lectures`, `/books`, `/scholars`): screen readers announced an unnamed edit field | The component always sets an `aria-label` (an explicit `label` prop, otherwise the placeholder), the three public and four admin call sites pass a short real label ("Search lectures", …), and the decorative magnifier icon is `aria-hidden` | `tests/e2e/production.spec.mjs` section 8 (9 checks): every input has an accessible name and the search field is named by `aria-label`, not by its placeholder |
+| **P5** | `docs/DEPLOYMENT.md` §9a and `healthcheck.env.example` claimed the watchdog *verifies HSTS over https*; no such check exists | Both say what the watchdog really checks and how to verify HSTS (`curl -sI … \| grep -i strict-transport-security`, or `ops/deploy-check.sh` over https) | `ops.test.ts` asserts the env example no longer claims it and shows the curl command |
+| **P6/P7/P17** | Stale self-correction in §7l, `Last updated: Fase 5.4`, "69 source files, ~15.6k lines" (measured 77 files / 17 158 lines) and "a list keeps `archive.*`" (the code keeps three specific keys) | Corrected in §1, §3, §6 and §7l with re-measured numbers | — (documentation) |
+| **P12** | Nothing documented that the production suite and the production e2e suite need published content; a fresh database silently reported 149/154 | §6 has a *Test-data condition* paragraph, with the numbers and how to populate a database; `README.md` and `AGENTS.md` repeat it next to the commands | — (documentation) |
+
+### Verified after the fixes (Fase 5.6.1)
+
+| Step | Result |
+| --- | --- |
+| `npx tsc --noEmit` (root + `server/`) | 0 errors |
+| `npm run build` | `dist/index.html` 657 806 B (657.81 kB); pre-compressed `dist/index.html.gz` 163 210 B (159.38 kB) |
+| `cd server && npm run test:all` (database with 25 published records) | audit 32, uploads 30/0, production **154/0**, env 13/0, **ops 21/0** (new), youtube 14+ cases, auth 69/0 — **exit 0** |
+| `npm run test:e2e:production` | **93/93** (84 + 9 new accessibility checks) |
+| `npm run test:e2e:auth` · `test:e2e:cms` | 60/60 · 34/34 |
+| `npm run test:e2e` (media) | 21/27 — the six red checks read the live archive.org stream, and archive.org itself answered 302 → **500** on the file and **502** on `/metadata` from this sandbox at that moment (§8.14) |
+| Real drill on an off-site layout (dump + manifest together, no `BACKUP_DIR`) | `8 comparison(s) … matched`, exit 0; the same set without a manifest → exit 3 |
+| Watchdog against the production build | `result: OK (8 checks)` incl. the release line; healthy `--quiet` = silent; failing `--quiet` = exit 1 with FAIL lines + release on stderr |
+
+### Deliberately left alone (still open after this phase)
+
+- **P4** — `ops/systemd/ilmnet-alert@.service` still has `$(hostname)` in its `ExecStart` subject (systemd does not expand it; the alert text carries the host anyway). It is outside the instructed fix list.
+- **P8** — the 53 MB `opencode-*.tar.gz` blob stays in the Git history (removing it needs a rewrite); **P9** the dead exports in `ui.tsx`/`thumbnail.ts`/`api.ts` and `src/admin/data.ts`; **P10** `docs/backend-architecture.md` is still a pre-implementation design dossier while `AGENTS.md` calls it the API reference; **P11/P13** the README status line and the ops usage blocks.
+- Not re-opened: the 100-item list cap, the `ILIKE` search (measured, with the pg_trgm recipe in §5e), the non-enforcing CSP, `frame-ancestors` and the `__Host-` cookie prefix.
 
 ## 8. Known remaining issues (not blockers)
 
@@ -1215,6 +1274,12 @@ Fase 5.1 removed the three blockers that were verifiable in the repository; the 
   holds the procedures and §9f the exact host-only list: install the timers, fill the env files, choose
   and test an alert channel, create the external uptime check, set `GIT_COMMIT`, drill from the first
   off-site copy, set log limits.
+- **Phase 5.6.1 — audit fixes (done, §7m).** The Fase 5.1–5.6 end-audit reproduced four operational
+  defects (a drill that could pass without comparing anything, an alert whose JSON broke on a quote in
+  the subject, a watchdog that could never report the release, and a failing `--quiet` run that left an
+  empty log) and one accessibility defect (the public search fields had no accessible name). All five
+  are fixed and covered by regression tests (`server/test/ops.test.ts`, e2e section 8); the wrong
+  HSTS/watchdog claim and the test-data condition are corrected in the docs.
 - **Phase 5.5 — polish and compliance (done, §7k + §7j).** Self-hosted fonts (audit I5, the technical
   half), `robots.txt`/`sitemap.xml`/favicon/manifest/Open Graph (L9), per-route titles and descriptions,
   a real 404 page, a skip link, English-only public copy, honest empty states, the security headers the
