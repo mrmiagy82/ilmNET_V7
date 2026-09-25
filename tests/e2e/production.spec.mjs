@@ -80,7 +80,11 @@ async function main() {
     const matched = expect.test(text) && text.length > 300;
     check(res?.status() === 200 && mounted === 1 && matched, `${label}: ${path} → ${res?.status()}, real page rendered (${text.length} chars)`);
     const header = await page.locator('header').first().innerText().catch(() => '');
-    check(header.length > 0 && !/just a moment/i.test(text), `${label}: renders app chrome, not the landing fallback`);
+    // This context carries no admin token in the browser, so `/admin` must show the admin login gate
+    // (Fase 4.1) instead of CMS chrome — and must not render any part of the CMS.
+    const gate = await page.locator('[data-testid="admin-login"]').count();
+    const chrome = path.startsWith('/admin') ? gate === 1 : header.length > 0;
+    check(chrome && !/just a moment/i.test(text), `${label}: renders app chrome, not the landing fallback`);
   }
 
   const reloadPath = videoPath;
@@ -216,6 +220,15 @@ async function main() {
   await page.waitForTimeout(600);
   const adminText = await page.locator('body').innerText();
   check(/admin/i.test(adminText), 'admin CMS loads from a direct URL');
+  check(/no login/i.test(adminText), 'the public library is documented as login-free right on the admin entry');
+  check(
+    (await page.locator('[data-testid="admin-login"]').count()) === 1,
+    'the CMS is behind an admin login gate (Fase 4.1) when no token is present'
+  );
+  check(
+    !/Add content|Archive\.org Bulk Import|YouTube Bulk Import/.test(adminText),
+    'no CMS chrome leaks before the admin has signed in'
+  );
   check(/token/i.test(adminText), 'admin CMS asks for the admin token (no baked-in secret)');
   check(/PostgreSQL|connected|token/i.test(adminText), 'admin CMS reports the backend/database state and the token requirement');
 

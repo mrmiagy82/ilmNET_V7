@@ -48,6 +48,22 @@ export function hasAdminToken(): boolean {
 }
 
 /**
+ * Ask the real API whether the current token is accepted.
+ *
+ * Used by the admin sign-in flow and by the gate on every page load: a session is never trusted just
+ * because something sits in the session storage — the server decides. Never throws, because the
+ * caller needs a status (200 / 401 / unreachable) rather than an exception.
+ */
+export async function verifyAdminSession(): Promise<{ ok: boolean; status?: number }> {
+  try {
+    await apiFetch<{ data: unknown[] }>("/api/admin/contents?limit=1");
+    return { ok: true };
+  } catch (e: any) {
+    return { ok: false, status: typeof e?.status === "number" ? e.status : undefined };
+  }
+}
+
+/**
  * Resolve a media URL for use in <img>/<audio>.
  * Custom admin uploads are stored as "/uploads/<file>" (served by the backend, proxied in dev).
  * Absolute URLs and data: URIs are returned untouched.
@@ -86,13 +102,13 @@ async function apiFetch<T>(path: string, opts: RequestInit = {}): Promise<T> {
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
     const msg = (body as any)?.error?.message ?? (body as any)?.error?.details ?? res.statusText;
-    const err: ApiError = new Error(
-      res.status === 401
-        ? "Admin token ontbreekt of is ongeldig — voer het token in via Admin → Token."
-        : typeof msg === "string"
-          ? msg
-          : JSON.stringify(msg),
-    );
+      const err: ApiError = new Error(
+        res.status === 401
+          ? "Admin token missing or rejected (401) — sign in again."
+          : typeof msg === "string"
+            ? msg
+            : JSON.stringify(msg),
+      );
     err.status = res.status;
     err.code = (body as any)?.error?.code;
     throw err;

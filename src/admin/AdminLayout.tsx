@@ -2,9 +2,27 @@ import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { Mark, Wordmark } from '../components/Brand';
 import { useAdmin } from './store';
-import { hasAdminToken } from '@/lib/api';
-import AdminTokenPanel from './AdminTokenPanel';
+import { useAdminAuth } from './auth';
 import { Toast } from './ui';
+
+/** Signed-in control: shows that the session is server-verified and lets the operator sign out. */
+function SessionControl() {
+  const { signOut } = useAdminAuth();
+  return (
+    <button
+      type="button"
+      onClick={() => signOut()}
+      data-testid="admin-signout"
+      className="bg-cream neu-raised-sm text-ink-soft hover:text-rose flex w-full items-center justify-center gap-2 rounded-[16px] px-4 py-2.5 text-[0.86rem] font-semibold transition-colors"
+    >
+      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <path d="M15 12H4M11 8l-4 4 4 4" />
+        <path d="M9 4h9a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H9" />
+      </svg>
+      Sign out
+    </button>
+  );
+}
 
 const nav = [
   { to: '/admin', label: 'Overview', end: true },
@@ -44,9 +62,17 @@ function NavItems({ onClick }: { onClick?: () => void }) {
 
 export default function AdminLayout() {
   const [open, setOpen] = useState(false);
-  const [tokenSet, setTokenSet] = useState(() => hasAdminToken());
   const { pathname } = useLocation();
-  const { notice, clearNotice, refresh, apiOnline, backendState } = useAdmin();
+  const { notice, clearNotice, apiOnline, backendState } = useAdmin();
+  const { signOut } = useAdminAuth();
+
+  // A session that the API stops accepting (revoked/rotated token, or a token that was tampered
+  // with) must send the operator back to the login screen instead of leaving a half-working CMS.
+  useEffect(() => {
+    if (backendState === 'unauthenticated') {
+      signOut('This session was rejected by the API (401). Sign in again.');
+    }
+  }, [backendState, signOut]);
 
   const connectionMessage =
     backendState === 'online'
@@ -118,7 +144,8 @@ export default function AdminLayout() {
           </div>
 
           <div className="mt-auto px-2 pt-8">
-            <AdminTokenPanel hasToken={tokenSet} onChanged={() => { setTokenSet(hasAdminToken()); void refresh(); }} />
+            <p className="text-ink-muted mb-3 text-[0.72rem] font-semibold tracking-[0.14em] uppercase">Signed in</p>
+            <SessionControl />
             <Link to="/" className="text-ink-muted hover:text-rose mt-4 block text-[0.86rem] font-semibold transition-colors">
               View library →
             </Link>
@@ -142,7 +169,6 @@ export default function AdminLayout() {
               </span>
             </Link>
             <div className="flex items-center gap-2">
-              <AdminTokenPanel hasToken={tokenSet} onChanged={() => { setTokenSet(hasAdminToken()); void refresh(); }} />
               <Link to="/admin/archive-import" className="bg-olive text-cream grid h-10 w-10 place-items-center rounded-[14px] shadow-[6px_8px_16px_rgba(140,150,100,0.28)]">
                 <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 19V6a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v13" /><path d="M14 19V6a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1Z" /></svg>
               </Link>

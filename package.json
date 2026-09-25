@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "test:e2e": "node tests/e2e/media.spec.mjs",
     "test:e2e:cms": "node tests/e2e/cms.spec.mjs",
+    "test:e2e:auth": "node tests/e2e/admin-auth.spec.mjs",
     "test:e2e:production": "node tests/e2e/production.spec.mjs"
   },
   "dependencies": {

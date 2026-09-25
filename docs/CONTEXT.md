@@ -14,13 +14,13 @@ _Last updated: Fase 4 (TinyCMS)._
 | | |
 | --- | --- |
 | Branch | `master` |
-| Codebase state described here | `2f16540` (Fase 3.10) **plus** the Fase 4 TinyCMS changes in §7 — this document ships in the Fase 4 commit |
-| This document | updated in Fase 4; its own revision is visible with `git log -1 -- docs/CONTEXT.md` |
+| Codebase state described here | `45fc54a` (Fase 4 TinyCMS) **plus** the Fase 4.1 admin-authentication changes in §7c — this document ships in the Fase 4.1 commit |
+| This document | updated in Fase 4.1; its own revision is visible with `git log -1 -- docs/CONTEXT.md` |
 | Working tree | clean (verified against `origin/master`) |
 | Repository | `github.com/mrmiagy82/ilmNET_V7` |
-| Size | 64 source files, ~14.7k lines in `src/` + `server/src/`; the admin (`src/admin/`, 18 files, ~6.4k lines) is the largest area |
-| Build (git-ignored artefact) | single-file `dist/index.html` (~638 kB, ~159.5 kB gzip) |
-| Phase state | Fase 4 TinyCMS complete: real statuses (draft/published/archived), real database totals, honest loading/error states |
+| Size | 66 source files, ~14.9k lines in `src/` + `server/src/`; the admin (`src/admin/`, 20 files, ~6.6k lines) is the largest area |
+| Build (git-ignored artefact) | single-file `dist/index.html` (~642 kB, ~160.5 kB gzip) |
+| Phase state | Fase 4.1 admin authentication complete: everything under `/admin` sits behind a real login that verifies the existing `ADMIN_TOKEN` against the API before any CMS code runs |
 | Open blockers | none |
 
 ## 2. Completed phases (from Git history)
@@ -37,7 +37,8 @@ _Last updated: Fase 4 (TinyCMS)._
 | `cfe8587` | Fase 3.9 | final production codebase review + sanity-check fixes |
 | `f4aad03` | Fase 3.9.1 | honesty of counters, status and copy |
 | `2f16540` | Fase 3.10 | project context + agent continuity (`AGENTS.md`, this file) |
-| _this commit_ | Fase 4 | TinyCMS: archived status, real totals, honest admin states (see §7) |
+| `45fc54a` | Fase 4 | TinyCMS: archived status, real totals, honest admin states (see §7) |
+| _this commit_ | Fase 4.1 | admin authentication: real login gate on the existing `ADMIN_TOKEN` (see §7c) |
 
 Earlier work is documented per topic in `docs/FASE2A_ARCHIVE.md`, `docs/FASE2B_YOUTUBE.md`,
 `docs/FASE2C_PUBLIC_FRONTEND.md`, `docs/FASE2D_SEARCH_FILTERING.md`,
@@ -92,6 +93,16 @@ round-trip unchanged (`draft | published | archived`) and group fields (`series`
 `collectionIdentifier`, `collectionTitle`) survive an edit. Counters come from `pagination.total`
 (one record per query) — never from the capped list and never invented.
 
+**Admin authentication (Fase 4.1).** Every `/admin/*` route is wrapped in `AdminAuthProvider` →
+`AdminGate` → `AdminProvider`. The gate asks the API (`verifyAdminSession()` → `GET /api/admin/contents?limit=1`)
+*before* it mounts anything, so no CMS component, query or route renders before the token is confirmed.
+Three states: `checking` (verification screen), `signed-out` (`AdminLogin`), `signed-in` (the CMS). The
+credential is only ever the existing server-side `ADMIN_TOKEN`: the browser keeps it in
+`sessionStorage` (`ilmnet.adminToken` — tab-scoped, survives a refresh, gone when the tab closes) and
+sends it as `x-admin-token`; it never reaches the URL, `localStorage` or the bundle. The URL is preserved
+across the login, so a deep link such as `/admin/lectures/:id` opens that page after signing in, and any
+401/403 during use ends the session (`signOut`) instead of pretending the backend is down.
+
 **Style.** Neumorphic/spatial UI with the cream/olive/rose palette; no religious symbols or
 decorative clichés; the public site is free and needs no login.
 
@@ -108,8 +119,9 @@ decorative clichés; the public site is free and needs no login.
   otherwise images vanish on redeploy while the database keeps referencing them.
 - Production reference data: `npm run seed:reference` (subjects + scholars only, never content).
   The destructive demo seed refuses to run in production.
-- `server/.env` in this repository is **development only** and stays untracked; the production token
-  is entered by the operator in Admin → Token and is never stored in the repo or the bundle.
+  - `server/.env` in this repository is **development only** and stays untracked; the production token
+    is entered by the operator on the `/admin` login screen (Fase 4.1). It is verified against the API
+    and survives only in that tab's `sessionStorage` — never in the repo, the bundle or `localStorage`.
 - Note for sandboxes: this workspace is ephemeral — dependencies, PostgreSQL and running processes
   are **not** part of the snapshot. Rebuild them (see `README.md` § Local development) before
   running tests, and check `git status` afterwards for stray artefacts.
@@ -131,24 +143,31 @@ decorative clichés; the public site is free and needs no login.
    unreachable” (implemented as `backendState` in `src/admin/store.tsx`).
 6. The API redacts `x-admin-token` / `authorization` headers from its logs
    (`server/src/server.ts`).
+7. `/admin` mounts no CMS code before the API has verified the token (Fase 4.1); a refresh re-verifies,
+   a tampered or expired session falls back to the login screen, and the token never appears in the URL
+   or in `localStorage`.
 
 ## 6. Testing
 
 | Command | What it covers | Last verified result |
 | --- | --- | --- |
 | `npx tsc --noEmit` (root + `server/`) | types | 0 errors |
-| `npm run build` (root) | single-file production build | ~638 kB / ~159.5 kB gzip |
+| `npm run build` (root) | single-file production build | ~642 kB / ~160.5 kB gzip |
 | `cd server && npm run test:all` | audit, uploads (25), production readiness (44), env hardening (13), youtube | all green |
 | `cd server && npm run test:imports` | live Archive.org + YouTube import regression | 19/19 |
-| `npm run test:e2e:production` | routes, embeds, error states, mobile, admin | 61/61 |
+| `npm run test:e2e:production` | routes, embeds, error states, mobile, admin entry (login gate) | 64/64 |
 | `npm run test:e2e` | waveform, thumbnails, admin upload flow | 27/27 |
 | `npm run test:e2e:cms` | TinyCMS: real totals, draft→published→archived→restored, collection round-trip, 401 honesty | 28/28 |
+| `npm run test:e2e:auth` | Fase 4.1 gate: login required, wrong token, deep link, refresh, tampered session, sign-out, public site stays free | 42/42 |
 
 Browser specs take `SITE_URL`, `API_URL` and `ADMIN_TOKEN`; the server suite takes
-`TEST_ADMIN_TOKEN`. Mutating suites clean up their own records — verify afterwards, and never point
-them at a database whose content must be preserved. Known quirk: `test:imports` deliberately leaves
-the imported record in place (that is part of what it asserts), so run it against a throwaway
-database or remove the record afterwards.
+`TEST_ADMIN_TOKEN`. The server suite needs an explicit mode next to a deployment variable
+(`NODE_ENV=test ADMIN_TOKEN=… npm run test:all`) — a boot that sees `ADMIN_TOKEN` without `NODE_ENV`
+refuses to start (Fase 3.8.1). `test:e2e:auth` and `test:e2e:production` expect a production server
+(`NODE_ENV=production`, the same `ADMIN_TOKEN`, matching `CORS_ORIGIN`). Mutating suites clean up their
+own records — verify afterwards, and never point them at a database whose content must be preserved.
+Known quirk: `test:imports` deliberately leaves the imported record in place (that is part of what it
+asserts), so run it against a throwaway database or remove the record afterwards.
 
 ## 7. What Fase 4 (TinyCMS) changed (so it is not re-broken)
 
@@ -193,6 +212,29 @@ touching the schema or adding dependencies:
 - Docs: `docs/FASE3_9_CODEBASE_REVIEW.md` holds the full review, the 3.9.1 fix list and the
   verification table.
 
+## 7c. What Fase 4.1 (admin authentication) changed (so it is not re-broken)
+
+- **`/admin` is a real, gated admin environment.** `src/admin/auth.tsx` (`AdminAuthProvider` /
+  `useAdminAuth`), `src/admin/AdminLogin.tsx` (the login page) and `src/admin/AdminGate.tsx` (the route
+  guard) replaced the old `AdminTokenPanel`. Before this phase the CMS rendered straight away with a
+  token banner; now it cannot render at all until the API has confirmed the token.
+- **The credential stays server-side.** No new secret store, no schema change, no dependency, no mock
+  auth: the only credential is the existing `ADMIN_TOKEN`, the browser carries it in `sessionStorage`
+  and sends it as `x-admin-token`. Sign-in is `setAdminToken()` followed by a real verification call.
+- **Verification, not trust.** `verifyAdminSession()` in `src/lib/api.ts` never throws and returns
+  `{ok, status}`; the gate states are `checking | signed-in | signed-out`. A `runId` ref protects
+  against races, so a slow older verification can never override a newer sign-in or a sign-out.
+- **Honest failure copy.** A rejected token: “That admin token was rejected by the API (401). Check the
+  ADMIN_TOKEN configured on the server.” An unreachable backend changes nothing and says so. Any
+  401/403 during normal use ends the session with “This session was no longer accepted by the API (401).
+  Sign in again.” (`AdminLayout` reacts to `backendState === 'unauthenticated'`.)
+- **Refresh and deep links are safe.** A reload re-verifies against the API, so a tampered or expired
+  session lands back on the login screen. The current URL is preserved across the login, so
+  `/admin/lectures/:id` opens that page after signing in. Sign-out (`admin-signout`) clears the token.
+- **The public side is untouched.** No public route, API or layout changed; the public library needs no
+  login (asserted by the suite). The auth test ids are `admin-login`, `admin-login-token`,
+  `admin-login-submit`, `admin-login-message`, `admin-login-retry`, `admin-gate-checking`, `admin-signout`.
+
 ## 8. Known remaining issues (not blockers)
 
 From `docs/FASE3_9_CODEBASE_REVIEW.md` § Restrisico's plus the 3.9.1 report:
@@ -212,13 +254,16 @@ From `docs/FASE3_9_CODEBASE_REVIEW.md` § Restrisico's plus the 3.9.1 report:
    in `server/src/lib/storage.ts` adds one unused CSS rule to the bundle. Cosmetic; fixable with an
    `@source` scope in `src/index.css`.
 8. **`npm run test:imports` leaves one record** in the target database by design (see §6).
+9. **One shared admin token** — Fase 4.1 authenticates every operator with the single `ADMIN_TOKEN`;
+   there are no per-user accounts, sessions, audit trail or rotation UI (a schema/design change that was
+   out of scope for this phase).
 
 ## 9. Next step
 
-No open blockers: Fase 4 closed the real gaps between the admin and the database (see §7) and every
-suite is green. The next step is a **new user instruction**; the items in §8 are the documented
-candidates if the goal is scale or hardening. Before starting: `git status`,
-`git log --oneline -3`, and re-read this file.
+No open blockers: Fase 4.1 put the CMS behind a real login on the existing `ADMIN_TOKEN` (see §7c),
+Fase 4 closed the gaps between the admin and the database (§7), and every suite is green. The next step
+is a **new user instruction**; the items in §8 are the documented candidates if the goal is scale or
+hardening. Before starting: `git status`, `git log --oneline -3`, and re-read this file.
 
 ## 10. How to keep this file accurate
 

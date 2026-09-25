@@ -6,6 +6,8 @@ import Books from './pages/Books';
 import Scholars from './pages/Scholars';
 import Subjects from './pages/Subjects';
 import { AdminProvider } from './admin/store';
+import { AdminAuthProvider } from './admin/auth';
+import AdminGate from './admin/AdminGate';
 import AdminLayout from './admin/AdminLayout';
 import Overview from './admin/Overview';
 import LecturesPage from './admin/LecturesPage';
@@ -29,7 +31,18 @@ export default function App() {
     <BrowserRouter>
       {/* The admin store is bound to the /admin routes only: public pages must never call admin endpoints. */}
               <Routes>
-          <Route path="admin" element={<AdminProvider><AdminLayout /></AdminProvider>}>
+          <Route
+            path="admin"
+            element={
+              <AdminAuthProvider>
+                <AdminGate>
+                  <AdminProvider>
+                    <AdminLayout />
+                  </AdminProvider>
+                </AdminGate>
+              </AdminAuthProvider>
+            }
+          >
             <Route index element={<Overview />} />
             <Route path="new" element={<ContentWizard />} />
             <Route path="archive-import" element={<ArchiveImportPage />} />
