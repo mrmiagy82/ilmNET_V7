@@ -5,13 +5,13 @@ Update it after every finished phase, commit, sanity check or significant discov
 Rules: only facts that are verifiable from the repository, Git history or existing docs — and
 **never** secrets, tokens or credentials.
 
-_Last updated: D0 discovery foundation (26 september 2026): de gedeelde kaarten, de `Rail`/
-_`SectionHeading` en de centrale content-query staan er — 432 regels dubbele kaartcode weg, 16/16
-_kaarten byte-identiek gerenderd, 15/15 querychecks, 8/8 railcontracten, 17/17 live checks tegen een
-_productie-geconfigureerde instance, e2e 105 groen met dezelfde 3 datagaten als ervoor, merk 222/222
-_(§7q). Geen zichtbare UI-wijziging, geen nieuwe dependency, geen databasewijziging, geen TinyCMS.
-_De environmentregel (§7p) blijft van kracht en D0 staat gepubliceerd op `master` (fast-forward
-_`037756c..ce4ef58`); de promotie- en pushstaat staat in §1 en `docs/RELEASES.md`._
+_Last updated: D1 (26 september 2026): de homepage is een discovery-oppervlak geworden — vier echte
+_rails (nieuw in de bibliotheek, nieuwste lectures, nieuwste boeken, scholars) op echte API-data, met
+_horizontale scroll, paging-knoppen, “Show all” en een rail die zichzelf verbergt bij een fout of een
+_lege uitslag. Het verkeerd gelabelde scholar-blok is weg (audit A1) en elke scholar-tegel linkt naar
+_diens eigen gefilterde lectures (A2). Geen fake Popular/Trending, geen nieuwe dependency, geen
+_databasewijziging, geen TinyCMS (§7r). De environmentregel (§7p) blijft van kracht; promotie- en
+_pushstaat staan in §1 en `docs/RELEASES.md`._
 
 The last phases: Fase 5.1 closed the three blockers from the Fase 5 audit (backup + restore, honest
 footer links, TLS/HSTS with a provider-agnostic runbook, §7g). Fase 5.2 hardened the deployment
@@ -35,16 +35,16 @@ uncompressed (631 kB → 157 kB over the wire, −2,3 s on a 3G profile) (§7j).
 | | |
 | --- | --- |
 | Branch | `master` |
-| Codebase state described here | `ae1c746` (Fase 6.0) + Fase 6.1 (§7o) + environmentregel (§7p) + D0 discovery foundation (§7q) |
-| This document | bijgewerkt voor de environmentregel (§7p) en voor D0 (§7q); de eigen revisie is zichtbaar met `git log -1 -- docs/CONTEXT.md` |
+| Codebase state described here | `ae1c746` (Fase 6.0) + Fase 6.1 (§7o) + environmentregel (§7p) + D0 discovery foundation (§7q) + **D1 landingsrails (§7r)** |
+| This document | bijgewerkt voor de environmentregel (§7p), D0 (§7q) en D1 (§7r); de eigen revisie is zichtbaar met `git log -1 -- docs/CONTEXT.md` |
 | Working tree | D0 begon op `HEAD = 037756c` (= `origin/master`, dus de Git-levering was op dat moment bij) en raakte daarna alleen `src/` + de docs; de 8 mode-only bestanden (`ops/*.sh`, `scripts/precompress.mjs`) zijn sandboxartefacten (uitvoerbare bits) en zijn **niet** meegenomen in de commits. Na de push is `origin/master` == `HEAD` == `ce4ef58` en is de worktree schoon op die 8 mode-only bestanden |
 | Repository | `github.com/mrmiagy82/ilmNET_V7` |
 | Size | 80 files under `src/` + `server/src/` (17 716 lines). `public/brand/` 34 files incl. acht SVG’s (98 962 B); originele PNG/WebP-referenties blijven staan |
-| Build (git-ignored artefact) | D0: single-file `dist/index.html` **659 532 B** (sha256 `1ea6bfb0…`) / `dist/index.html.gz` **164 272 B** — +1 265 B door de hook en de gedeelde kaartmodule — plus `dist/fonts/` (14 subsets), `dist/brand/` (8 SVG’s, 7 favicons) en `dist/manifest.webmanifest` |
-| Phase state | D0 geïmplementeerd, geverifieerd en **gepubliceerd** (`7dc5068` + de release-entry `ce4ef58`, fast-forward naar `origin/master`): `tsc --noEmit` schoon (root + `server/`), `npm run build` ok, 16/16 kaarten byte-identiek t.o.v. HEAD, 15/15 querychecks, 8/8 railcontracten, 17/17 live checks op de productie-geconfigureerde instance (:3101), `test:e2e:production` 105 groen / 3 rood (identiek aan de basislijn ervoor), `test:e2e:brand` 222/222. Stagingpromotie blijft open: er is geen staginghost |
-| Roadmap | discovery in stappen (`docs/ILMNET_DISCOVERY_EXPERIENCE.md` §8): **D0 gedaan** (§7q); D1 landingsrails → D2 bibliotheekrails + eerlijke schaal → D3 scholar-hub → D4 zoeken → D5 detailcontinuïteit → D6 series → D7 optioneel. Daarnaast: staginghost inrichten (environmentregel) en de host-side punten uit §8 |
+| Build (git-ignored artefact) | D1: single-file `dist/index.html` **664 617 B** (sha256 `7f0772d3…`) / `dist/index.html.gz` **165 957 B** — +4 449 B t.o.v. D0 (de rails, de scholar-hook en de Rail-uitbreidingen) — plus `dist/fonts/` (14 subsets), `dist/brand/` (8 SVG’s, 7 favicons) en `dist/manifest.webmanifest` |
+| Phase state | D0 én D1 geïmplementeerd en gepubliceerd; D1 is de eerste zichtbare discoverystap. Bewijs: `tsc --noEmit` schoon (root + `server/`), `npm run build` ok, eigen browserharnas **35/35** (rails gevuld uit de API, eerlijk falen bij fout/leeg, scrollknoppen, “Show all”, scholar-links, mobiel), `test:e2e:production` 105 groen / 3 bekende datagaten, `test:e2e:brand` 222/222, `server:test:all` 409/0. Stagingpromotie blijft open: er is geen staginghost |
+| Roadmap | discovery in stappen (`docs/ILMNET_DISCOVERY_EXPERIENCE.md` §8): D0 + **D1 gedaan** (§7q/§7r); D2 bibliotheekrails + eerlijke schaal → D3 scholar-hub → D4 zoeken → D5 detailcontinuïteit → D6 series → D7 optioneel. Daarnaast: staginghost inrichten (environmentregel) en de host-side punten uit §8 |
 | Brand | Fase 6.1: `public/brand/logo/*.svg` are true, path-only reconstructions of the supplied branding references, not original vector masters. Original font and tiny descriptor details cannot be authenticated; see `brand/SVG_RECONSTRUCTION.md`. The favicon/app icon set and official theme tokens from Fase 6.0 are retained |
-| Open blockers | (1) Geen staginghost: tot die er is kan geen enkele release als “klaar” worden afgerond en draagt elke entry in `docs/RELEASES.md` die afwijking. (2) De vijf eigenaarsbeslissingen Q1–Q5 uit het discoveryplan staan nog open; D1–D7 die ervan afhangen wachten daarop. (3) De host-side punten uit §8 blijven ongewijzigd |
+| Open blockers | (1) Geen staginghost: tot die er is kan geen enkele release als “klaar” worden afgerond en draagt elke entry in `docs/RELEASES.md` die afwijking. (2) De vijf eigenaarsbeslissingen Q1–Q5 uit het discoveryplan staan nog open — D1 heeft ze ontweken waar mogelijk (geen serierail zonder Q2/B1) en wacht er bij D2–D7 op. (3) De host-side punten uit §8 blijven ongewijzigd |
 
 ## 2. Completed phases (from Git history)
 
@@ -1520,6 +1520,97 @@ bestanden aan beide kanten gelijk. Afwijking: **er is nog geen staginghost**, du
 D1 — de discovery-rails op de landingspagina (secties 2, 4, 5 en 7 van plan §4.1) met `Rail` +
 `useContentQuery`, inclusief het vervangen van het verkeerd gelabelde scholar-blok (audit A1) en de
 mobiele overflow-check op 390×844.
+
+## 7r. D1 — de landingsrails: de eerste zichtbare discoverysecties
+
+**Instructie:** zet de eerste zichtbare Discovery Experience op de homepage met **echte backenddata** —
+meerdere horizontale rails, duidelijke koppen, horizontaal scrollbare kaarten, “Show all” waar een
+collectiepagina bestaat, goede mobiele werking, bestaande brand/identiteit, Spotify alleen als
+UX-referentie. Geen fake Popular/Trending, geen verzonnen aantallen, geen nieuwe databasevelden, geen
+TinyCMS, geen nieuwe dependencies, geen LocalStorage, geen productieconfiguratiewijziging, geen
+authwijziging, geen backendherbouw.
+
+### Eerst gemeten: welke echte data bestaat er?
+
+| Vraag | Antwoord uit de repository/database (26 september 2026) |
+| --- | --- |
+| Gepubliceerde content | 10 records: 3 × `lecture`, 2 × `audio`, 4 × `book`, 1 × `document` (5 concepten blijven onzichtbaar) |
+| Soorten sortering die de API aankan | `createdAt`, `updatedAt`, `publishedAt`, `title`, `year` (`sort=field:dir`) — `publishedAt:desc` is dus een echte, geïndexeerde vraag |
+| Filters | `type` (komma-lijst), `provider`, `language`, `collection` (exact, index), `q` (9 kolommen), `scholar`, `subject`, plus `page`/`limit` (max 100) en `pagination.total` |
+| Scholars | 8 gepubliceerd, 5 met gepubliceerd werk; `/api/scholars` geeft `bio` + `specialty` in één keer (zonder `_count`) |
+| Subjects | 11, met echte item-aantallen uit de geladen content |
+| Populariteit / trending / featured | **bestaat niet** en wordt niet verzonnen (§3.3 van het plan) |
+| Series-index | **bestaat niet**: geen endpoint dat collecties groepeert (B1), en de eerlijke tussenweg (B1-alt) is eigenaarsbeslissing Q2 |
+
+Daarom heeft D1 **vier** rails gebouwd die elk op een echte, nu al ondersteunde API-vraag rusten. De
+serie-rail wacht op Q2/B1; een populariteitsrail komt er niet zonder een echt signaal (B4).
+
+### Gebouwd (D1)
+
+| Rail | Echte API-vraag | “Show all” | Waarom deze |
+| --- | --- | --- | --- |
+| **New in the library** | `GET /api/contents?limit=12&sort=publishedAt:desc` (geen `type`-filter) | geen — er is geen pagina die “alles nieuw” betekent, en een link zou een niet-bestaande view beloven | het hele aanbod, nieuwste eerst; hier wisselen boek- en mediakaarten elkaar af (de geometrieritmiek uit plan §2.3) |
+| **Newest lectures** | `GET /api/contents?limit=12&type=lecture,video,audio&sort=publishedAt:desc` | `/lectures` | de luisterplank, nieuwste eerst |
+| **Newest books** | `GET /api/contents?limit=12&type=book,document&sort=publishedAt:desc` | `/books` | de leesplank, nieuwste eerst |
+| **Scholars** | `GET /api/scholars` | `/scholars` | echte scholars in plaats van het verkeerd gelabelde blok (audit A1); elke tegel linkt naar **diens eigen** gefilterde lectures (audit A2) |
+
+Elke rail is precies één verzoek, verbergt zichzelf bij een fout of een lege uitslag, en toont zijn
+aantal uit `pagination.total` (respectievelijk de lengte van de lijst die de API teruggaf). De
+kop-titels van de twee plankrails zijn bewust **niet** “Lectures & lessons” / “Books & treatises”: die
+titels staan al op de drie-schappen-sectie direct erboven (twee secties met dezelfde kop is dubbelzinnig
+voor de bezoeker én voor een schermlezer).
+
+**Nieuwe en gewijzigde bestanden**
+
+| Bestand | Wat |
+| --- | --- |
+| `src/components/LandingRails.tsx` *(nieuw, 143 regels)* | de vier rails; elke rail is één `useContentQuery`/`usePublicScholars` aanroep met een eigen `limit`/`sort` |
+| `src/lib/usePublicScholars.ts` *(nieuw, 60 regels)* | dezelfde contracten als `useContentQuery` (unmount-veilig, `shouldHide`), voor het ene endpoint dat niet pagineert |
+| `src/components/Rail.tsx` | D1-uitbreidingen: `bleed` (scrollen tot de paginagoot, zodat de volgende kaart zichtbaar “piekt”), `align="start"` (kaarten houden hun eigen hoogte), paging-knoppen als echte `<button>`s met `aria-label` en een gemeten `disabled`-eindstand, en een `actions`-slot in `SectionHeading` |
+| `src/components/cards.tsx` | `ContentCard` + `isBookType` (kiest tussen de bestaande `BookCard` en `LectureCard`, geen derde kaartontwerp); `ScholarTile` is nu een echte tegel: `to`, `linkLabel` en optionele tellingen, `specialty` getypeerd in plaats van `as any`, `h-full` zodat rails van gelijke hoogte blijven |
+| `src/lib/contentQuery.ts` | derde shelf `library` (geen `type`-filter) en het `type`-param wordt alleen meegestuurd als er echt een filter is |
+| `src/lib/api.ts` | `BackendScholar.specialty?` — het endpoint stuurt de relatie mee; die stond alleen niet in het type |
+| `src/components/Subjects.tsx` | het `#scholars`-blok (“Every lesson has a teacher.”) dat **subjects** toonde is verwijderd (−62 regels); de subjectpills, hun tellingen en de CTA blijven ongewijzigd |
+| `src/pages/Landing.tsx` | sectieorde: Hero → nieuw → drie schappen → nieuwste lectures → nieuwste boeken → subjects → scholars → hoe het werkt → CTA |
+
+### Bewijs (26 september 2026, development — productie-geconfigureerde instance op `127.0.0.1:3101`)
+
+| Wat | Hoe | Uitkomst |
+| --- | --- | --- |
+| De vier rails | eigen browserharnas tegen de echte API + echte database | **35/35** — per rail: aantal kaarten == wat de API teruggeeft, kop-getal == `pagination.total`, en “Show all” wijst naar de pagina die het zegt |
+| Eerlijk falen | foutinjectie op één endpoint tegelijk | **7/7** — een 500 of een lege uitslag laat de rail **verdwijnen** (geen lege band, geen “0 items”); de andere rails blijven staan; een falende scholar-rail raakt de contentrails niet |
+| Scrollbesturing | klikken + scrollpositie uitlezen | knoppen zijn echte buttons met `aria-label`, “links” is uitgeschakeld aan het begin, klikken scrollt echt (0 → 919 px), de scroller is met Tab bereikbaar |
+| Scholars | tegel-href + API-telling | tegel → `/lectures?scholar=<slug>` en die pagina toont exact het API-aantal van die scholar; tegels tonen **geen** tellingen (die zouden één verzoek per scholar kosten — B2) |
+| Mobiel | 390×844 | geen horizontale pagina-overflow op `/`, `/lectures`, `/books`; de rails renderen en scrollen met swipe |
+| Bestaande contracten | `npm run test:e2e:production` op dezelfde instance | **105 groen / 3 rood** — exact dezelfde drie bekende data-gaten als vóór D1 |
+| Merk | `npm run test:e2e:brand` | **222/222** |
+| Server | `npm run test:all` (echte HTTP-API + echte database) | **409 checks, 0 rood**: audit, uploads 30/30, productie 163/163, env-hardening 13/13, environment 38/38, ops 21/21, auth 69/69 |
+| Typecheck + build | `tsc --noEmit` root + `server/`; `npm run build` | beide schoon; `dist/index.html` **664 617 B** (sha256 `7f0772d3…`) / `.gz` 165 957 B (+4 449 B t.o.v. D0) |
+| Kostprijs van de homepage | netwerkopnames van één paginaweergave | 9 API-verzoeken, samen **55,3 kB**: de drie nieuwe rails 27,2 kB, de bestaande blokken (hero-tellers, subjectpills) 28,1 kB |
+
+### Wat D1 bewust niet doet
+
+- **Geen populariteits-, trending- of featuredrail.** Er is geen echt signaal; B4 is niet aangevraagd.
+- **Geen serierail.** Die vraagt om het collectie-endpoint (B1) of de gelabelde tussenweg (B1-alt) —
+  eigenaarsbeslissing Q2. Liever geen rail dan een half eerlijke.
+- **Geen tellingen op scholar-tegels.** Acht tegels zouden acht verzoeken kosten; het eerlijke
+  server-side “N items” per scholar is B2 (eigenaarsbeslissing). De tegels linken naar de gefilterde
+  lijst, waar het echte aantal staat.
+- **Geen “Load more” en geen volledige eerlijke schaal op de lijstpagina’s** — dat is D2 (audit A5).
+  De D0-kopteller blijft zoals hij is.
+- **Twee bestaande dubbele verzoeken blijven staan** en zijn hier bewust niet aangeraakt: `/api/scholars`
+  wordt twee keer opgehaald (de hero-teller en de scholar-rail — beide echt, 5,2 kB per stuk), en het
+  subjectpills-blok haalt `limit=100` content op om per subject te kunnen tellen (13,6 kB). Dat is
+  bestaande logica uit Fase 5.5 (`Hero.tsx`, `components/Subjects.tsx`), die het plan “exact zo laten”
+  noemt; samenvoegen hoort bij D3/D4, wanneer die pagina’s hun eigen rails krijgen.
+- **Geen server-, schema-, dependency- of configuratiewijziging.** Geen TinyCMS, geen LocalStorage, geen
+  authwijziging; de environmentregel (§7p) blijft ongewijzigd van kracht.
+
+### Volgende stap
+
+D2 — bibliotheekrails en eerlijke schaal op `/lectures` en `/books`: “nieuwste eerst”-strip,
+“Load more” met `page`/`totalPages`, `StatRow` uit `pagination.total` (audit A5) en één gedeelde
+retry/error-afhandeling (audit B4/B5).
 
 ## 8. Known remaining issues (not blockers)
 

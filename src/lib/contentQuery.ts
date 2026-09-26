@@ -10,17 +10,24 @@
  * these params; this module decides what they are.
  */
 
-/** The two public shelves. They are views over the same `contents` table, not separate data. */
-export type ContentShelf = 'lectures' | 'books';
+/**
+ * The public shelves. They are views over the same `contents` table, not separate data.
+ *
+ * `library` (D1) is the whole shelf set at once: the landing page's "new in the library" rail asks for
+ * everything published, in one request, and picks the card per record.
+ */
+export type ContentShelf = 'lectures' | 'books' | 'library';
 
 /**
  * Default `type` filter per shelf — the same values the pages sent before:
  *   /lectures without a format filter → lecture, video, audio
  *   /books without a format filter    → book, document
+ *   library                           → no type filter at all (every published type)
  */
-export const SHELF_TYPES: Record<ContentShelf, string> = {
+export const SHELF_TYPES: Record<ContentShelf, string | null> = {
   lectures: 'lecture,video,audio',
   books: 'book,document',
+  library: null,
 };
 
 /** Filters as they appear in the URL. Empty string and 'all' both mean "no filter". */
@@ -45,10 +52,11 @@ function unset(value: string | undefined): boolean {
  * Maps a URL `type` value onto the API's comma-separated `type` parameter.
  *
  * The API accepts several types at once, which is what makes a shelf possible: a page that shows
- * "lectures" is really asking for lecture + video + audio. Passing an unknown value through unchanged
- * keeps the old behaviour (the API answers with an honest empty result rather than a 500).
+ * "lectures" is really asking for lecture + video + audio. `null` means "send no type filter at all"
+ * (the whole library). Passing an unknown value through unchanged keeps the old behaviour (the API
+ * answers with an honest empty result rather than a 500).
  */
-export function typeFilterToApi(shelf: ContentShelf, type?: string): string {
+export function typeFilterToApi(shelf: ContentShelf, type?: string): string | null {
   const value = (type ?? '').trim();
   if (!value || value === 'all') return SHELF_TYPES[shelf];
 
@@ -59,7 +67,12 @@ export function typeFilterToApi(shelf: ContentShelf, type?: string): string {
     return value;
   }
 
-  if (value === 'book' || value === 'document') return value;
+  if (shelf === 'books') {
+    if (value === 'book' || value === 'document') return value;
+    return value;
+  }
+
+  // A format asked for inside the whole library narrows that request; nothing asked stays unfiltered.
   return value;
 }
 
@@ -74,8 +87,10 @@ export function buildContentParams(
 ): PublicContentParams {
   const params: PublicContentParams = {
     limit: options.limit ?? 100,
-    type: typeFilterToApi(options.shelf, filters.type),
   };
+
+  const type = typeFilterToApi(options.shelf, filters.type);
+  if (type) params.type = type;
 
   const q = filters.q?.trim();
   if (q) params.q = q;

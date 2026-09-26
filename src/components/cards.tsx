@@ -295,12 +295,52 @@ export function CompactContentCard({ c }: { c: BackendContent }) {
   );
 }
 
-/** A scholar tile. Counts are caller-supplied and must come from real data (audit A3/A4). */
-export function ScholarTile({ s, lectureCount, bookCount }: { s: BackendScholar; lectureCount: number; bookCount: number }) {
-  const specialtyName = (s as any).specialty?.name ?? '';
-  const accent = (s as any).accent ?? s.accent ?? 'olive';
+/** True for the two book-shelf types. One definition, so a mixed shelf and a card cannot disagree. */
+export function isBookType(type: BackendContent['type']): boolean {
+  return type === 'book' || type === 'document';
+}
+
+/**
+ * The card for a record whose shelf is not known in advance (D1: the landing's "new in the library"
+ * rail, which mixes every published type). It chooses between the two existing library cards — no new
+ * markup, no third card design: books and documents get the cover card, lectures/videos/audio the
+ * media card. That alternation is the geometry rhythm the discovery plan asks for (§2.3).
+ */
+export function ContentCard({ c }: { c: BackendContent }) {
+  return isBookType(c.type) ? <BookCard c={c} /> : <LectureCard c={c} />;
+}
+
+/**
+ * A scholar tile.
+ *
+ * The counts are caller-supplied and must come from real data (audit A3/A4): the `/scholars` page
+ * counts them over the records it loaded, and a caller that did not measure anything (the landing
+ * rail, which must not fire one request per scholar) simply omits them — then the tile shows no
+ * number at all instead of an invented one.
+ *
+ * The footer link goes to **this** scholar's lectures. Before D1 it pointed at the plain `/lectures`
+ * list, which silently dropped the scholar (audit A2: "View work" showed someone else's work).
+ * Pass `to` to point somewhere else (e.g. the scholar hub once it exists, step D3).
+ */
+export function ScholarTile({
+  s,
+  lectureCount,
+  bookCount,
+  to,
+  linkLabel = 'View work',
+}: {
+  s: BackendScholar;
+  lectureCount?: number;
+  bookCount?: number;
+  to?: string;
+  linkLabel?: string;
+}) {
+  const specialtyName = s.specialty?.name ?? '';
+  const accent = s.accent ?? 'olive';
+  const href = to ?? `/lectures?scholar=${encodeURIComponent(s.slug)}`;
+  const hasCounts = typeof lectureCount === 'number' && typeof bookCount === 'number';
   return (
-    <article className="bg-cream neu-raised group flex flex-col rounded-[30px] p-7 transition-transform duration-500 hover:-translate-y-1.5">
+    <article className="bg-cream neu-raised group flex h-full flex-col rounded-[30px] p-7 transition-transform duration-500 hover:-translate-y-1.5">
       <div className="flex items-center gap-4">
         <div className={`font-display grid h-16 w-16 shrink-0 place-items-center rounded-full text-[1.3rem] font-extrabold neu-inset-sm ${accent === 'rose' ? 'bg-rose/10 text-rose' : 'bg-sand text-olive-deep'}`}>
           {s.initials ?? s.name.slice(0, 2).toUpperCase()}
@@ -313,15 +353,23 @@ export function ScholarTile({ s, lectureCount, bookCount }: { s: BackendScholar;
         </div>
       </div>
 
-      <p className="text-ink-soft mt-5 text-[0.9rem] leading-relaxed line-clamp-3">{s.bio ?? ''}</p>
+      <p className="text-ink-soft mt-5 mb-6 text-[0.9rem] leading-relaxed line-clamp-3">{s.bio ?? ''}</p>
 
-      <Link to="/lectures" className="border-line/70 text-ink-soft mt-6 flex items-center justify-between border-t pt-4 text-[0.82rem] font-medium transition-colors hover:text-rose">
-        <span>{lectureCount} lectures</span>
-        <span>{bookCount} books</span>
-        <span className="text-rose inline-flex items-center gap-1">
-          View work <span aria-hidden="true">→</span>
-        </span>
-      </Link>
+      {hasCounts ? (
+        <Link to={href} className="border-line/70 text-ink-soft mt-auto flex items-center justify-between border-t pt-4 text-[0.82rem] font-medium transition-colors hover:text-rose">
+          <span>{lectureCount} lectures</span>
+          <span>{bookCount} books</span>
+          <span className="text-rose inline-flex items-center gap-1">
+            {linkLabel} <span aria-hidden="true">→</span>
+          </span>
+        </Link>
+      ) : (
+        <Link to={href} className="border-line/70 text-ink-soft mt-auto flex items-center justify-between border-t pt-4 text-[0.82rem] font-medium transition-colors hover:text-rose">
+          <span className="text-rose inline-flex items-center gap-1">
+            {linkLabel} <span aria-hidden="true">→</span>
+          </span>
+        </Link>
+      )}
     </article>
   );
 }

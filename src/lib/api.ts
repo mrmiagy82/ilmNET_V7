@@ -172,6 +172,8 @@ export type BackendScholar = {
   name: string;
   initials: string;
   specialtyId: string | null;
+  /** the specialty subject, when the API includes the relation (`/api/scholars` does). */
+  specialty?: BackendSubject | null;
   bio: string | null;
   accent: "rose" | "olive";
   status: "published" | "draft" | "archived";
