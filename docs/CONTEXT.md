@@ -5,16 +5,13 @@ Update it after every finished phase, commit, sanity check or significant discov
 Rules: only facts that are verifiable from the repository, Git history or existing docs — and
 **never** secrets, tokens or credentials.
 
-_Last updated: D2 (26 september 2026): `/lectures` en `/books` zijn echte discoverypagina’s geworden —
-_een strip met de nieuwste items, de series/collecties uit de geladen set, een eerlijke teller uit
-_`pagination.total`, echte paginering met “Load more” in plaats van een stille `limit=100`, en één
-_gedeeld filterpaneel, één loading/error/empty-pad en één retry voor beide planken (auditpunten A5,
-_B1–B6, D6, D9, D11 op deze twee pagina’s). Alleen echte backenddata: geen Popular/Trending, geen
-_verzonnen volgorde, afleveringnummers of aantallen. Geen nieuwe dependency, geen schemawijziging,
-_geen TinyCMS, geen authwijziging (§7s). De environmentregel (§7p) blijft van kracht; promotie- en
-_pushstaat staan in §1 en `docs/RELEASES.md`. In dezelfde fase is één echte fout in de gedeelde
-_querystack gevonden en gedicht: een request die de browser of het netwerk afbrak werd als “geannuleerd”
-_weggegooid en liet de pagina eeuwig laden (§8 punt 24)._
+_Last updated: D3 (26 september 2026): scholar en subject hebben een eigen pagina geworden —
+_`/scholars` toont de echte scholars en opent `/scholars/:id` met hun werk, `/subjects` laat de
+_afgekapte item-tellers los, en `/subjects/:id` haalt zijn identiteit uit één call in plaats van de
+_browser-fallback (audit A2, A5, A7, D10 en de B/D-punten op deze vier pagina’s). Alle aantallen komen
+_uit `pagination.total` of staan er niet; geen verzonnen statistiek, geen nieuwe dependency, geen
+_schemawijziging, geen backendwijziging (§7t). De environmentregel (§7p) blijft van kracht; promotie- en
+_pushstaat staan in §1 en `docs/RELEASES.md`._
 
 The last phases: Fase 5.1 closed the three blockers from the Fase 5 audit (backup + restore, honest
 footer links, TLS/HSTS with a provider-agnostic runbook, §7g). Fase 5.2 hardened the deployment
@@ -38,14 +35,14 @@ uncompressed (631 kB → 157 kB over the wire, −2,3 s on a 3G profile) (§7j).
 | | |
 | --- | --- |
 | Branch | `master` |
-| Codebase state described here | `ae1c746` (Fase 6.0) + Fase 6.1 (§7o) + environmentregel (§7p) + D0 discovery foundation (§7q) + D1 landingsrails (§7r) + **D2 bibliotheek-discovery (§7s)** |
-| This document | bijgewerkt voor de environmentregel (§7p), D0 (§7q), D1 (§7r) en D2 (§7s); de eigen revisie is zichtbaar met `git log -1 -- docs/CONTEXT.md` |
-| Working tree | D2 begon ná de D1-push (master == HEAD == `8d5a27f`) en raakte alleen `src/` + de docs; de 8 mode-only bestanden (`ops/*.sh`, `scripts/precompress.mjs`) zijn sandboxartefacten (uitvoerbare bits) en zijn **niet** meegenomen in de commits. Na de D2-push hoort `origin/master` == `HEAD` == de D2-commit te zijn en de worktree schoon op die 8 mode-only bestanden |
+| Codebase state described here | `ae1c746` (Fase 6.0) + Fase 6.1 (§7o) + environmentregel (§7p) + D0 discovery foundation (§7q) + D1 landingsrails (§7r) + D2 bibliotheek-discovery (§7s) + **D3 scholar- en subjectpagina’s (§7t, commit `10fa06a`)** |
+| This document | bijgewerkt voor de environmentregel (§7p), D0 (§7q), D1 (§7r), D2 (§7s) en D3 (§7t); de eigen revisie is zichtbaar met `git log -1 -- docs/CONTEXT.md` |
+| Working tree | D3 begon ná de D2-push (master == HEAD == `63d7248`) en raakte alleen `src/` + de docs; de 8 mode-only bestanden (`ops/*.sh`, `scripts/precompress.mjs`) zijn sandboxartefacten (uitvoerbare bits) en zijn **niet** meegenomen in de commits. Na de D3-push hoort `origin/master` == `HEAD` te zijn en de worktree schoon op die 8 mode-only bestanden |
 | Repository | `github.com/mrmiagy82/ilmNET_V7` |
-| Size | 80 files under `src/` + `server/src/` (17 716 lines). `public/brand/` 34 files incl. acht SVG’s (98 962 B); originele PNG/WebP-referenties blijven staan |
-| Build (git-ignored artefact) | D2: single-file `dist/index.html` **667 891 B** (sha256 `9d0abdabc262157bac13f3dcd61dd6fca58cf3dd40d40e42a3d3afa51da06dff`) / `dist/index.html.gz` **167 375 B** — +3 274 B t.o.v. D1 (paging-hook, filterpaneel, lijststaten, nieuwste-strip) — plus `dist/fonts/` (14 subsets), `dist/brand/` (8 SVG’s, 7 favicons) en `dist/manifest.webmanifest`. Een herbouw uit dezelfde bron gaf byte-identiek hetzelfde bestand |
-| Phase state | D0, D1 én D2 geïmplementeerd; D1 is gepubliceerd, D2 is in deze fase gecommit en gepusht. Bewijs D2: `tsc --noEmit` schoon (root + `server/`), `npm run build` ok en reproduceerbaar, eigen browserharnas **47/47** tegen de wegwerp-database met schaaldata, `server:test:all` 409/0, `test:e2e:production` 105/3 (dezelfde drie bekende gaten als vóór D2), `test:e2e:brand` 222/222, `test:e2e:cms` 39/0, `test:e2e:auth` 60/0. Stagingpromotie blijft open: er is geen staginghost |
-| Roadmap | discovery in stappen (`docs/ILMNET_DISCOVERY_EXPERIENCE.md` §8): D0, D1 én **D2 gedaan** (§7q/§7r/§7s); **D3 scholar-hub** → D4 zoeken → D5 detailcontinuïteit → D6 series → D7 optioneel. Daarnaast: staginghost inrichten (environmentregel) en de host-side punten uit §8 |
+| Size | 88 files under `src/` + `server/src/` (*.ts/*.tsx/*.css, geteld met `find … -exec cat {} + | wc -l`), 19 259 regels — D3 voegde 2 bestanden toe, verwijderde er 1 en wijzigde 6 andere (+438 regels netto t.o.v. D2, met dezelfde methode gemeten). `public/brand/` 34 files incl. acht SVG’s (98 962 B); originele PNG/WebP-referenties blijven staan |
+| Build (git-ignored artefact) | D3: single-file `dist/index.html` **672 692 B** (sha256 `384589fe87ee67b9b332c760acd3ea34f0fcf504010cda44486b73e3f1084eaa`) / `dist/index.html.gz` **168 631 B** — +4 801 B t.o.v. D2 (scholarpagina, subjectrails, gedeelde referentiehook) — plus `dist/fonts/` (14 subsets), `dist/brand/` (8 SVG’s, 7 favicons) en `dist/manifest.webmanifest`. Een herbouw uit dezelfde bron gaf byte-identiek hetzelfde bestand |
+| Phase state | D0, D1, D2 én D3 geïmplementeerd; D1 en D2 zijn gepubliceerd, D3 is in deze fase gecommit en gepusht. Bewijs D3: `npx tsc --noEmit` schoon (root én `server/`), `npm run build` ok, eigen browserharnas **51/51** tegen de wegwerp-database met schaaldata, `server:test:all` 409/0, `test:e2e:production` 105/3 (dezelfde drie bekende gaten als vóór D3), `test:e2e:brand` 222/222, `test:e2e:cms` 39/0, `test:e2e:auth` 60/0. Stagingpromotie blijft open: er is geen staginghost |
+| Roadmap | discovery in stappen (`docs/ILMNET_DISCOVERY_EXPERIENCE.md` §8): D0, D1, D2 én **D3 gedaan** (§7q/§7r/§7s/§7t); **D4 zoeken** → D5 detailcontinuïteit → D6 series → D7 optioneel. Daarnaast: staginghost inrichten (environmentregel) en de host-side punten uit §8 |
 | Brand | Fase 6.1: `public/brand/logo/*.svg` are true, path-only reconstructions of the supplied branding references, not original vector masters. Original font and tiny descriptor details cannot be authenticated; see `brand/SVG_RECONSTRUCTION.md`. The favicon/app icon set and official theme tokens from Fase 6.0 are retained |
 | Open blockers | (1) Geen staginghost: tot die er is kan geen enkele release als “klaar” worden afgerond en draagt elke entry in `docs/RELEASES.md` die afwijking. (2) De vijf eigenaarsbeslissingen Q1–Q5 uit het discoveryplan staan nog open — D1 heeft ze ontweken waar mogelijk (geen serierail zonder Q2/B1) en wacht er bij D2–D7 op. (3) De host-side punten uit §8 blijven ongewijzigd |
 
@@ -1751,6 +1748,159 @@ dezelfde kaartbreedtes gebruiken; `LandingRails.tsx` gebruikt die constanten in 
 D3 — de scholar-hub: `/scholars` en `/scholars/:slug` als echte discovery-oppervlakken (nu linkt alles
 naar `/lectures?scholar=<slug>`), met dezelfde gedeelde panelen en staten als D2 hier introduceerde.
 
+## 7t. D3 — scholar- en subjectpagina’s als echte bestemmingen
+
+D3 bouwt op D0 (gedeelde kaarten, `Rail`, `useContentQuery`), D1 (landingsrails) en D2
+(`usePagedContentQuery`, `LibraryFilters`, `ListStates`) voort, met **alleen bestaande infrastructuur**:
+de bestaande API, de bestaande kaarten, de bestaande designtokens — **geen backendwijziging**, geen
+nieuwe dependency, geen schemawijziging, geen authwijziging, geen TinyCMS, geen LocalStorage als
+database. De environmentregel (§7p) blijft ongewijzigd: dit is development-werk, er is nog geen
+staginghost.
+
+### Wat er per pagina veranderd is
+
+**`/scholars` (hub)**
+- De tegel opent nu de scholar zelf: `/scholars/<slug>` (audit A2). Voorheen ging “View work →” naar de
+  ongefilterde `/lectures`, waardoor de scholar uit beeld verdween.
+- De hub haalt **alleen** de twee referentielijsten op (`GET /api/scholars`, `GET /api/subjects`) en
+  doet **0** detailcalls (`/api/scholars/:id`) en **0** `limit=100`-ladingen. De oude tellers kwamen uit
+  een telling in de browser over de eerste 100 contents (audit A5/D10).
+- Zoeken (naam, veld, biografie) en chips per **Field** via het gedeelde `LibraryFilters`, inclusief de
+  mobiele disclosure, `aria-pressed` en de actieve-filterregel (audit B1/D9).
+- Eerlijke staten: skeletonrij, `ListErrorCard` met “Try again” dat **opnieuw ophaalt** in plaats van de
+  pagina te herladen, een `role="status"`-regel (“8 scholars” / “N of 8 scholars in view”), en
+  “No scholars match” (met filters) tegenover “No scholars yet” (zonder) — audit B4/B5/D8/D11.
+- `StatRow` toont `scholars.total` en `subjects.total` uit de API-lijsten; tijdens laden of bij een fout
+  staat er “—” in plaats van een getal.
+
+**`/scholars/:id` (nieuw) — `ScholarDetail`**
+- Nieuwe publieke route in `App.tsx`; de admin-route `scholars/:id` blijft ongemoeid.
+- Identiteit uit `GET /api/scholars/:id` (dat id én slug accepteert): een echte 404 wordt “Not found”
+  met een weg terug, een netwerk- of serverfout wordt “Could not load this scholar” met “Try again”.
+  Er wordt **geen** scholarslijst in de browser gescand om een slug te raden (de oude A7-manier).
+- Werk uit `GET /api/contents?scholar=<slug>` via `usePagedContentQuery`: 24 per pagina, “Load more” met
+  “showing 24 of 39”, en zodra alles binnen is alleen nog het totaal.
+- Elke teller is `pagination.total`: de kopregel (`StatRow`, “Items”), de werkregel en de
+  “Load more”-regel. De serieteller heet “Series in view” — wat er werkelijk geladen is, niet de hele
+  bibliotheek.
+- “Newest first”-rail (12 items, `sort=publishedAt:desc`) verschijnt **alleen** als het oeuvre groter is
+  dan één pagina (anders zou hij de lijst eronder napraten) en vraagt dan ook pas data op.
+  “Series & collections” komt uit `groupByCollection` over de geladen set, met de herkomst in de
+  ondertitel.
+- Lege staat: “Nothing published by <naam> yet” met de eerlijke uitleg dat er nog niets gepubliceerd is;
+  geen rail, geen link en geen statistiek die niets voorstelt. Onbekende slug: “Not found” + “All
+  scholars”.
+- Twee bestaande rails als bestemming: `/lectures?scholar=<slug>` en `/books?scholar=<slug>` (de
+  `scholar=`-filter bestond al sinds D0/D2).
+
+**`/subjects` (hub)**
+- De tegel print **geen** item-aantal meer. Dat aantal werd in de browser geteld over de eerste 100
+  contents en onderrapporteerde stil boven de 100 (audit A5); één echt subject-totaal is er niet in één
+  request, dus laat de tegel het getal weg in plaats van te gokken.
+- Filteren op **Group** met de groepen uit `src/data` (de lijst die de pagina al gebruikte) plus zoeken;
+  de kopteller is `subjects.total`, en het aantal groepen is het aantal groepen dat **werkelijk** in de
+  lijst voorkomt (`groupsInUse`), niet een hardgecodeerd categorie-aantal.
+- Tegels linken naar `/subjects/<slug>`; loading/error/empty en retry zoals op de andere lijsten.
+
+**`/subjects/:id` — `SubjectDetail`**
+- Identiteit uit `GET /api/subjects/:id` (id én slug). De oude weg — detail-endpoint, dan *alle*
+  subjects ophalen en in de browser op slug/id/naam matchen, dan de contents opnieuw opvragen op slug en
+  nog eens op id als het antwoord leeg was (audit A7/D10) — is weg: **maximaal 3 content-calls per
+  render** in plaats van vier rondritten.
+- De structuur blijft: series eerst, dan losse lectures, dan losse boeken — de volgorde die de audit als
+  de juiste voor een subject noemde.
+- Nieuw: een “Newest first”-rail (12 items, `sort=publishedAt:desc`) onder dezelfde voorwaarde als op de
+  scholarpagina, en een “By scholar”-rail uit de **geladen** items (`ScholarMiniCard` →
+  `/scholars/<slug>`) met de ondertitel “The scholars in the N items loaded in this view — open one to
+  see their whole body of work”. Die rail verschijnt alleen als er meer dan één scholar in beeld is; bij
+  één naam zou hij de rest van de pagina napraten.
+- Tellers: items uit `pagination.total`, series als “N series in view”, en de sectiekop
+  “Series — <subject>” blijft.
+
+**Gedeeld**
+- `src/lib/usePublicReference.ts` (nieuw): één hook (`usePublicScholars`/`usePublicSubjects`) met
+  `{data, total, loading, error, shouldHide, retry}` voor beide hubs; `src/lib/usePublicScholars.ts` is
+  verwijderd — één implementatie in plaats van twee die uit elkaar konden lopen.
+- `src/components/cards.tsx`: `MiniScholar` (`Pick<BackendScholar,'id'|'slug'|'name'|'initials'|'accent'>`)
+  en `ScholarMiniCard`. De list-joins van de API dragen geen biografie of specialisme, dus de mini-kaart
+  toont alleen wat er werkelijk is.
+- `src/components/LandingRails.tsx`: de scholar-tegels op de landingspagina linken nu ook naar
+  `/scholars/<slug>` met het label “View work”.
+- `src/components/Subjects.tsx` (het pillenblok op de landingspagina): de pillen droegen een `title` met
+  een item-aantal uit dezelfde afgekapte 100-lading en werden daarop gerangschikt. Dat getal is weg, de
+  volgorde is alfabetisch, en de pagina doet geen bibliotheekverzoek meer voor die telling. Dit was de
+  laatste publieke `limit=100`-plek van audit A5; `SeriesDetail` (D6), `ContentDetail` (D5) en de
+  admin-store blijven staan (zie §8 punt 2).
+
+### Auditpunten die deze fase dicht
+
+| Punt | Wat er nu staat |
+| --- | --- |
+| A2 | scholar-tegels (hub én landingsrail) openen `/scholars/<slug>`; de scholar heeft een eigen pagina met zijn werk |
+| A5 (scholar/subject-kant) | geen stille `limit=100` meer op `Scholars`, `Subjects`, `SubjectDetail` en `components/Subjects.tsx`; tellers uit `pagination.total` of helemaal geen getal. Nog open: `SeriesDetail` (D6), `ContentDetail` (D5), admin-store |
+| A7/D10 | `SubjectDetail` doet geen “haal alle subjects en match in de browser”-fallback meer: één identiteitscall plus paginering, max. 3 content-calls per render |
+| B1 | `Scholars` en `Subjects` gebruiken het gedeelde `LibraryFilters` met mobiele disclosure; zoeken blijft zichtbaar |
+| B4/B5 | één retry-pad (opnieuw ophalen, geen herlaad) en bezoekerstaal op deze vier pagina’s, ook bij netwerkuitval |
+| D8 | de resultaatregels op de nieuwe en herbouwde pagina’s houden `role="status"` + `aria-live="polite"` |
+| D9 | chips met `aria-pressed` en benoemde groepen via `LibraryFilters` |
+| D11 | één loading/error/empty-grens per pagina, inclusief “fout na een geslaagde eerste lading” (“Could not load more — try again”) |
+
+### Wat bewust niet is gedaan
+
+- Geen biografie-sectie op basis van de lijstpayload: de publieke **lijst**respons bevat geen biografie
+  (`server/src/lib/public-payload.ts`); de detailcall levert er wel een en die wordt als intro gebruikt.
+  Geen schemawijziging, geen extra velden.
+- Geen populariteits-, trending- of volgordelijkheidssignaal: dat bestaat niet, dus geen rail en geen
+  sortering die iets suggereert.
+- Geen afleveringnummers of serievolgorde (audit A3 hoort bij D6).
+- Geen per-subject item-aantallen op de hub: dat zou elf requests kosten of liegen.
+- Geen wijziging aan de backend, de database, de auth of de productieconfiguratie.
+
+### Bewijs (26 september 2026, development op een productie-geconfigureerde instance)
+
+- Instantie: `ENVIRONMENT=production NODE_ENV=production` op `127.0.0.1:3121`, gestart zonder `.env`,
+  met `FRONTEND_DIR` naar deze build en **`DATABASE_URL` naar de wegwerp-database `ilmnet_d3_scratch`**;
+  `/api/health` meldde de productieomgeving met de bron `process`.
+- Schaaldata in die wegwerp-database (rijen, geen schemawijziging): 30 extra lectures + 6 boeken, samen
+  **51 contents waarvan 46 gepubliceerd**; `dr-aisha-mahmoud` kreeg 40 links (39 gepubliceerd),
+  `ustadh-tariq-bashir` bleef op 0, subject `ethics-and-adab` kreeg 40 items en 2 scholars,
+  `arabic-language` 36 items en 1 scholar.
+- Eigen browserharnas: **51/51**. Onder andere: de hub toont 8 tegels met de echte teller en doet **0**
+  calls naar `/api/scholars/:id` en **0** `limit=100`-contentcalls; een tegel opent
+  `/scholars/dr-aisha-mahmoud` met de echte paginatitel; de scholarpagina toont 39 items == de
+  `pagination.total` van de API, “showing 24 of 39” bij de eerste lading, en na “Load more” verdwijnt de
+  knop en zegt de regel alleen nog het totaal (39); de nieuwste-strip toont het item dat de API met
+  `sort=publishedAt:desc` als eerste geeft; de serie-rail vermeldt zijn herkomst; `ustadh-tariq-bashir`
+  geeft “0 items” met de eerlijke lege staat en zonder verzonnen statistiek; een onbekende slug geeft
+  “Not found” met een weg terug en zonder ontwikkelaarstaal; de subjectenhub toont 11 tegels, een
+  groepteller van 6 == het aantal groepen in de data, filtert “Revelation” naar 2 van 11 en print op
+  geen enkele tegel een item-aantal; `/subjects/ethics-and-adab` toont 40 items uit `pagination.total`,
+  rendert de by-scholar-rail pas als er echt meer dan één scholar in beeld is (na meer laden: 2 tegels)
+  en houdt zijn sectiestructuur; het subjectscherm doet **3** contentcalls in plaats van de oude
+  vier-ronde-weg; 390×844 zonder horizontale overflow op `/scholars`, `/scholars/dr-aisha-mahmoud`,
+  `/subjects` en `/subjects/fiqh`, met een filterdisclosure die met `aria-expanded` open- en dichtgaat;
+  met geblokkeerde API toont de hub de foutkaart met “Try again” en haalt die retry **in plaats** op
+  zonder de URL te verliezen; en de landingspillen dragen geen afgekapte teller meer en triggeren geen
+  `limit=100`-call.
+- Suites: `npx tsc --noEmit` schoon (root én `server/`), `npm run build` ok en reproduceerbaar
+  (herbouw uit dezelfde bron gaf dezelfde sha256), `server: npm run test:all` **409 checks, 0 fail**
+  (identiek aan de D2-baseline), `test:e2e:production` **105 pass / 3 fail** (exact dezelfde drie
+  bekende gaten als vóór D3: geen echte YouTube-video en geen echte Archive-audio in de seed, plus de
+  pre-existing `TypeError … 'slug'`), `test:e2e:brand` **222/222**, `test:e2e:cms` **39/0**,
+  `test:e2e:auth` **60/0**.
+- `test:e2e:media` is ook nu niet op de seed te draaien (datavoorwaarde, §8 punt 25); dat is geen
+  D3-regressie en de D3-pagina’s komen er niet in voor.
+
+### Database- en testveiligheid tijdens deze fase
+
+- Muterende suites draaiden uitsluitend tegen de wegwerp-database `ilmnet_d3_scratch` (naast de normale
+  `ilmnet`, met dezelfde seed). De testbeheerder `e2e-admin` bestaat alleen in die wegwerp-database; het
+  wachtwoord staat buiten de repo in `/tmp` en is nergens vastgelegd.
+- De normale database is na alle runs gecontroleerd: **15 contents, 10 gepubliceerd, 8 scholars,
+  11 subjects, 1 importjob, 0 admin-accounts**, en een telling op testtitels/-slugs gaf **0**. Er is dus
+  geen testdata in de normale database achtergebleven, en er is geen seed- of productiecontent
+  verwijderd om een test te laten slagen.
+
 ## 8. Known remaining issues (not blockers)
 
 From `docs/FASE3_9_CODEBASE_REVIEW.md` § Restrisico's plus the 3.9.1 report:
@@ -1760,7 +1910,9 @@ From `docs/FASE3_9_CODEBASE_REVIEW.md` § Restrisico's plus the 3.9.1 report:
 2. **100-item lists** — public lists and the admin store fetch up to 100 items per request; growth
    needs server-side pagination / infinite scroll (`pagination.total` already exists, and the admin
    now reports the real total next to the loaded page). Fase 5.4 measured the per-item cost and cut it
-   by 35 % (§7j) but deliberately left the cap itself alone.
+   by 35 % (§7j) but deliberately left the cap itself alone. D2 closed the two library shelves and
+   D3 (§7t) closed `Scholars`, `Subjects`, `SubjectDetail` and the landing's `components/Subjects.tsx`;
+   what remains is `SeriesDetail` (D6), `ContentDetail` (D5) and the admin store.
 3. **Search** is `ILIKE %q%` across several columns; thousands of records need a trigram/full-text
    index.
 4. **No rate limiting** on the public API (a reverse-proxy concern).
@@ -1891,16 +2043,18 @@ From `docs/FASE3_9_CODEBASE_REVIEW.md` § Restrisico's plus the 3.9.1 report:
 
 ## 9. Next step
 
-**Immediate next step: finish Fase 6.1 Git delivery once safe authentication is configured** (§7o),
-then verify a clean working tree and fresh `HEAD == origin/master`. The SVG implementation, build,
-both typechecks and 222 focused branding checks passed; this is not a fresh claim that every
-full-stack suite is green. Earlier backend/CMS/provider results below remain historical.
+**Immediate next step: Fase D4 (global search)** — `/search?q=` gegroepeerd per Content / Scholars /
+Subjects op de bestaande `q`-zoekopdracht en de bestaande referentielijsten, met een ingang in de
+header en dezelfde eerlijke staten als D2/D3 (`docs/ILMNET_DISCOVERY_EXPERIENCE.md` §8, D4). Daarna
+D5 detailcontinuïteit, D6 seriegedrag, D7 optioneel. De Git-levering van de branding- en
+discoveryfasen is gedaan: D0–D3 staan op `origin/master` (zie `docs/RELEASES.md`).
 
 **De environmentregel is nu de poort voor alles wat hierna komt** (§7p, `docs/ENVIRONMENTS.md`). De
 volgorde is niet vrijblijvend:
 
-1. **Eerst leveren wat er lokaal ligt** — de push van `a8f1a88` (+ de commit van deze fase) met veilige
-   credentials, daarna `HEAD == origin/master` controleren. Zonder push kan er niets naar staging.
+1. **Lokaal is geleverd** — de fasen D0–D3 staan op `origin/master` met een schone worktree op de
+   8 mode-only bestanden; elke volgende fase commit en pusht op dezelfde manier. Zonder push kan er
+   niets naar staging.
 2. **Daarna de staginghost inrichten** — DNS/TLS, eigen database, eigen uploadsvolume,
    `/etc/ilmnet/staging.env` met `ENVIRONMENT=staging` + `NODE_ENV=production`, eigen beheerdersaccount,
    dezelfde build erop, en `ops/deploy-check.sh --expect-environment staging` groen krijgen
@@ -1908,8 +2062,10 @@ volgorde is niet vrijblijvend:
 3. **Daarna pas de eerste echte promotie** — ontwikkelen → tests → één keer bouwen → commit → push →
    staging → volledige stagingcontroles → dezelfde release naar productie → productiesmoke, met een
    volledige entry in `docs/RELEASES.md`.
-4. **Inhoudelijk werk daarna**: de auditfixvolgorde uit `docs/LIBRARY_UX_AUDIT.md` §5 en het
-   discoveryplan D0–D7 uit `docs/ILMNET_DISCOVERY_EXPERIENCE.md` — beide nog steeds plan, geen code.
+4. **Inhoudelijk werk daarna**: het discoveryplan D0–D7 uit `docs/ILMNET_DISCOVERY_EXPERIENCE.md` is
+   nu deels code (D0, D1, D2 en D3 zijn geïmplementeerd; D4–D7 staan open), en de open punten uit
+   `docs/LIBRARY_UX_AUDIT.md` §5 lopen mee per fase (D5/D6 voor de resterende `limit=100`-plekken en
+   de seriepunten).
 
 The account/session model from Fase 4.5 (§7f), the provider investigation (§7e) and the cleanup/login
 phases (§7c–§7d) remain as documented; this branding phase changes none of them.
