@@ -45,6 +45,18 @@ Per-command record that belongs in the entry (from `docs/ENVIRONMENTS.md` §5):
 
 ## Releases
 
+### 2026-09-26 — D1 landing discovery rails — `0494fbc` — **verified in development, not yet deployed**
+
+|||
+| --- | --- |
+| What moved | frontend only, **visible**: the landing page now opens with four real content rails — New in the library (`sort=publishedAt:desc`, whole library), Newest lectures (`type=lecture,video,audio`), Newest books (`type=book,document`), Scholars (`/api/scholars`) — each one request, each hiding itself on failure or an empty answer, each with an API-sourced count, real horizontally scrollable cards and an accessible paging control. `Rail` gained `bleed`, `align` and the scroll buttons; `cards.tsx` gained `ContentCard`/`isBookType`; `ScholarTile` became a real destination (its own filtered lectures, audit A2); the mislabelled scholar block on the landing was removed (audit A1). Analysis, decisions and evidence: `docs/CONTEXT.md` §7r (that section shipped in `0494fbc`; this register entry is the follow-up commit) |
+| Development | `npx tsc --noEmit` clean (root + `server/`) · `npm run build` ok · D1 browser harness against the real API and database: **35/35** (per rail: cards == API answer, subtitle == `pagination.total`, “Show all” → the page that exists; failure injection on each endpoint removes that rail and only that rail, never a “0 items”; scroll buttons with `aria-label`, disabled end states, real scrolling; scholar tile → `/lectures?scholar=<slug>` with the exact API count; 390×844 without horizontal overflow) · `test:e2e:production` **105 pass / 3 fail** — the same two media fixture gaps and the pre-existing `TypeError … 'slug'` as before D1 · `test:e2e:brand` **222/222** · `server: npm run test:all` **409 checks, 0 fail** (uploads 30/30, production 163/163, env-hardening 13/13, environment 38/38, ops 21/21, auth 69/69) · measured cost of the landing page: **9 API requests, 55.3 kB** in one page view (the three new rails 27.2 kB, the pre-existing hero/subject blocks 28.1 kB) |
+| Artifact | single-file `dist/index.html` **664 617 B** (sha256 `7f0772d325546fa87acd25bd7d7886d8027c10e9e098190e41eba407dd3e1c3e`) / `.gz` **165 957 B** — +4 449 B over D0 |
+| Staging | **not done** — there is still no staging host (the same deviation as every entry below). The production shape was rehearsed locally: `ENVIRONMENT=production NODE_ENV=production` on `127.0.0.1:3101`, started without a `.env`, `FRONTEND_DIR` pointing at this build |
+| Production | **not done** — follows staging; the production-configured instance served this exact build for every check in the row above |
+| Rollback | previous release `64e8012` (D0); not rehearsed (nothing deployed). Frontend-only and additive: reverting the commit restores the previous bundle |
+| Deviations | (1) **no staging host**, so this release cannot be marked “done” under the environment rule; (2) no Popular/Trending rail (no real signal exists — B4 was never requested) and no series rail (needs B1 or the labelled B1-alt interim, which is owner decision Q2); (3) scholar tiles deliberately show no counts: one request per scholar would be needed, and the honest server-side counter is B2; (4) two **pre-existing** duplicate requests on the landing were left untouched on purpose (`/api/scholars` twice: hero counter + scholar rail; and the subject-pill block's `limit=100` content call) — consolidating them belongs to D3/D4, and the plan says to keep `Hero` as it is |
+
 ### 2026-09-26 — D0 discovery foundation (shared cards, rail, content query) — `7dc5068` — **verified in development, not yet deployed**
 
 |||
