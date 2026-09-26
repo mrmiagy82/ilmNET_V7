@@ -10,8 +10,8 @@ _`SectionHeading` en de centrale content-query staan er — 432 regels dubbele k
 _kaarten byte-identiek gerenderd, 15/15 querychecks, 8/8 railcontracten, 17/17 live checks tegen een
 _productie-geconfigureerde instance, e2e 105 groen met dezelfde 3 datagaten als ervoor, merk 222/222
 _(§7q). Geen zichtbare UI-wijziging, geen nieuwe dependency, geen databasewijziging, geen TinyCMS.
-_De environmentregel (§7p) blijft van kracht; de promotie- en pushstaat staat in §1 en
-_`docs/RELEASES.md`._
+_De environmentregel (§7p) blijft van kracht en D0 staat gepubliceerd op `master` (fast-forward
+_`037756c..ce4ef58`); de promotie- en pushstaat staat in §1 en `docs/RELEASES.md`._
 
 The last phases: Fase 5.1 closed the three blockers from the Fase 5 audit (backup + restore, honest
 footer links, TLS/HSTS with a provider-agnostic runbook, §7g). Fase 5.2 hardened the deployment
@@ -37,11 +37,11 @@ uncompressed (631 kB → 157 kB over the wire, −2,3 s on a 3G profile) (§7j).
 | Branch | `master` |
 | Codebase state described here | `ae1c746` (Fase 6.0) + Fase 6.1 (§7o) + environmentregel (§7p) + D0 discovery foundation (§7q) |
 | This document | bijgewerkt voor de environmentregel (§7p) en voor D0 (§7q); de eigen revisie is zichtbaar met `git log -1 -- docs/CONTEXT.md` |
-| Working tree | D0 begon op `HEAD = 037756c` (= `origin/master`, dus de Git-levering was op dat moment bij) en raakte daarna alleen `src/` + dit document; de 8 mode-only bestanden (`ops/*.sh`, `scripts/precompress.mjs`) zijn sandboxartefacten (uitvoerbare bits) en zijn **niet** meegenomen in de commit. Controleer de staat met `git status -sb` |
+| Working tree | D0 begon op `HEAD = 037756c` (= `origin/master`, dus de Git-levering was op dat moment bij) en raakte daarna alleen `src/` + de docs; de 8 mode-only bestanden (`ops/*.sh`, `scripts/precompress.mjs`) zijn sandboxartefacten (uitvoerbare bits) en zijn **niet** meegenomen in de commits. Na de push is `origin/master` == `HEAD` == `ce4ef58` en is de worktree schoon op die 8 mode-only bestanden |
 | Repository | `github.com/mrmiagy82/ilmNET_V7` |
 | Size | 80 files under `src/` + `server/src/` (17 716 lines). `public/brand/` 34 files incl. acht SVG’s (98 962 B); originele PNG/WebP-referenties blijven staan |
 | Build (git-ignored artefact) | D0: single-file `dist/index.html` **659 532 B** (sha256 `1ea6bfb0…`) / `dist/index.html.gz` **164 272 B** — +1 265 B door de hook en de gedeelde kaartmodule — plus `dist/fonts/` (14 subsets), `dist/brand/` (8 SVG’s, 7 favicons) en `dist/manifest.webmanifest` |
-| Phase state | D0 geïmplementeerd en lokaal geverifieerd, nog **niet** gepubliceerd: `tsc --noEmit` schoon (root + `server/`), `npm run build` ok, 16/16 kaarten byte-identiek t.o.v. HEAD, 15/15 querychecks, 8/8 railcontracten, 17/17 live checks op de productie-geconfigureerde instance (:3101), `test:e2e:production` 105 groen / 3 rood (identiek aan de basislijn ervoor), `test:e2e:brand` 222/222. Stagingpromotie blijft open: er is geen staginghost |
+| Phase state | D0 geïmplementeerd, geverifieerd en **gepubliceerd** (`7dc5068` + de release-entry `ce4ef58`, fast-forward naar `origin/master`): `tsc --noEmit` schoon (root + `server/`), `npm run build` ok, 16/16 kaarten byte-identiek t.o.v. HEAD, 15/15 querychecks, 8/8 railcontracten, 17/17 live checks op de productie-geconfigureerde instance (:3101), `test:e2e:production` 105 groen / 3 rood (identiek aan de basislijn ervoor), `test:e2e:brand` 222/222. Stagingpromotie blijft open: er is geen staginghost |
 | Roadmap | discovery in stappen (`docs/ILMNET_DISCOVERY_EXPERIENCE.md` §8): **D0 gedaan** (§7q); D1 landingsrails → D2 bibliotheekrails + eerlijke schaal → D3 scholar-hub → D4 zoeken → D5 detailcontinuïteit → D6 series → D7 optioneel. Daarnaast: staginghost inrichten (environmentregel) en de host-side punten uit §8 |
 | Brand | Fase 6.1: `public/brand/logo/*.svg` are true, path-only reconstructions of the supplied branding references, not original vector masters. Original font and tiny descriptor details cannot be authenticated; see `brand/SVG_RECONSTRUCTION.md`. The favicon/app icon set and official theme tokens from Fase 6.0 are retained |
 | Open blockers | (1) Geen staginghost: tot die er is kan geen enkele release als “klaar” worden afgerond en draagt elke entry in `docs/RELEASES.md` die afwijking. (2) De vijf eigenaarsbeslissingen Q1–Q5 uit het discoveryplan staan nog open; D1–D7 die ervan afhangen wachten daarop. (3) De host-side punten uit §8 blijven ongewijzigd |
@@ -1506,6 +1506,14 @@ laad-/lege toestanden.
 - **Geen scholar-hub, geen zoekpagina, geen seriecontinuïteit.** Dat is D3/D4/D5.
 - **Geen server-, schema- of dependencywijziging.** Geen TinyCMS, geen LocalStorage, geen aanpassing van
   de environmentregel of de productieconfiguratie.
+
+### Levering
+
+D0 is in drie commits gepubliceerd: `7dc5068` (de basis), `ce4ef58` (deze fase in `docs/CONTEXT.md`
+§7q + de entry in `docs/RELEASES.md`) en de correctie daarop, als fast-forward `037756c..ce4ef58` naar
+`origin/master`. Na de push is `master` == lokaal `HEAD` en is de blob-id van alle twaalf geraakte
+bestanden aan beide kanten gelijk. Afwijking: **er is nog geen staginghost**, dus de promotie volgens
+§7p staat open — zoals bij elke eerdere fase.
 
 ### Volgende stap
 
