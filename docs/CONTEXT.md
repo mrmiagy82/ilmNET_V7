@@ -1588,6 +1588,17 @@ voor de bezoeker én voor een schermlezer).
 | Typecheck + build | `tsc --noEmit` root + `server/`; `npm run build` | beide schoon; `dist/index.html` **664 617 B** (sha256 `7f0772d3…`) / `.gz` 165 957 B (+4 449 B t.o.v. D0) |
 | Kostprijs van de homepage | netwerkopnames van één paginaweergave | 9 API-verzoeken, samen **55,3 kB**: de drie nieuwe rails 27,2 kB, de bestaande blokken (hero-tellers, subjectpills) 28,1 kB |
 
+### Testhygiëne tijdens deze verificatie (en wat er hersteld is)
+
+De serversuite (`npm run test:all`) en de productie-e2e draaien tegen de **ontwikkeldatabase** en muteren
+die. Na de D1-run stond de database niet meer in de seed-staat: de productiesuite had — als onderdeel van
+de destructieve-actiecontroles — een **bestaand gepubliceerd record** hard verwijderd (`Opening the
+Qurʾān: Sūrat al-Fātiḥah`), en de productie-e2e was gecrasht op de bekende `TypeError … 'slug'`
+waardoor het testrecord “E2E missing thumbnail …” bleef staan. Beide zijn hersteld: het testrecord is
+verwijderd, de idempotente seed opnieuw gedraaid, en de database staat weer op 15 contents (10
+gepubliceerd + 5 concept), 11 subjects, 8 scholars en 1 importjob — precies de staat waarin de
+railcontroles hierboven zijn gemeten. Zie §8 punt 23 voor de regel die hieruit volgt.
+
 ### Wat D1 bewust niet doet
 
 - **Geen populariteits-, trending- of featuredrail.** Er is geen echt signaal; B4 is niet aangevraagd.
@@ -1720,6 +1731,18 @@ From `docs/FASE3_9_CODEBASE_REVIEW.md` § Restrisico's plus the 3.9.1 report:
 22. **`frame-ancestors`/`X-Frame-Options` and the CSP promotion belong to the host** (`docs/DEPLOYMENT.md`
     §5f). The app deliberately sends no framing rule: ilmNet is embeddable and embeds third parties
     itself; a preview pane or a link-preview card would break.
+23. **The mutating suites change whatever database they are pointed at — including by deleting real
+      content.** Measured on 26 September 2026 (D1): `server/test/production.test.ts` archives a draft and
+      then performs a **confirmed hard delete on an existing published record** to prove the destructive-
+      action guards work (`test/production.test.ts:795-827`); its cleanup only removes the rows the suite
+      itself created (`:894-895`), so that published record is gone for good. On a demo database that costs
+      content — after the D1 `npm run test:all` run one seeded published lecture was missing and the
+      idempotent `npm run seed` was needed to restore the 15-content/10-published state. `tests/e2e/
+      production.spec.mjs` additionally creates a published record with a deliberately missing thumbnail
+      and deletes it in its cleanup block (`:149, :490-492`) — but only if the run reaches that block: the
+      known `TypeError … 'slug'` aborts the suite earlier, and the fixture stayed behind until it was
+      removed by hand. Rule that follows: **point these suites at a throwaway database**, and verify the
+      state afterwards — the `AGENTS.md` warning about mutating suites now has a measured example.
 
 ## 9. Next step
 
