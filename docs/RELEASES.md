@@ -45,7 +45,7 @@ Per-command record that belongs in the entry (from `docs/ENVIRONMENTS.md` §5):
 
 ## Releases
 
-### 2026-09-26 — Environment rule (three environments, build-once promotion) — `4743478` — **verified in development, not yet deployed**
+### 2026-09-26 — Environment rule (three environments, build-once promotion) — `d833e65` — **verified in development, not yet deployed**
 
 | | |
 | --- | --- |
