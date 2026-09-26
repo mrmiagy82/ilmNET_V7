@@ -344,9 +344,9 @@ async function main() {
   check(navButtons > 0, `mobile navigation controls are present and tappable (${navButtons} buttons)`);
   await mobile.close();
 
-  console.log('\n--- 8b. Official brand assets (Fase 6.0) ---');
-// The package's production files (brand/ASSET_MANIFEST.txt) are the only branding in the UI: every
-// visible mark is one of the delivered raster assets, served as WebP with a PNG fallback.
+  console.log('\n--- 8b. Transparent vector brand assets (Fase 6.1) ---');
+// Path-only SVG reconstructions of the official references, not raster fallbacks. The dedicated
+// brand.spec.mjs also checks all eight variants, transparency and 100/400/1000% rendering.
 const brandProbe = await page.goto(`${SITE}/`);
 const brandHtml = await brandProbe.text();
 check(brandHtml.includes('/brand/favicon/favicon-32.png'), 'index.html links the official 32px favicon');
@@ -360,7 +360,7 @@ for (const [path, label] of [['/', 'home'], ['/lectures', 'lectures'], ['/books'
     const imgs = [...document.querySelectorAll('img[src*="/brand/"]')];
     return imgs.map((i) => ({
       src: i.getAttribute('src'),
-      webp: i.closest('picture')?.querySelector('source[type="image/webp"]')?.getAttribute('srcset') ?? null,
+      currentSrc: i.currentSrc,
       w: i.getAttribute('width'),
       h: i.getAttribute('height'),
       rendered: i.getBoundingClientRect().width,
@@ -375,8 +375,8 @@ for (const [path, label] of [['/', 'home'], ['/lectures', 'lectures'], ['/books'
     `${label}: the logo loads and keeps its proportions (${logo?.rendered.toFixed(0)}px wide, natural ${logo?.loaded})`,
   );
   check(
-    Boolean(logo?.webp) && (logo?.src ?? '').endsWith('.png'),
-    `${label}: WebP is offered first with the PNG as fallback (${logo?.webp} / ${logo?.src})`,
+    (logo?.src ?? '').endsWith('.svg') && (logo?.currentSrc ?? '').endsWith('.svg'),
+    `${label}: the browser displays the vector SVG, not a raster fallback (${logo?.currentSrc})`,
   );
   check(
     Number(logo?.w) > 0 && Number(logo?.h) > 0,

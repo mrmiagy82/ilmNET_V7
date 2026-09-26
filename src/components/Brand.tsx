@@ -1,42 +1,46 @@
 /**
- * IlmNet brand assets (Fase 6.0).
+ * IlmNet vector logos (Fase 6.1).
  *
- * The official, supplied logo files live in `public/brand/logo/` (see `brand/ASSET_MANIFEST.txt`).
- * Nothing here is drawn: every mark is one of the delivered raster assets, served as WebP with the
- * original PNG as fallback. The component only sets the size and the alt text.
+ * `public/brand/logo/*.svg` contains transparent path-only reconstructions of the supplied branding
+ * references — not an original vector master. The symbol, wordmark and descriptor are outlines;
+ * they need no font, embedded bitmap or CSS drawing. See `brand/SVG_RECONSTRUCTION.md` for provenance,
+ * comparisons and the limits of the low-resolution originals. PNG/WebP files remain as references,
+ * but are never requested by this component.
  *
- * Why `primary` and not `horizontal` in the header: the package prescribes minimum widths (120 px on
- * desktop, 80 px on small screens) and the brand slot in the navigation is 40 px tall. `primary` is
- * 3:1, so 40 px tall = exactly 120 px wide — the widest of the supplied wordmark variants at that
- * height. `horizontal` (1.86:1) would need 43 px of height for its 80 px minimum and 65 px for the
- * desktop minimum, which does not fit the existing header without redesigning it.
- *
- * Deliberately not used anywhere (`brand/BRAND_IMPLEMENTATION.md` allows every variant to stay
- * available): `horizontal` (see above), `primary-dark` and the two `monochrome` variants (the UI has no
- * dark surface), `icon/ilmnet-icon.*` (no spot needs a 1024 px icon — the app icons come from the
- * supplied favicon set) and `social/ilmnet-profile-1080.png` (no social profile in this repository).
+ * Keep the original artboards and placements: the 3:1 primary fits the 40px desktop header at the
+ * package's 120px minimum, and the 36px mobile header at 108px. The horizontal variant's 1.86:1
+ * artboard would need a taller header; selecting it must not silently redesign the navigation.
  */
 
-type Variant = 'primary' | 'horizontal' | 'stacked' | 'smallScale' | 'iconOnly';
+type Variant =
+  | 'primary'
+  | 'primaryDark'
+  | 'horizontal'
+  | 'stacked'
+  | 'smallScale'
+  | 'iconOnly'
+  | 'monochromeDark'
+  | 'monochromeLight';
 
-/** Intrinsic sizes of the delivered files — used for the width/height attributes (no layout shift). */
+/** ViewBox dimensions match the reference artboards, reserving space without layout shift. */
 const ASSETS: Record<Variant, { path: string; width: number; height: number }> = {
-  primary: { path: 'logo/ilmnet-logo-primary-light', width: 450, height: 150 },
-  horizontal: { path: 'logo/ilmnet-logo-horizontal', width: 345, height: 185 },
-  stacked: { path: 'logo/ilmnet-logo-stacked', width: 310, height: 185 },
-  smallScale: { path: 'logo/ilmnet-logo-small-scale', width: 215, height: 115 },
-  iconOnly: { path: 'logo/ilmnet-logo-icon-only', width: 210, height: 185 },
+  primary: { path: 'ilmnet-logo-primary-light', width: 450, height: 150 },
+  primaryDark: { path: 'ilmnet-logo-primary-dark', width: 345, height: 115 },
+  horizontal: { path: 'ilmnet-logo-horizontal', width: 345, height: 185 },
+  stacked: { path: 'ilmnet-logo-stacked', width: 310, height: 185 },
+  smallScale: { path: 'ilmnet-logo-small-scale', width: 215, height: 115 },
+  iconOnly: { path: 'ilmnet-logo-icon-only', width: 210, height: 185 },
+  monochromeDark: { path: 'ilmnet-logo-monochrome-dark', width: 310, height: 115 },
+  monochromeLight: { path: 'ilmnet-logo-monochrome-light', width: 280, height: 115 },
 };
 
 export type BrandLogoVariant = Variant;
 
 /**
- * One supplied logo file, sized by its container.
- *
- * `className` carries the size — a height (`h-9 sm:h-10`) or a width (`w-32`) — and lands on the <img>.
- * The declared width/height attributes are the file's real pixel size, so the browser reserves the right
- * box before the image loads. Set `label=""` where the surrounding element already names the brand (the
- * header link has `aria-label="IlmNet home"`), keep the default where the logo *is* the link text.
+ * `className` sets a height or width on the sizing wrapper, not the image. Its explicit aspect ratio
+ * avoids an intrinsic-width image stretching the header. Both `h-9 sm:h-10` and `w-32` work.
+ * Use `label=""` inside an already named link; otherwise the logo's alt text names the brand.
+ * `primaryDark` / `monochromeLight` need a dark host surface — the SVG never supplies a background.
  */
 export function BrandLogo({
   variant = 'primary',
@@ -50,19 +54,13 @@ export function BrandLogo({
   title?: string;
 }) {
   const asset = ASSETS[variant];
-  // The size lives on the <picture>, with the file's own aspect ratio: `width: auto` on a block-level
-  // image does NOT follow the ratio (it fills the shrink-to-fit parent, which is the intrinsic width —
-  // that silently stretched the logo to 450 px and squeezed it to the header's height). Setting the
-  // ratio here means a height class (h-9) or a width class (w-32) both work, and the image fills the box
-  // without distortion.
   return (
-    <picture
+    <span
       className={`inline-block shrink-0 ${className}`}
       style={{ aspectRatio: `${asset.width} / ${asset.height}` }}
     >
-      <source srcSet={`/brand/${asset.path}.webp`} type="image/webp" />
       <img
-        src={`/brand/${asset.path}.png`}
+        src={`/brand/logo/${asset.path}.svg`}
         alt={label}
         title={title}
         width={asset.width}
@@ -70,6 +68,6 @@ export function BrandLogo({
         decoding="async"
         className="h-full w-full object-contain"
       />
-    </picture>
+    </span>
   );
 }

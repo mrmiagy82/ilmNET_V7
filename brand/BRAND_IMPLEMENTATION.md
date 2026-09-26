@@ -8,6 +8,11 @@ The approved logo direction is **Concept 04 — Minimal Modern**.
 
 Use the supplied assets as the visual source of truth.
 
+**Fase 6.1:** the website now uses transparent, path-only SVG reconstructions in
+`public/brand/logo/`. The supplied PNG/WebP files remain the reference evidence, not runtime logo
+fallbacks. These are reconstructed vectors, not recovered original masters; see
+[`SVG_RECONSTRUCTION.md`](SVG_RECONSTRUCTION.md) for the complete set, checks and typography limits.
+
 ## Official colors
 
 - Background: `#F3EBDD`
@@ -24,13 +29,14 @@ Wordmark:
 
 Use the following files from `/public/brand/`:
 
-- `logo/ilmnet-logo-primary-light.png`
-- `logo/ilmnet-logo-primary-dark.png`
-- `logo/ilmnet-logo-horizontal.png`
-- `logo/ilmnet-logo-stacked.png`
-- `logo/ilmnet-logo-monochrome-dark.png`
-- `logo/ilmnet-logo-monochrome-light.png`
-- `logo/ilmnet-logo-small-scale.png`
+- `logo/ilmnet-logo-primary-light.svg`
+- `logo/ilmnet-logo-primary-dark.svg`
+- `logo/ilmnet-logo-horizontal.svg`
+- `logo/ilmnet-logo-stacked.svg`
+- `logo/ilmnet-logo-monochrome-dark.svg`
+- `logo/ilmnet-logo-monochrome-light.svg`
+- `logo/ilmnet-logo-small-scale.svg`
+- `logo/ilmnet-logo-icon-only.svg`
 - `icon/ilmnet-icon.png`
 - `favicon/favicon-16.png`
 - `favicon/favicon-32.png`
@@ -71,11 +77,18 @@ Use `/brand/og/ilmnet-og-1200x630.png` as the default social sharing image unles
 
 ## Important source note
 
-These logo assets are production raster references generated from the approved final logo-system presentation. A true vector master/SVG has not been supplied in this package.
+The original package contains raster references generated from the approved final logo-system
+presentation, with opaque backgrounds/texture. It supplied neither a vector master nor a source font.
+Fase 6.1 adds eight independently reconstructed SVGs: real outlines only, no embedded PNG/WebP,
+no background plane, no font dependency. Existing filenames/roles and reference artboards are retained.
 
-Do not claim that these PNGs are SVGs or recreate them inaccurately.
+Do not describe those reconstructions as mathematically exact original font outlines. The readable
+uppercase descriptor was cleaned up from the largest reference; the smallest raster letter details
+and the original typeface cannot be authenticated. The cropped longer presentation payoff is omitted,
+not invented. See `SVG_RECONSTRUCTION.md` for the precise limits and visual inspection record.
 
-If a true SVG master is later produced, replace the raster logo assets with the verified SVG while keeping the same filenames/roles where practical.
+If original vector artwork is later supplied, verify it against the existing roles, palette,
+transparency and layout before replacing the reconstructions.
 
 ## Do not change
 

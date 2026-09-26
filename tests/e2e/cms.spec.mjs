@@ -222,8 +222,8 @@ async function main() {
   );
   check(realErrors.length === 0, `no unexpected console errors in the admin (${realErrors.slice(0, 2).join(' | ').slice(0, 120)})`);
 
-  // ── Fase 6.0: the signed-in CMS carries the official brand assets ────────────────────────────
-  console.log('\n--- 12. Official brand assets in the signed-in CMS (Fase 6.0) ---');
+  // ── Fase 6.1: the signed-in CMS carries the vector reconstructions ────────────────────────────
+  console.log('\n--- 12. Vector brand assets in the signed-in CMS (Fase 6.1) ---');
   await page.goto(`${SITE}/admin/lectures`, { waitUntil: 'networkidle' });
   await page.waitForTimeout(600);
   const cmsBrand = await page.evaluate(() => {
@@ -232,7 +232,7 @@ async function main() {
       const r = i.getBoundingClientRect();
       return {
         src: i.getAttribute('src'),
-        webp: i.closest('picture')?.querySelector('source[type="image/webp"]')?.getAttribute('srcset') ?? null,
+        currentSrc: i.currentSrc,
         w: Math.round(r.width),
         h: Math.round(r.height),
         loaded: i.complete && i.naturalWidth > 0,
@@ -246,7 +246,7 @@ async function main() {
     cmsBrand.some((i) => i.src?.includes('ilmnet-logo-small-scale') && i.w >= 80),
     `the admin sidebar uses the small-scale variant at >=80px width (${cmsBrand.filter((i) => i.src?.includes('small-scale')).map((i) => `${i.w}x${i.h}`).join(', ') || 'not rendered'})`,
   );
-  check(cmsBrand.every((i) => Boolean(i.webp)), 'each CMS brand image offers WebP with the PNG as fallback');
+  check(cmsBrand.every((i) => i.src?.endsWith('.svg') && i.currentSrc.endsWith('.svg')), 'each CMS brand image is a vector SVG, without a raster fallback');
   check(
     cmsBrand.every((i) => i.alt !== null),
     `every CMS brand image declares an alt attribute (${cmsBrand.map((i) => JSON.stringify(i.alt)).join(', ')})`,

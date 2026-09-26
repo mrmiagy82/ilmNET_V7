@@ -5,9 +5,10 @@ Update it after every finished phase, commit, sanity check or significant discov
 Rules: only facts that are verifiable from the repository, Git history or existing docs — and
 **never** secrets, tokens or credentials.
 
-_Last updated: Fase 6.0 (brand implementation: the supplied IlmNet brand package replaces the
-code-drawn wordmark and the self-made favicon set, the official colour tokens are applied where they
-belong, and the delivered social card is deliberately **not** published — §7n)._
+_Last updated: Fase 6.1 (26 September 2026): eight transparent path-only SVG reconstructions,
+shared BrandLogo integration and 222/222 focused branding checks — §7o. Original raster references,
+favicons and backend/auth/database code are unchanged. Git delivery still requires configured safe
+push authentication; do not infer remote equality from this document._
 
 The last phases: Fase 5.1 closed the three blockers from the Fase 5 audit (backup + restore, honest
 footer links, TLS/HSTS with a provider-agnostic runbook, §7g). Fase 5.2 hardened the deployment
@@ -31,16 +32,16 @@ uncompressed (631 kB → 157 kB over the wire, −2,3 s on a 3G profile) (§7j).
 | | |
 | --- | --- |
 | Branch | `master` |
-| Codebase state described here | `dd33ea6` (Fase 5.5) + Fase 5.6 (§7l) + Fase 5.6.1 (§7m) + Fase 6.0 (§7n) — this document ships in the Fase 6.0 commit |
-| This document | updated in Fase 5.6; its own revision is visible with `git log -1 -- docs/CONTEXT.md` |
-| Working tree | clean (verified against `origin/master`) |
+| Codebase state described here | `ae1c746` (Fase 6.0) + Fase 6.1 (§7o); this document ships with the SVG reconstruction commit |
+| This document | updated in Fase 6.1; its own revision is visible with `git log -1 -- docs/CONTEXT.md` |
+| Working tree | the phase began clean at `master == origin/master == ae1c746`; verify the current delivery state with `git status -sb` and both commit IDs — push is not confirmed at this documentation checkpoint |
 | Repository | `github.com/mrmiagy82/ilmNET_V7` |
-| Size | 77 files under `src/` + `server/src/` (76 of them `.ts`/`.tsx`, 17 186 lines; `find src server/src -type f \| wc -l`); the admin (`src/admin/`, 20 files, 6 572 lines) is the largest area. Brand assets: 25 files / 1,1 MB in `public/brand/`, copied verbatim from `brand/` (32 files) per `brand/ASSET_MANIFEST.txt` |
-| Build (git-ignored artefact) | single-file `dist/index.html` (657.84 kB raw / 657 837 B) plus `dist/brand/` with the official logo/icon files; the `dist/index.html.gz` variant of 159.69 kB (163 527 B) is served when the client accepts gzip (measured after the Fase 6.0 build). Since Fase 5.5 the four webfont families live next to it in `dist/fonts/` as 14 subset `.woff2` files (582 kB in total, of which a page downloads only the 5–10 subsets it uses) |
-| Phase state | **Fase 5.6 complete**: the operations layer is written down and testable from the repository — a watchdog (health, readiness, backup freshness, disk, optional database), alert delivery, an off-site copy script that verifies itself against the manifest, a post-deploy/rollback smoke test, release identity in `/api/health`, `LOG_LEVEL`, systemd units and a logrotate example. What remains for a host is listed verbatim in §7l and `docs/DEPLOYMENT.md` §9f. Fase 5.5 background (still valid): the public site now carries per-route titles/descriptions/Open Graph, a real 404 page, self-hosted fonts (no Google request), `robots.txt`/`sitemap.xml`/favicon/manifest, a skip link, and the security headers the app can honestly set (§7k). Fase 5.4 background (still valid): the public path was measured on a 20 000-record database and only the measured bottlenecks were changed — the list projection (media keys of `metadata` + card-shaped join rows), the series/collection filter (indexed equality instead of a nine-column ILIKE), the SPA fallback through the static handler, and a pre-compressed single-file bundle. Free-text search and pagination beyond 100 items are **measured and documented**, not changed: they need a trigram index / server-side paging (§7j, §8.16–§8.18). Fase 5.6.1 closed the four operational defects and the accessibility defect that the Fase 5.1–5.6 end-audit reproduced, plus the documentation claims that were wrong (§7m) |
-| Roadmap | production finishing, UI/UX and performance toward the definitive live deployment (§9). Fase 5.4 (scale/speed), 5.5 (polish/compliance), 5.6 (operations/monitoring), 5.6.1 (audit fixes) and 6.0 (brand implementation) are done; what is left is host-side work (§8.14, `docs/DEPLOYMENT.md` §9f) and the optional follow-ups (CI, staging, account UI — §9) |
-| Brand | **Fase 6.0**: the brand package (`brand/`, committed in `f5fcad6`) is implemented per `brand/ASSET_MANIFEST.txt` — the official logo assets in the UI, the official icon set as favicon/app icons, the official tokens for `theme-color`/`theme_color` and new `@theme` variables. No vector master and no `.ico` exist in the package, so none was invented (§7n) |
-| Open blockers | none in the repository. Host-side and not verifiable from the repo (Fase 5.6 turned as much of this as possible into scripts and documented steps, §7l): terminating TLS, forwarding `X-Forwarded-Proto`, choosing `TRUST_PROXY` for the real topology, the nightly backup timer plus off-site copies, uptime/alerting, gzip for API JSON at the proxy, public-API rate limiting, and the `frame-ancestors`/CSP decision (§8.14, §8.19). Fase 5.5's own host-only list is in §7k. Data-safety wise nothing is open: the last low-priority item is the `__Host-` cookie prefix (§8.15) |
+| Size | 77 files under `src/` + `server/src/` (76 `.ts`/`.tsx`, 17 184 lines). `public/brand/` now has 34 files, including eight new SVGs (98 962 B total); original PNG/WebP references remain unchanged |
+| Build (git-ignored artefact) | Fase 6.1: single-file `dist/index.html` 658 219 B / `dist/index.html.gz` 163 620 B, plus unchanged self-hosted `dist/fonts/` and `dist/brand/` including the eight SVGs. The production preview serves the exact SVG files, checked by byte equality |
+| Phase state | Fase 6.1 implementation and scoped verification done: eight vector variants, transparent symbol/wordmark/descriptor paths, SVG-only BrandLogo, unchanged header/footer/admin placements, 222/222 brand checks. Full database/auth/media/runtime suites were not rerun; earlier results below remain historical. Git push is a remaining delivery prerequisite (§7o) |
+| Roadmap | production finishing, UI/UX and performance toward live deployment (§9). The Fase 6.1 logo work is validated locally; Git delivery still needs safe authentication. Host-side work and optional follow-ups remain as previously documented, not freshly re-audited here |
+| Brand | Fase 6.1: `public/brand/logo/*.svg` are true, path-only reconstructions of the supplied branding references, not original vector masters. Original font and tiny descriptor details cannot be authenticated; see `brand/SVG_RECONSTRUCTION.md`. The favicon/app icon set and official theme tokens from Fase 6.0 are retained |
+| Open blockers | SVG delivery: safe GitHub push authentication was not configured at the validation checkpoint, so push / `local == origin/master` is not confirmed. No database or full production verification was performed in this branding-only phase; earlier host-side and known-issue lists (§8) are carried forward, not declared resolved |
 
 ## 2. Completed phases (from Git history)
 
@@ -72,8 +73,9 @@ uncompressed (631 kB → 157 kB over the wire, −2,3 s on a 3G profile) (§7j).
 | `dd33ea6` | Fase 5.5 | production polish: API JSON compression, self-hosted fonts, per-route meta + Open Graph, 404 page, `robots.txt`/`sitemap.xml`/favicon/manifest, skip link, honest empty states, English-only public copy, security headers, root-absolute asset URLs (see §7k) |
 | `0011ac6` | Fase 5.6 | operations & monitoring: watchdog (`healthcheck.sh`), alert delivery (`alert.sh`), off-site copy with manifest verification (`offsite-copy.sh`), post-deploy/rollback smoke test (`deploy-check.sh`), release identity + `LOG_LEVEL` in the API, systemd units + logrotate example, host-only checklist (see §7l) |
 | `f5fcad6` | — | the delivered brand package (32 files under `brand/`), uploaded through the GitHub UI |
-| _this commit_ | Fase 6.0 | brand implementation: the official logo assets replace the code-drawn mark and wordmark, the official icon set replaces the self-made favicon, official colour tokens in `index.html`/`manifest.webmanifest`/`@theme`, the social card deliberately not published (§7n) |
+| `ae1c746` | Fase 6.0 | brand implementation: the official logo assets replace the code-drawn mark and wordmark, the official icon set replaces the self-made favicon, official colour tokens in `index.html`/`manifest.webmanifest`/`@theme`, the social card deliberately not published (§7n) |
 | `b07703e` | Fase 5.6.1 | audit fixes from the Fase 5.1–5.6 end-audit: the restore drill refuses to pass without a comparison, `alert.sh` escapes every JSON value, the watchdog reports the release and prints failures even with `--quiet`, the systemd unit no longer treats a script error as success, `SearchBar` has a real accessible name, and the wrong HSTS/`archive.*`/test-data claims are corrected (see §7m) |
+| _this phase commit_ | Fase 6.1 | eight transparent, path-only SVG reconstructions; SVG-only shared BrandLogo in the unchanged header/footer/admin slots; vector regression suite and reconstruction/fidelity documentation (§7o). Git push remains unconfirmed until safe credentials are configured |
 
 Earlier work is documented per topic in `docs/FASE2A_ARCHIVE.md`, `docs/FASE2B_YOUTUBE.md`,
 `docs/FASE2C_PUBLIC_FRONTEND.md`, `docs/FASE2D_SEARCH_FILTERING.md`,
@@ -293,6 +295,11 @@ empty states, errors) live in the React components — there is no content layer
 
 ## 6. Testing
 
+**Fresh Fase 6.1 verification:** both TypeScript checks and the frontend build passed; the new
+`test:e2e:brand` passed **222/222** on the static production preview. Full database-dependent,
+authenticated CMS, media/provider and backend runtime suites were not rerun in this phase. Their
+Fase 6.0/5.x totals below are historical, not a claim about a new full-stack run.
+
 | Command | What it covers | Last verified result |
 | --- | --- | --- |
 | `npx tsc --noEmit` (root + `server/`) | types | 0 errors (Fase 5.5) |
@@ -301,12 +308,13 @@ empty states, errors) live in the React components — there is no content layer
 | `ops/backup.sh` + `ops/restore-drill.sh` | database + uploads backup, then a restore into a throwaway database with count and checksum comparison | PASSED in Fase 5.1 (seven tables + two upload files, §7g) and again in Fase 5.6, that time **from an off-site copy** made by `ops/offsite-copy.sh` (25/8/11 rows and 50+50 joins matching the manifest, §7l) |
 | `ops/healthcheck.sh` · `ops/alert.sh` · `ops/deploy-check.sh` | watchdog (health, readiness, **the release the API reports**, backup freshness, disk, database), alert delivery to a webhook/mail, and an eleven-check post-deploy/rollback proof | Fase 5.6.1: watchdog `result: OK (8 checks)` on a healthy host, **0 bytes** on a healthy `--quiet` run and exit 1 with its FAIL lines + release on stderr on a failing one; the 21-check `ops` regression in the server suite covers the payload escaping, the release line, `--quiet`, the unit's exit codes and the manifest guard (§7m); deploy check **11 passed, 0 failed** against the production build (§7l) |
 | `cd server && npm run test:imports` | live Archive.org + YouTube import regression | 19/19 whenever the provider answers; the live scrape check is the part that fails under Google's throttle (§8.11) |
+| `npm run test:e2e:brand` | all eight SVGs: file/HTTP identity, pure-path structure, official colours, transparency and 100/400/1000% renders; real BrandLogo component, header/footer on six routes at 1366/375/320px, signed-out admin, retained favicon metadata | **222/222 (Fase 6.1)** on a static production preview; no API/database or fake fixtures. `SITE_URL` defaults to `http://localhost:4173`; optional `BRAND_EVIDENCE_DIR`, otherwise outputs go outside the checkout to a temporary directory |
 | `npm run test:e2e:production` | routes, embeds, **real YouTube playback**, error states, mobile, admin entry (login gate), footer navigation (17 checks), **accessible names for the search fields (9, Fase 5.6.1)** and **the official brand assets incl. deep links and mobile (33, Fase 6.0)** | Fase 6.0: **135/135** against the production build with 25 published records. Needs published content — a YouTube video, an `RenewingOurIntentions` audio record, an Archive book, a scholar and a subject — and stops at the first missing fixture on an empty library. YouTube throttling can turn the two live-playback checks red (§8.11) |
 | `npm run test:e2e` | waveform, thumbnails, admin upload flow | 27/27 in Fase 5.6; **21/27** in Fase 5.6.1 — all six red checks read the live archive.org stream (playback position, waveform frames/heights), and archive.org itself answered 302 → **500** on the file and **502** on `/metadata` from this sandbox at that moment: external availability (§8.14), not the site |
 | `npm run test:e2e:cms` | admin CMS: real totals, draft→published→archived→restored, collection round-trip, 401 honesty, **typed delete confirmation + `CONFIRM_REQUIRED`**, **brand assets in the signed-in CMS (5, Fase 6.0)** | **39/39** (Fase 6.0; was 34) |
 | `npm run test:e2e:auth` | Fase 4.5 gate: username/password sign-in, 401s, cookie flags, deep link, refresh, tampered cookie, server-side logout, no credential in web storage, public site stays free | 60/60, re-run 60/0 in Fase 5.6.1 |
 
-Browser specs take `SITE_URL`, `API_URL`, `ADMIN_TOKEN` (for their API fixtures) and sign the
+The database-dependent browser specs take `SITE_URL`, `API_URL`, `ADMIN_TOKEN` (for their API fixtures) and sign the
 browser in with `ADMIN_USERNAME`/`ADMIN_PASSWORD` (usernames default to `e2e-admin` for the
 production suites and `media-e2e-admin` for the media suite; the **password has no default** — no
 credential is committed — so create the account with `npm run admin:create` and export
@@ -1231,6 +1239,88 @@ not alter proportions, colors, spacing".
 | `npm run test:e2e:auth` · `npm run test:e2e` (media) | 60/0 · **27/27** (the archive.org stream answered this time) |
 | `ops/deploy-check.sh` on the production build | **10 passed, 0 failed**, including `/brand/favicon/favicon-32.png → 200 (image/png)` (11 with HSTS over https) |
 
+## 7o. What Fase 6.1 (true SVG logos) changed — and the reconstruction limits
+
+**Source and scope.** Started from a clean `master == origin/master == ae1c746`; no newer upstream
+commit was present on the final pre-commit fetch. The supplied logo PNGs are opaque RGB presentation
+crops with backgrounds, texture, card borders and occasional clipped neighbouring content. They
+contain no original vector master or source font. `brand/SVG_RECONSTRUCTION.md` records all roles,
+artboards, reconstruction decisions, visual checks and repeatable commands.
+
+### Implemented
+
+- Eight standalone SVGs in `public/brand/logo/`: **primary-light, primary-dark, horizontal, stacked,
+  small-scale, icon-only, monochrome-dark, monochrome-light** (98 962 B together). Every visible
+  element is a filled vector path: book/leaf symbol, outlined IlmNet wordmark and, where present in
+  the source variant, **ISLAMIC KNOWLEDGE LIBRARY**. No image payload, font, text element, background
+  plane, gradient, shadow or external resource. Monochrome really is one colour.
+- Official foreground colours are exactly `#1F2933`, `#CC3A63`, `#A2AB73` and `#FFFFFF` per variant.
+  `#F3EBDD` stays a host-surface colour, never a logo background. The original reference artboards
+  and variant-specific geometry are retained; the opaque presentation surfaces/crop debris are gone.
+- `src/components/Brand.tsx` selects `.svg` directly, without raster fallback. Existing placement,
+  aspect-ratio reservation and accessible names are unchanged: header 120×40 desktop / 108×36
+  mobile, footer 96×32; admin sign-in stacked at 128px width, sidebar small-scale, compact icon-only.
+  All eight variants are selectable. No other application component, API, database, login/session
+  logic or auth behaviour was edited. Favicons/app icons, original PNG/WebP files and lockfiles are
+  unchanged. No project dependency added; missing Playwright OS runtime libraries were installed
+  in the sandbox only after explicit user permission.
+- Production/CMS browser assertions now expect the actually selected SVG. The new
+  `tests/e2e/brand.spec.mjs` / `npm run test:e2e:brand` is a read-only, database-independent brand
+  regression. It uses the actual production CSS for isolated BrandLogo rendering, not a fake auth
+  context. Browser evidence is written outside the checkout.
+
+### Visual review and honest limits
+
+All eight variants were opened as real browser-rendered SVG artwork at **100%, 400% and 1000%**
+and inspected alongside their PNG references. Transparent negative space was checked on light/dark
+checkerboards; desktop/mobile header and footer plus the real signed-out admin page were inspected.
+The pure-path/palette checks and alpha measurements also reject opaque artboards, crop-edge debris,
+font dependencies and embedded raster content. An offline review HTML provides the eight source
+comparisons, zoom/background controls and real integration captures; it is a delivery artifact,
+not another logo implementation in the app.
+
+**All eight variants exist, but exact original typography cannot be certified.** Symbol/wordmark
+curves were reconstructed from the contours, not typeset in an assumed font. For the small descriptor,
+blind tracing broke thin diagonals at 1000%; explicit clean letter outlines from the largest readable
+reference replaced those artefacts, preserving measured spacing and each smaller placement. The
+4–6px source letters do not reveal exact original font outlines. The longer presentation payoff
+“Knowledge. Guidance. A Brighter Tomorrow.” is clipped in primary-light and absent from the other
+logo files; it was not invented as an extra logo line. No missing/unreliable detail is presented as a
+recovered original master. SVG also cannot make a physically 2–3px-high descriptor readable without
+changing the established layout, which this task deliberately does not do.
+
+### Fresh verification (26 September 2026)
+
+| Check | Result |
+| --- | --- |
+| Root + server `npx tsc --noEmit` | both exit 0 |
+| `npm run build` | exit 0; `index.html` **658 219 B**, gzip **163 620 B** |
+| Syntax of brand / production / CMS browser specs | all exit 0 |
+| `npm run test:e2e:brand` | **222/222**; 8 variants × 3 zooms, six public routes × 3 viewports, isolated shared-component variants, real signed-out page, asset/palette/alpha and metadata checks |
+| Visual inspection | all eight at 100/400/1000%; no background blocks; header/footer on desktop/mobile, no stretching/overflow |
+| Offline review artifact | 8 panels, all zoom controls and background switch work; 0 external requests, 0 script errors, 0 mobile horizontal overflow |
+
+This is **not a new full-stack test run**: the static preview had no running API/database; no records,
+accounts, counters or authenticated CMS state were fabricated. Full production/CMS/auth/media and
+server runtime suites were not rerun. Fase 6.0's totals in §7n remain historical. Node 20.20.2 /
+npm 10.8.2 were used; the existing `content-disposition@3.0.0` server dependency advertises Node >=22
+and gave an `npm ci` engine warning. No dependency was upgraded to hide that warning.
+
+A test-harness issue was corrected before the green run: replacing a mounted home page with
+`setContent` left its WebGL loop alive and stalled a second page. Isolated component checks now use
+a fresh blank document with the actual build CSS and asset base. No website code changed for that
+harness correction.
+
+### Git delivery checkpoint
+
+At the validation/documentation checkpoint there was still no configured credential helper, SSH
+agent/key or GitHub token environment variable, despite the user choosing to arrange safe access.
+**Push and remote equality are not yet confirmed.** This checkpoint ships in the locally verified
+SVG phase commit. Do not reuse or reproduce a chat-shared token. Once safe authentication is configured,
+push `master`, fetch
+and compare the full `HEAD` / `origin/master` IDs and confirm a clean working tree. Refresh this
+checkpoint with the actual outcome; never claim `local == origin/master` from an old fetch.
+
 ## 8. Known remaining issues (not blockers)
 
 From `docs/FASE3_9_CODEBASE_REVIEW.md` § Restrisico's plus the 3.9.1 report:
@@ -1342,11 +1432,13 @@ From `docs/FASE3_9_CODEBASE_REVIEW.md` § Restrisico's plus the 3.9.1 report:
 
 ## 9. Next step
 
-No open blockers. Fase 4.5 replaced the shared token with real accounts, sessions and attribution
-(§7f); Fase 4.3.1 proved the YouTube “Error 153” is not caused by this repository (§7e); Fase 4.3
-verified YouTube import and playback (§7e); Fase 4.2 removed the leftover naming and dead helpers
-(§7d); Fase 4.1 put the CMS behind a login (§7c). Every suite is green — except the live YouTube
-scrape check when Google throttles this IP (§8.11), which is external and passes again after a pause.
+**Immediate next step: finish Fase 6.1 Git delivery once safe authentication is configured** (§7o),
+then verify a clean working tree and fresh `HEAD == origin/master`. The SVG implementation, build,
+both typechecks and 222 focused branding checks passed; this is not a fresh claim that every
+full-stack suite is green. Earlier backend/CMS/provider results below remain historical.
+
+The account/session model from Fase 4.5 (§7f), the provider investigation (§7e) and the cleanup/login
+phases (§7c–§7d) remain as documented; this branding phase changes none of them.
 
 **The roadmap is production finishing, UI/UX and performance toward the definitive live deployment.**
 Fase 5.1 removed the three blockers that were verifiable in the repository; the rest starts on the host.
@@ -1367,8 +1459,12 @@ Fase 5.1 removed the three blockers that were verifiable in the repository; the 
   holds the procedures and §9f the exact host-only list: install the timers, fill the env files, choose
   and test an alert channel, create the external uptime check, set `GIT_COMMIT`, drill from the first
   off-site copy, set log limits.
-- **Phase 6.0 — brand implementation (done, §7n).** The delivered brand package is in the app: official
-  logo assets in the header/footer/admin (WebP with PNG fallback), the official icon set as favicon, app
+- **Phase 6.1 — true SVG logos (locally verified, §7o).** Eight transparent, path-only reconstructions
+  replace raster logo requests in the existing header/footer/admin placements. All variants reviewed
+  at 100/400/1000%; 222/222 scoped branding checks. Original font/tiny descriptor fidelity limits are
+  explicit. Backend/auth/database, favicon assets and dependencies unchanged. Push awaits safe access.
+- **Phase 6.0 — brand implementation (historical baseline, §7n; logos superseded by 6.1).** The package
+  introduced official logo assets in header/footer/admin (then WebP with PNG fallback), the official icon set as favicon, app
   icons and manifest icons, the official `#F3EBDD` as browser/manifest theme colour and the official tokens
   in `@theme`. The code-drawn mark/wordmark and the self-made favicon files are gone. Deliberately unused:
   the clipped OG export, the horizontal (too wide for the 40 px header), the dark/monochrome variants (no
@@ -1386,8 +1482,8 @@ Fase 5.1 removed the three blockers that were verifiable in the repository; the 
   owner, with the reason in §7k: an enforcing CSP (needs external bundles), `frame-ancestors`, and the
   privacy/contact page (needs the operator's identity — the checklist is now §8.19).
 
-**What is left is not code.** Everything the repository can express is expressed: deploy on the real
-host (TLS, `PUBLIC_ORIGIN`, proxy trust — §8.14), install the operational timers and channels
+**The remaining production-host checklist (carried forward, not re-audited by the SVG task):**
+deploy on the real host (TLS, `PUBLIC_ORIGIN`, proxy trust — §8.14), install the operational timers and channels
 (`docs/DEPLOYMENT.md` §9f), submit the sitemap once DNS is live. After that the open choices are
 priorities, not gaps: CI + staging (audit I9, §8.9), account UI/roles/2FA, and the measured scale items
 (§8.16 trigram search, §8.2 pagination) when the library actually grows. A first production deploy now
