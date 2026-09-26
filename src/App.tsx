@@ -4,6 +4,7 @@ import Landing from './pages/Landing';
 import Lectures from './pages/Lectures';
 import Books from './pages/Books';
 import Scholars from './pages/Scholars';
+import ScholarDetail from './pages/ScholarDetail';
 import Subjects from './pages/Subjects';
 import { AdminProvider } from './admin/store';
 import { AdminAuthProvider } from './admin/auth';
@@ -69,6 +70,8 @@ export default function App() {
             <Route path="books/:id" element={<BookDetail />} />
             <Route path="series/:id" element={<SeriesDetail />} />
             <Route path="scholars" element={<Scholars />} />
+            {/* D3: a scholar finally has a destination of its own (audit A2) — the tiles link here. */}
+            <Route path="scholars/:id" element={<ScholarDetail />} />
             <Route path="subjects" element={<Subjects />} />
             <Route path="subjects/:id" element={<SubjectDetail />} />
             {/* Fase 5.5: unknown paths get a real 404 page instead of a second copy of the landing

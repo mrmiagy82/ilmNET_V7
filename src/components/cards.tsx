@@ -374,6 +374,41 @@ export function ScholarTile({
   );
 }
 
+/** The scholar fields a rail can rely on: a content *list* carries this reduced join row. */
+export type MiniScholar = Pick<BackendScholar, 'id' | 'slug' | 'name' | 'initials' | 'accent'>;
+
+/**
+ * A compact scholar card (Discovery step D3).
+ *
+ * `ScholarTile` needs a bio, and a content list only carries the reduced join row
+ * (`id, slug, name, initials, accent` — `server/src/lib/public-payload.ts`). A rail built from such a
+ * list would therefore render an empty paragraph. This card shows what really exists and nothing more,
+ * and its only destination is the scholar's own page — no invented number, no invented role.
+ */
+export function ScholarMiniCard({ scholar }: { scholar: MiniScholar }) {
+  const accent = scholar.accent ?? 'olive';
+  return (
+    <Link
+      to={`/scholars/${encodeURIComponent(scholar.slug)}`}
+      className="bg-cream neu-raised group flex h-full items-center gap-4 rounded-[26px] p-5 transition-transform duration-500 hover:-translate-y-1.5"
+    >
+      <div
+        className={`font-display grid h-12 w-12 shrink-0 place-items-center rounded-full text-[1rem] font-extrabold neu-inset-sm ${
+          accent === 'rose' ? 'bg-rose/10 text-rose' : 'bg-sand text-olive-deep'
+        }`}
+      >
+        {scholar.initials ?? scholar.name.slice(0, 2).toUpperCase()}
+      </div>
+      <div className="min-w-0">
+        <p className="font-display text-ink truncate text-[1.02rem] leading-tight font-extrabold tracking-[-0.02em]">{scholar.name}</p>
+        <p className="text-rose text-[0.82rem] font-semibold">
+          View work <span aria-hidden="true">→</span>
+        </p>
+      </div>
+    </Link>
+  );
+}
+
 /**
  * The loading placeholder for a card. The two shapes match the two frames the pages use, so a
  * skeleton never has a different size than the card that replaces it (no layout jump).

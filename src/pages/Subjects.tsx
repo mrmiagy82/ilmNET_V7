@@ -1,56 +1,43 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import PageHeader from '../components/PageHeader';
 import { usePageMeta } from '../lib/usePageMeta';
-import { FilterChips, EmptyState, StatRow } from '../components/ui';
-import { listPublicSubjects, listPublishedContents, type BackendSubject, type BackendContent } from '@/lib/api';
-import { subjectGroups, formatCount } from '../data';
+import { EmptyState, StatRow } from '../components/ui';
+import { TileSkeleton } from '@/components/cards';
+import LibraryFilters from '@/components/LibraryFilters';
+import { ListErrorCard } from '@/components/ListStates';
+import { usePublicSubjects } from '@/lib/usePublicReference';
+import { subjectGroups } from '../data';
+import type { BackendSubject } from '@/lib/api';
 
-function SubjectTile({ s, lectureCount, bookCount }: { s: BackendSubject; lectureCount: number; bookCount: number }) {
+/**
+ * One subject tile (D3).
+ *
+ * The tile used to print "N lectures / N books" counted in the browser from a `limit=100` content
+ * request — a number that silently stopped at the 100th published record (audit A5). Either a tile
+ * needs one counting request per subject, or it shows no number at all; `AGENTS.md` §2 allows exactly
+ * these two options ("Public counters come from the API ..., or are not shown at all"), so D3 chose the
+ * second and moved the real total to the subject's own page, where it is `pagination.total`.
+ */
+function SubjectTile({ s }: { s: BackendSubject }) {
   const badge = s.accent === 'rose' ? 'bg-rose text-cream' : s.accent === 'olive' ? 'bg-olive text-[#22251a]' : 'bg-sand text-ink-soft';
   return (
-    <article className="bg-cream neu-raised group flex flex-col rounded-[32px] p-7 transition-transform duration-500 hover:-translate-y-1.5">
+    <article className="bg-cream neu-raised group flex h-full flex-col rounded-[32px] p-7 transition-transform duration-500 hover:-translate-y-1.5">
       <div className="flex items-start justify-between gap-4">
         <div className={`font-display grid h-14 w-14 shrink-0 place-items-center rounded-[18px] text-[1.25rem] font-extrabold neu-raised-sm ${badge}`}>
           {s.name.charAt(0)}
         </div>
-        <span className="text-ink-muted text-[0.7rem] font-semibold uppercase tracking-[0.16em]">{s.group}</span>
+        <span className="text-ink-muted text-[0.7rem] font-semibold tracking-[0.16em] uppercase">{s.group}</span>
       </div>
 
-      <h3 className="font-display text-ink mt-5 text-[1.4rem] leading-tight font-extrabold tracking-[-0.03em]">
-        {s.name}
-      </h3>
+      <h3 className="font-display text-ink mt-5 text-[1.4rem] leading-tight font-extrabold tracking-[-0.03em]">{s.name}</h3>
       <p className="text-ink-soft mt-3 flex-1 text-[0.92rem] leading-relaxed line-clamp-3">{s.description ?? ''}</p>
 
-      <div className="border-line/70 mt-6 flex items-center justify-between border-t pt-5">
-        <div className="flex gap-6">
-          <div>
-            <p className="font-display text-ink text-[1.2rem] font-extrabold leading-none">{lectureCount}</p>
-            <p className="text-ink-muted mt-1.5 text-[0.72rem] font-medium uppercase tracking-[0.08em]">Lectures</p>
-          </div>
-          <div>
-            <p className="font-display text-ink text-[1.2rem] font-extrabold leading-none">{bookCount}</p>
-            <p className="text-ink-muted mt-1.5 text-[0.72rem] font-medium uppercase tracking-[0.08em]">Books</p>
-          </div>
-        </div>
-        <Link to={`/subjects/${s.slug}`} className="text-rose inline-flex items-center gap-1.5 text-[0.86rem] font-semibold transition-all group-hover:gap-2.5">
+      <div className="border-line/70 mt-6 flex items-center justify-end border-t pt-5">
+        <Link to={`/subjects/${encodeURIComponent(s.slug)}`} className="text-rose inline-flex items-center gap-1.5 text-[0.86rem] font-semibold transition-all group-hover:gap-2.5">
           Explore <span aria-hidden="true">→</span>
         </Link>
       </div>
-    </article>
-  );
-}
-
-function SkeletonTile() {
-  return (
-    <article className="bg-cream neu-raised flex flex-col rounded-[32px] p-7 animate-pulse">
-      <div className="flex items-start justify-between">
-        <div className="bg-sand neu-raised-sm h-14 w-14 rounded-[18px]" />
-        <div className="bg-sand h-3 w-16 rounded-full" />
-      </div>
-      <div className="bg-sand mt-5 h-6 w-3/4 rounded-full" />
-      <div className="bg-sand mt-3 h-16 rounded-[12px]" />
-      <div className="bg-sand mt-6 h-10 rounded-full" />
     </article>
   );
 }
@@ -63,53 +50,31 @@ export default function Subjects() {
     path: '/subjects',
   });
 
+  const [query, setQuery] = useState('');
   const [group, setGroup] = useState<string | 'all'>('all');
-  const [subjects, setSubjects] = useState<BackendSubject[]>([]);
-  const [contents, setContents] = useState<BackendContent[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  const fetchData = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [subjRes, contRes] = await Promise.all([
-        listPublicSubjects(),
-        listPublishedContents({ limit: 100 }).catch(() => ({ data: [] as BackendContent[], pagination: { total: 0, page: 1, limit: 100, totalPages: 1 } } as any)),
-      ]);
-      setSubjects(subjRes.data);
-      setContents((contRes as any).data ?? []);
-    } catch (e: any) {
-      setError(e.message || 'Failed to load subjects');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // D3: one request for the reference list; the contents are not fetched here at all (audit A5/D10).
+  const subjects = usePublicSubjects({ errorMessage: 'Failed to load subjects' });
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return subjects.data.filter((s) => {
+      const matchesGroup = group === 'all' || s.group === group;
+      const matchesQuery = !q || s.name.toLowerCase().includes(q) || (s.description ?? '').toLowerCase().includes(q);
+      return matchesGroup && matchesQuery;
+    });
+  }, [subjects.data, query, group]);
 
-  const countsBySubject = useMemo(() => {
-    const map = new Map<string, { lecture: number; book: number }>();
-    for (const s of subjects) map.set(s.id, { lecture: 0, book: 0 });
-    for (const c of contents) {
-      const isLecture = c.type === 'lecture' || c.type === 'video' || c.type === 'audio';
-      const isBook = c.type === 'book' || c.type === 'document';
-      for (const cs of c.subjects) {
-        const cur = map.get(cs.subjectId);
-        if (!cur) continue;
-        if (isLecture) cur.lecture += 1;
-        if (isBook) cur.book += 1;
-      }
-    }
-    return map;
-  }, [subjects, contents]);
+  // The groups that really occur in the list — a real number, not a hard-coded category count.
+  const groupsInUse = useMemo(() => new Set(subjects.data.map((s) => s.group)).size, [subjects.data]);
+  const hasActiveFilters = Boolean(query.trim()) || group !== 'all';
+  const loading = subjects.loading;
+  const failed = Boolean(subjects.error);
 
-  const filtered = useMemo(() => (group === 'all' ? subjects : subjects.filter((s) => s.group === group)), [subjects, group]);
-
-  const totalLectures = useMemo(() => subjects.reduce((a, s) => a + (countsBySubject.get(s.id)?.lecture ?? 0), 0), [subjects, countsBySubject]);
-  const totalBooks = useMemo(() => subjects.reduce((a, s) => a + (countsBySubject.get(s.id)?.book ?? 0), 0), [subjects, countsBySubject]);
+  function reset() {
+    setQuery('');
+    setGroup('all');
+  }
 
   return (
     <>
@@ -117,47 +82,84 @@ export default function Subjects() {
         eyebrow="Browse by subject"
         title="Subjects"
         intro="Start from what you want to understand. Choose a discipline and ilmNet gathers every lecture, book and series that belongs to it — grouped the way the tradition already is."
-        meta={<StatRow items={[{ value: loading || error ? '—' : `${subjects.length}`, label: 'Subjects' }, { value: loading || error ? '—' : formatCount(totalLectures), label: 'Lectures' }, { value: loading || error ? '—' : `${totalBooks}`, label: 'Books' }]} />}
+        meta={
+          <StatRow
+            items={[
+              { value: loading || failed ? '—' : `${subjects.total}`, label: 'Subjects' },
+              { value: loading || failed ? '—' : `${groupsInUse}`, label: 'Groups' },
+              { value: 'Free', label: 'Access' },
+            ]}
+          />
+        }
       />
 
       <section className="px-5 pb-24 sm:px-6 lg:pb-32">
         <div className="mx-auto max-w-[1180px]">
-          <div className="bg-sand/70 neu-inset sticky top-[88px] z-30 rounded-[34px] p-4 sm:p-6">
-            <FilterChips options={subjectGroups.map((g) => ({ value: g, label: g }))} active={group} onChange={setGroup} allLabel="All groups" />
-          </div>
+          <LibraryFilters
+            search={query}
+            onSearch={setQuery}
+            searchPlaceholder="Search subjects…"
+            searchLabel="Search subjects"
+            hasActiveFilters={hasActiveFilters}
+            onReset={reset}
+            activeSummary={
+              hasActiveFilters ? (
+                <>
+                  Filters: {query.trim() ? `“${query.trim()}”` : ''}
+                  {group !== 'all' ? ` · ${group}` : ''}
+                  <span className="text-ink-soft"> — share this URL</span>
+                </>
+              ) : undefined
+            }
+            groups={[
+              {
+                id: 'group',
+                label: 'Group',
+                options: subjectGroups.map((g) => ({ value: g, label: g })),
+                active: group,
+                allLabel: 'All groups',
+                onChange: (v) => setGroup(v as string | 'all'),
+              },
+            ]}
+          />
 
           {loading ? (
             <>
               <p className="text-ink-muted mt-8 text-[0.86rem] font-medium">Loading subjects…</p>
               <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                {Array.from({ length: 6 }).map((_, i) => <SkeletonTile key={i} />)}
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <TileSkeleton key={i} />
+                ))}
               </div>
             </>
-          ) : error ? (
-            <div className="mt-10 bg-cream neu-raised rounded-[24px] p-8 text-center">
-              <p className="font-display text-ink text-[1.1rem] font-bold">Could not load subjects</p>
-              <p className="text-ink-soft mt-2 text-[0.9rem]">{error}</p>
-              <button onClick={fetchData} className="bg-rose text-cream mt-6 rounded-full px-6 py-3 text-[0.9rem] font-semibold">Try again</button>
-            </div>
+          ) : failed ? (
+            <ListErrorCard title="Could not load subjects" onRetry={subjects.retry} retrying={loading} />
           ) : (
             <>
-              <p className="text-ink-muted mt-8 text-[0.86rem] font-medium">
-                {filtered.length} subjects shown
+              {/* D8: the result line announces itself. */}
+              <p className="text-ink-muted mt-8 text-[0.86rem] font-medium" role="status" aria-live="polite">
+                {hasActiveFilters ? `${filtered.length} of ${subjects.total} subjects in view` : `${subjects.total} subjects`}
               </p>
-              {filtered.length ? (
+              {filtered.length > 0 ? (
                 <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                  {filtered.map((s) => {
-                    const c = countsBySubject.get(s.id) ?? { lecture: 0, book: 0 };
-                    return <SubjectTile key={s.id} s={s} lectureCount={c.lecture} bookCount={c.book} />;
-                  })}
-                </div>
-              ) : subjects.length === 0 ? (
-                <div className="mt-10">
-                  <EmptyState title="No subjects yet" body="Subjects will appear here once created." />
+                  {filtered.map((s) => (
+                    <SubjectTile key={s.id} s={s} />
+                  ))}
                 </div>
               ) : (
                 <div className="mt-10">
-                  <EmptyState title="Nothing here yet" body="Select a group to see its subjects." />
+                  {hasActiveFilters ? (
+                    <EmptyState title="No subjects match" body="Try another group, or search part of a name. Clear the filters to see every subject." />
+                  ) : (
+                    <EmptyState title="No subjects yet" body="Subjects appear here as soon as they are created." />
+                  )}
+                  {hasActiveFilters && (
+                    <div className="mt-6 flex justify-center">
+                      <button onClick={reset} className="bg-rose text-cream rounded-full px-6 py-3 text-[0.9rem] font-semibold">
+                        Clear all filters
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </>

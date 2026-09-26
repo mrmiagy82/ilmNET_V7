@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { listPublicSubjects, listPublishedContents, type BackendContent, type BackendSubject } from '../lib/api';
+import { listPublicSubjects, type BackendSubject } from '../lib/api';
 
 const sizeMap: Record<string, string> = {
   lg: 'text-[1.12rem] px-7 py-4',
@@ -31,31 +31,15 @@ const toneClass: Record<'rose' | 'olive' | 'plain', string> = {
  */
 export default function Subjects() {
   const [subjects, setSubjects] = useState<BackendSubject[]>([]);
-  const [counts, setCounts] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
-        const [subjRes, contRes] = await Promise.all([
-          listPublicSubjects(),
-          listPublishedContents({ limit: 100 }).catch(
-            () => ({ data: [] as BackendContent[] }) as any,
-          ),
-        ]);
+        const res = await listPublicSubjects();
         if (!alive) return;
-        const contents: BackendContent[] = (contRes as any).data ?? [];
-        const map = new Map<string, number>();
-        for (const s of subjRes.data) map.set(s.id, 0);
-        for (const c of contents) {
-          for (const cs of c.subjects ?? []) {
-            const current = map.get(cs.subjectId);
-            if (current !== undefined) map.set(cs.subjectId, current + 1);
-          }
-        }
-        setSubjects(subjRes.data);
-        setCounts(map);
+        setSubjects(res.data);
       } catch {
         // Never invent numbers on the landing page: without data we only keep the CTA below.
       } finally {
@@ -67,13 +51,11 @@ export default function Subjects() {
     };
   }, []);
 
-  const ranked = useMemo(
-    () =>
-      [...subjects].sort(
-        (a, b) => (counts.get(b.id) ?? 0) - (counts.get(a.id) ?? 0) || a.name.localeCompare(b.name),
-      ),
-    [subjects, counts],
-  );
+  // D3 (audit A5): this block used to rank and label the pills with a count taken from the first 100
+  // published contents — a number that silently under-reports and cannot be seen as incomplete. A
+  // subject has no cheap real total here, so the pills carry no number at all; alphabetical order is
+  // the only ordering that needs no invented data, and it no longer costs a full-library request.
+  const ranked = useMemo(() => [...subjects].sort((a, b) => a.name.localeCompare(b.name)), [subjects]);
   const pills = ranked.slice(0, 12);
 
   return (
@@ -107,13 +89,11 @@ export default function Subjects() {
           )}
           {!loading &&
             pills.map((s, i) => {
-              const n = counts.get(s.id) ?? 0;
-              const size = i === 0 || i === 1 ? 'lg' : n > 0 ? 'md' : 'sm';
+              const size = i === 0 || i === 1 ? 'lg' : 'md';
               return (
                 <Link
                   key={s.id}
                   to={`/subjects/${s.slug}`}
-                  title={n === 1 ? '1 item' : `${n} items`}
                   className={`font-display inline-flex items-center gap-2 rounded-full font-semibold tracking-[-0.015em] transition-transform duration-300 hover:-translate-y-1 ${sizeMap[size]} ${toneClass[pillTone(i)]}`}
                 >
                   {s.name}

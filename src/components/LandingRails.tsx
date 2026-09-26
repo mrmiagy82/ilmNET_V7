@@ -21,7 +21,7 @@
  * under-report — exactly audit A5.
  */
 import { useContentQuery } from '@/lib/useContentQuery';
-import { usePublicScholars } from '@/lib/usePublicScholars';
+import { usePublicScholars } from '@/lib/usePublicReference';
 import { Rail, RAIL_SLOT } from '@/components/Rail';
 import { CardSkeleton, ContentCard, ScholarTile, TileSkeleton } from '@/components/cards';
 
@@ -128,7 +128,7 @@ export function ScholarRail() {
       itemClassName={RAIL_SLOT.scholar}
     >
       {data.map((s) => (
-        <ScholarTile key={s.id} s={s} linkLabel="View lectures" />
+        <ScholarTile key={s.id} s={s} to={`/scholars/${encodeURIComponent(s.slug)}`} linkLabel="View work" />
       ))}
     </Rail>
   );
