@@ -202,11 +202,18 @@ export function listAdminContents(params: Record<string, string | number | undef
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
   return apiFetch<Paginated<BackendContent>>(`/api/admin/contents${suffix}`);
 }
-export function listPublishedContents(params: Record<string, string | number | undefined> = {}) {
+/**
+ * `opts.signal` lets a caller cancel an in-flight request (Discovery step D0: `useContentQuery`
+ * aborts when the filters change, so a slow older answer can never overwrite a newer one).
+ */
+export function listPublishedContents(
+  params: Record<string, string | number | undefined> = {},
+  opts: { signal?: AbortSignal } = {},
+) {
   const qs = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== "") qs.set(k, String(v));
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
-  return apiFetch<Paginated<BackendContent>>(`/api/contents${suffix}`);
+  return apiFetch<Paginated<BackendContent>>(`/api/contents${suffix}`, { signal: opts.signal });
 }
 export function createContent(payload: Record<string, any>) {
   return apiFetch<Single<BackendContent>>(`/api/admin/contents`, { method: "POST", body: JSON.stringify(payload) });

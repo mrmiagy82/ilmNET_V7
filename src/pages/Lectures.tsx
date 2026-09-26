@@ -1,141 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import PageHeader from '../components/PageHeader';
 import { usePageMeta } from '../lib/usePageMeta';
-import { SearchBar, FilterChips, Tag, EmptyState, StatRow } from '../components/ui';
-import { formatDuration } from '../data';
-import { listPublishedContents, listPublicScholars, listPublicSubjects, type BackendContent, type BackendScholar, type BackendSubject } from '@/lib/api';
-import { groupByCollection, type SeriesGroup } from '@/lib/series';
-import { resolveThumbnail } from '@/lib/thumbnail';
-import MediaThumb from '@/components/MediaThumb';
-
-function PlayGlyph({ className = '' }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" className={className} fill="currentColor" aria-hidden="true">
-      <path d="M8 5.6c0-.9 1-1.5 1.8-1l8.1 5.1a1.2 1.2 0 0 1 0 2L9.8 17c-.8.5-1.8-.1-1.8-1V5.6Z" />
-    </svg>
-  );
-}
-
-function LectureCard({ c }: { c: BackendContent }) {
-  const subj = c.subjects[0]?.subject;
-  const scholarName = c.scholars[0]?.scholar?.name ?? 'Unknown scholar';
-  const isVideo = c.type === 'video' || c.type === 'lecture';
-  const format: 'Audio' | 'Video' = c.type === 'audio' ? 'Audio' : 'Video';
-  const media = resolveThumbnail(c);
-  const thumb = media.src;
-  return (
-    <Link to={`/lectures/${c.slug}`} className="bg-cream neu-raised group flex flex-col rounded-[30px] p-6 transition-transform duration-500 hover:-translate-y-1.5">
-      <MediaThumb
-        src={thumb}
-        kind={media.kind}
-        testId="lecture-card-thumb"
-        className="bg-sand neu-inset aspect-[16/10] rounded-[22px]"
-        fallback={
-          <div className="absolute inset-x-0 bottom-0 flex h-12 items-end gap-[3px] px-5 pb-3 opacity-40">
-            {Array.from({ length: 28 }).map((_, i) => (
-              <span key={i} style={{ height: `${12 + ((i * 13) % 60)}%` }} className={i % 3 === 0 ? 'bg-rose/50 flex-1 rounded-full' : 'bg-olive/40 flex-1 rounded-full'} />
-            ))}
-          </div>
-        }
-      >
-        <div className="absolute inset-0 grid place-items-center">
-          <span className="bg-cream neu-raised-sm text-rose group-hover:scale-[1.06] grid h-16 w-16 place-items-center rounded-full transition-transform">
-            <PlayGlyph className="h-7 w-7" />
-          </span>
-        </div>
-        <span className="bg-cream/90 text-ink neu-raised-sm absolute right-3 top-3 rounded-full px-3 py-1.5 text-[0.72rem] font-semibold">
-          {format}
-        </span>
-        {c.provider === 'youtube' && <span className="bg-rose/90 text-cream absolute left-3 top-3 rounded-full px-2.5 py-1 text-[0.62rem] font-bold">YouTube</span>}
-        {c.provider === 'archive' && <span className="bg-olive/90 text-white absolute left-3 top-3 rounded-full px-2.5 py-1 text-[0.62rem] font-bold">Archive</span>}
-      </MediaThumb>
-
-      <div className="flex flex-1 flex-col px-1 pt-5">
-        <div className="flex items-center gap-2 flex-wrap">
-          {subj && <Tag tone={subj.accent as any}>{subj.name}</Tag>}
-          <Tag tone="plain">{isVideo ? 'Video' : 'Audio'}</Tag>
-          {c.language && <span className="bg-sand text-ink-soft rounded-full px-2.5 py-1 text-[0.62rem] font-medium">{c.language}</span>}
-        </div>
-        <h3 className="font-display text-ink mt-3 text-[1.18rem] leading-snug font-extrabold tracking-[-0.02em] line-clamp-2">
-          {c.title}
-        </h3>
-        <span className="text-rose mt-2 text-[0.9rem] font-semibold line-clamp-1">
-          {scholarName}
-        </span>
-        <p className="text-ink-muted mt-3 text-[0.84rem] line-clamp-2">
-          {c.series ? `${c.series} · ` : ''}{c.episodes ? `${c.episodes} episodes` : c.description ? (c.description.slice(0, 80) + (c.description.length > 80 ? '…' : '')) : ''}
-        </p>
-
-        <div className="border-line/70 mt-5 flex items-center justify-between border-t pt-4 text-[0.8rem]">
-          <span className="text-ink-soft font-medium">{c.durationMin ? formatDuration(c.durationMin) + ' / ep' : c.year ? `${c.year}` : '—'}</span>
-          <span className="text-ink-muted">{c.provider === 'youtube' ? 'Watch' : c.provider === 'archive' ? 'Archive' : ''}</span>
-        </div>
-      </div>
-    </Link>
-  );
-}
-
-function SeriesCard({ s }: { s: SeriesGroup }) {
-  const thumb = s.items[0] ? resolveThumbnail(s.items[0]).src : s.thumbnailUrl;
-  const subtitle = s.scholars[0]?.name ?? s.items[0]?.scholars[0]?.scholar.name ?? '';
-  const subj = s.subjects[0];
-  const isPlaylist = s.type === 'playlist';
-  return (
-    <Link to={`/series/${encodeURIComponent(s.id)}`} className="bg-cream neu-raised group flex flex-col rounded-[30px] p-6 transition-transform duration-500 hover:-translate-y-1.5">
-      <MediaThumb
-        src={thumb}
-        kind={s.items[0] ? resolveThumbnail(s.items[0]).kind : 'placeholder-generic'}
-        testId="series-card-thumb"
-        className="bg-sand neu-inset aspect-[16/10] rounded-[22px]"
-        fallback={<div className="absolute inset-0 bg-gradient-to-br from-olive/20 to-rose/20" />}
-      >
-        <div className="bg-cream/90 neu-raised-sm absolute left-3 top-3 flex items-center gap-2 rounded-full px-3 py-1.5">
-          <span className={`h-2 w-2 rounded-full ${isPlaylist ? 'bg-rose' : 'bg-olive'}`} />
-          <span className="text-ink text-[0.68rem] font-bold tracking-[0.08em] uppercase">{isPlaylist ? 'Playlist' : s.type === 'collection' ? 'Collection' : 'Series'} · {s.count}</span>
-        </div>
-        <span className="bg-cream/90 text-ink neu-raised-sm absolute right-3 top-3 rounded-full px-3 py-1.5 text-[0.68rem] font-semibold">
-          {s.provider === 'youtube' ? 'YouTube' : s.provider === 'archive' ? 'Archive' : s.provider}
-        </span>
-        <div className="bg-cream neu-raised-sm text-ink absolute bottom-3 left-3 right-3 flex items-center justify-between rounded-[14px] px-4 py-3">
-          <span className="text-[0.78rem] font-semibold">{s.count} episodes</span>
-          <span className="text-rose text-[0.78rem] font-bold">Open series →</span>
-        </div>
-      </MediaThumb>
-      <div className="flex flex-1 flex-col px-1 pt-5">
-        <div className="flex items-center gap-2 flex-wrap">
-          {subj && <Tag tone={subj.accent as any}>{subj.name}</Tag>}
-          <Tag tone={isPlaylist ? 'rose' : 'olive'}>{isPlaylist ? 'YouTube Series' : 'Archive Collection'}</Tag>
-        </div>
-        <h3 className="font-display text-ink mt-3 text-[1.22rem] leading-snug font-extrabold tracking-[-0.02em] line-clamp-2">
-          {s.title}
-        </h3>
-        {subtitle && <span className="text-rose mt-2 text-[0.9rem] font-semibold line-clamp-1">{subtitle}</span>}
-        <p className="text-ink-muted mt-3 text-[0.84rem] line-clamp-2">
-          {s.description ?? `${s.count} items — open to see all episodes.`}
-        </p>
-        <div className="border-line/70 mt-5 flex items-center justify-between border-t pt-4 text-[0.8rem]">
-          <span className="text-ink-soft font-medium">{s.scholars.length ? `${s.scholars.length} scholars` : `${s.count} parts`}</span>
-          <span className="text-ink-muted">{s.provider === 'youtube' ? 'YouTube' : 'Archive'}</span>
-        </div>
-      </div>
-    </Link>
-  );
-}
-
-function SkeletonCard() {
-  return (
-    <article className="bg-cream neu-raised flex flex-col rounded-[30px] p-6 animate-pulse">
-      <div className="bg-sand neu-inset aspect-[16/10] rounded-[22px]" />
-      <div className="mt-5 space-y-3">
-        <div className="bg-sand h-4 w-24 rounded-full" />
-        <div className="bg-sand h-6 w-full rounded-full" />
-        <div className="bg-sand h-4 w-3/4 rounded-full" />
-        <div className="bg-sand h-3 w-2/3 rounded-full" />
-      </div>
-    </article>
-  );
-}
+import { SearchBar, FilterChips, EmptyState, StatRow } from '../components/ui';
+import { listPublicScholars, listPublicSubjects, type BackendScholar, type BackendSubject } from '@/lib/api';
+import { groupByCollection } from '@/lib/series';
+// Discovery step D0: the cards and the query logic live in one shared place now instead of in each page.
+import { LectureCard, SeriesCard, CardSkeleton } from '@/components/cards';
+import { useContentQuery } from '@/lib/useContentQuery';
 
 export default function Lectures() {
   // Fase 5.5: this route previously shared index.html's title/description with every other page.
@@ -174,12 +46,8 @@ export default function Lectures() {
     return 'all';
   }, [urlFormat]);
 
-  const [contents, setContents] = useState<BackendContent[]>([]);
   const [scholars, setScholars] = useState<BackendScholar[]>([]);
   const [subjects, setSubjects] = useState<BackendSubject[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
   const scholarBySlug = useMemo(() => new Map(scholars.map(s => [s.slug, s])), [scholars]);
   const subjectBySlug = useMemo(() => new Map(subjects.map(s => [s.slug, s])), [subjects]);
 
@@ -196,42 +64,12 @@ export default function Lectures() {
     return () => { cancelled = true; };
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      setLoading(true);
-      setError(null);
-      try {
-        const q = searchParams.get('q') ?? undefined;
-        const scholar = searchParams.get('scholar') ?? undefined;
-        const subject = searchParams.get('subject') ?? undefined;
-        const typeParam = searchParams.get('type') ?? undefined;
-
-        let typeForApi: string | undefined;
-        if (!typeParam || typeParam === 'all') typeForApi = 'lecture,video,audio';
-        else if (typeParam === 'Video' || typeParam === 'video') typeForApi = 'lecture,video';
-        else if (typeParam === 'Audio' || typeParam === 'audio') typeForApi = 'audio';
-        else typeForApi = typeParam;
-
-        const params: Record<string, string | number | undefined> = {
-          limit: 100,
-          type: typeForApi,
-        };
-        if (q?.trim()) params.q = q.trim();
-        if (scholar && scholar !== 'all') params.scholar = scholar;
-        if (subject && subject !== 'all') params.subject = subject;
-
-        const res = await listPublishedContents(params);
-        if (!cancelled) setContents(res.data);
-      } catch (e: any) {
-        if (!cancelled) setError(e.message || 'Failed to load lectures');
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-    load();
-    return () => { cancelled = true; };
-  }, [searchParams]);
+  // One shared query: same request as before (limit 100, the same type mapping), plus the API's own
+  // `pagination.total` so a counter can never under-report a library larger than one page.
+  const { data: contents, total, loading, error } = useContentQuery(
+    { q: searchParams.get('q') ?? undefined, scholar: urlScholar, subject: urlSubject, type: urlFormat },
+    { shelf: 'lectures', errorMessage: 'Failed to load lectures' },
+  );
 
   const subjectOptions = subjects.map((s) => ({ value: s.slug, label: s.name.replace(/ &.*/, '') }));
   const scholarChipOptions = scholars.map((s) => ({ value: s.slug, label: s.name }));
@@ -260,7 +98,7 @@ export default function Lectures() {
         meta={
           <StatRow
             items={[
-              { value: loading || error ? '—' : `${contents.length}`, label: 'Items' },
+              { value: loading || error ? '—' : `${total}`, label: 'Items' },
               { value: loading || error ? '—' : `${series.length}`, label: 'Series' },
               { value: 'Free', label: 'To listen' },
             ]}
@@ -312,7 +150,7 @@ export default function Lectures() {
             <>
               <p className="text-ink-muted mt-8 text-[0.86rem] font-medium">Searching lectures…</p>
               <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
+                {Array.from({ length: 6 }).map((_, i) => <CardSkeleton key={i} />)}
               </div>
             </>
           ) : error ? (

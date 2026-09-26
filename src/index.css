@@ -222,6 +222,14 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
+/* Discovery rails (D0): the scroll container keeps the native momentum/snap behaviour, but its
+   scrollbar is styled in the existing palette instead of the browser default. Additive only — it
+   applies to elements that ask for it, so no existing page changes. */
+@utility rail-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line) transparent;
+}
+
 @utility text-display-xl {
   font-family: var(--font-display);
   font-weight: 800;

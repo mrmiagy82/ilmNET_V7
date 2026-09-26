@@ -5,12 +5,13 @@ Update it after every finished phase, commit, sanity check or significant discov
 Rules: only facts that are verifiable from the repository, Git history or existing docs — and
 **never** secrets, tokens or credentials.
 
-_Last updated: environmentregel (26 September 2026): drie strikte omgevingen (development, staging,
-_productie) met een expliciet vastgelegde promotieflow — §7p. De code draagt de identiteit en de
-_guards (E0–E2, R2–R4), staging is niet indexeerbaar, elke suite noemt zijn doelomgeving, en
-_`docs/ENVIRONMENTS.md` + `docs/RELEASES.md` leggen de regel en het promotieregister vast. Er is nog
-_geen echte staginghost uitgerold en de push van `a8f1a88` is nog geblokkeerd; leid geen remote-
-_gelijkheid uit dit document af._
+_Last updated: D0 discovery foundation (26 september 2026): de gedeelde kaarten, de `Rail`/
+_`SectionHeading` en de centrale content-query staan er — 432 regels dubbele kaartcode weg, 16/16
+_kaarten byte-identiek gerenderd, 15/15 querychecks, 8/8 railcontracten, 17/17 live checks tegen een
+_productie-geconfigureerde instance, e2e 105 groen met dezelfde 3 datagaten als ervoor, merk 222/222
+_(§7q). Geen zichtbare UI-wijziging, geen nieuwe dependency, geen databasewijziging, geen TinyCMS.
+_De environmentregel (§7p) blijft van kracht; de promotie- en pushstaat staat in §1 en
+_`docs/RELEASES.md`._
 
 The last phases: Fase 5.1 closed the three blockers from the Fase 5 audit (backup + restore, honest
 footer links, TLS/HSTS with a provider-agnostic runbook, §7g). Fase 5.2 hardened the deployment
@@ -34,16 +35,16 @@ uncompressed (631 kB → 157 kB over the wire, −2,3 s on a 3G profile) (§7j).
 | | |
 | --- | --- |
 | Branch | `master` |
-| Codebase state described here | `ae1c746` (Fase 6.0) + Fase 6.1 (§7o) + de environmentregel (§7p). De environmentregel is de eerste fase sinds 6.1 die backendcode raakt (identiteit en guards in `server/src/lib/env.ts`, health/robots/sitemap, `ops/*.sh`) |
-| This document | updated voor de environmentregel (§7p); de eigen revisie is zichtbaar met `git log -1 -- docs/CONTEXT.md` |
-| Working tree | de fase begon op `HEAD = a8f1a88` met een dirty worktree: 8 mode-only wijzigingen (uitvoerbare bits, sandboxreset) plus de bestanden van deze fase; `docs/ILMNET_DISCOVERY_EXPERIENCE.md` is nog untracked. Controleer de leveringsstaat met `git status -sb` — push is op dit documentatiepunt niet bevestigd |
+| Codebase state described here | `ae1c746` (Fase 6.0) + Fase 6.1 (§7o) + environmentregel (§7p) + D0 discovery foundation (§7q) |
+| This document | bijgewerkt voor de environmentregel (§7p) en voor D0 (§7q); de eigen revisie is zichtbaar met `git log -1 -- docs/CONTEXT.md` |
+| Working tree | D0 begon op `HEAD = 037756c` (= `origin/master`, dus de Git-levering was op dat moment bij) en raakte daarna alleen `src/` + dit document; de 8 mode-only bestanden (`ops/*.sh`, `scripts/precompress.mjs`) zijn sandboxartefacten (uitvoerbare bits) en zijn **niet** meegenomen in de commit. Controleer de staat met `git status -sb` |
 | Repository | `github.com/mrmiagy82/ilmNET_V7` |
-| Size | 77 files under `src/` + `server/src/` (76 `.ts`/`.tsx`, 17 184 lines). `public/brand/` now has 34 files, including eight new SVGs (98 962 B total); original PNG/WebP references remain unchanged |
-| Build (git-ignored artefact) | environmentregel-fase: single-file `dist/index.html` 658 267 B / `dist/index.html.gz` 163 628 B (sha256 `58f62a5b…`), plus `dist/fonts/` en `dist/brand/` (8 SVG’s, 7 favicons) en `dist/manifest.webmanifest`; dezelfde build is naar de twee nagebootste omgevingen geserveerd |
-| Phase state | environmentregel geïmplementeerd en in deze sandbox geverifieerd: `npm run test:all` exit 0 (uploads 30/30, production 163/163, env-hardening 13/13, environment 38/38, ops 21/21, auth 69/69), beide typechecks schoon, en `ops/deploy-check.sh` groen op een staging- (13/13) en een productie-identiteit (11/11) — zie §7p. Een **echte** staginghost is er nog niet, dus de promotie van de release staat open |
-| Roadmap | de environmentregel is de eerste stap van de weg naar live: elke volgende fase doorloopt development → staging → productie (§7p, `docs/ENVIRONMENTS.md`, `docs/RELEASES.md`). Daarnaast blijven de UI/UX- en performancepunten uit §8/§9 staan |
+| Size | 80 files under `src/` + `server/src/` (17 716 lines). `public/brand/` 34 files incl. acht SVG’s (98 962 B); originele PNG/WebP-referenties blijven staan |
+| Build (git-ignored artefact) | D0: single-file `dist/index.html` **659 532 B** (sha256 `1ea6bfb0…`) / `dist/index.html.gz` **164 272 B** — +1 265 B door de hook en de gedeelde kaartmodule — plus `dist/fonts/` (14 subsets), `dist/brand/` (8 SVG’s, 7 favicons) en `dist/manifest.webmanifest` |
+| Phase state | D0 geïmplementeerd en lokaal geverifieerd, nog **niet** gepubliceerd: `tsc --noEmit` schoon (root + `server/`), `npm run build` ok, 16/16 kaarten byte-identiek t.o.v. HEAD, 15/15 querychecks, 8/8 railcontracten, 17/17 live checks op de productie-geconfigureerde instance (:3101), `test:e2e:production` 105 groen / 3 rood (identiek aan de basislijn ervoor), `test:e2e:brand` 222/222. Stagingpromotie blijft open: er is geen staginghost |
+| Roadmap | discovery in stappen (`docs/ILMNET_DISCOVERY_EXPERIENCE.md` §8): **D0 gedaan** (§7q); D1 landingsrails → D2 bibliotheekrails + eerlijke schaal → D3 scholar-hub → D4 zoeken → D5 detailcontinuïteit → D6 series → D7 optioneel. Daarnaast: staginghost inrichten (environmentregel) en de host-side punten uit §8 |
 | Brand | Fase 6.1: `public/brand/logo/*.svg` are true, path-only reconstructions of the supplied branding references, not original vector masters. Original font and tiny descriptor details cannot be authenticated; see `brand/SVG_RECONSTRUCTION.md`. The favicon/app icon set and official theme tokens from Fase 6.0 are retained |
-| Open blockers | (1) Geen staginghost: tot die er is, kan geen enkele release als “klaar” worden afgerond en draagt elke entry in `docs/RELEASES.md` die afwijking. (2) Git-levering: de push van `a8f1a88` is niet gelukt (geen pushcredentials) en GitHub `master` is inmiddels `6d67ad5`, dus geen fast-forward; niets is geforceerd of herschreven. (3) De host-side punten uit §8 blijven ongewijzigd staan |
+| Open blockers | (1) Geen staginghost: tot die er is kan geen enkele release als “klaar” worden afgerond en draagt elke entry in `docs/RELEASES.md` die afwijking. (2) De vijf eigenaarsbeslissingen Q1–Q5 uit het discoveryplan staan nog open; D1–D7 die ervan afhangen wachten daarop. (3) De host-side punten uit §8 blijven ongewijzigd |
 
 ## 2. Completed phases (from Git history)
 
@@ -1422,6 +1423,95 @@ productie-achtige configuratie heeft gevalideerd” blijft dus openstaan voor de
 staat als afwijking in `docs/RELEASES.md`. De GitHub-push van `a8f1a88` is nog steeds geblokkeerd door
 ontbrekende pushcredentials (en GitHub `master` is inmiddels `6d67ad5`, dus geen fast-forward); daarom is
 er in deze fase niets gepusht en blijft de promotie van de twee openstaande releases open.
+
+## 7q. Wat D0 (discovery foundation) veranderde — de basis, zonder zichtbare wijziging
+
+Instructie: leg de technische basis voor de Discovery Experience uit `docs/ILMNET_DISCOVERY_EXPERIENCE.md`
+zonder de bestaande UI zichtbaar te veranderen — herbruikbare contentkaarten, een herbruikbare
+Rail/section-header, centrale content-query-/filterlogica, `pagination.total` waar tellers nodig zijn,
+bestaande API en architectuur hergebruiken, geen fake Popular/Trending, geen nieuwe databasevelden, geen
+TinyCMS, geen nieuwe dependencies, geen LocalStorage, geen aanpassing van productieconfiguratie.
+
+### Eerst geanalyseerd, toen pas gebouwd
+
+| Bestaand | Bevinding |
+| --- | --- |
+| `pages/Lectures.tsx` | `LectureCard` (regel 20), `SeriesCard` (79), `SkeletonCard` (126) — plus de type-mapping `Video→lecture,video`, `Audio→audio`, `all→lecture,video,audio` en `limit: 100` |
+| `pages/Books.tsx` | `BookCover` (11), `BookCard` (42), `CollectionCard` (66), `SkeletonCard` (103) — met dezelfde mapping, maar `all→book,document` |
+| `pages/SubjectDetail.tsx` | een tweede `SeriesCard` (11) en `ContentCard` (34): dezelfde kaarten in een fijnere dichtheid |
+| `pages/Scholars.tsx` | `ScholarTile` (8) + `SkeletonTile` |
+| `components/ui.tsx` | `SectionLabel`, `Tag`, `StatRow`, `EmptyState` — de bouwstenen waar de nieuwe rail op rust |
+| `components/Hero.tsx` | gebruikte `limit: 1` + `pagination.total` al: het eerlijke telpatroon dat de rest nog miste |
+
+`npm run biome` bestaat **niet** in dit project (geen biome-config, geen script); de projectchecks zijn
+`tsc --noEmit` (root + `server/`), `npm run build` en de suites onder `npm test`/`npm run test:e2e:*`.
+
+### Gebouwd (D0)
+
+1. **`src/components/cards.tsx`** — de gedeelde kaarten: `LectureCard`, `SeriesCard`, `BookCover`,
+   `BookCard`, `CollectionCard`, `CompactSeriesCard`, `CompactContentCard`, `ScholarTile`,
+   `CardSkeleton({ media })`, `TileSkeleton`, `PlayGlyph`. Alle markup is letterlijk overgenomen —
+   dezelfde elementen, klassen en test-id's (`lecture-card-thumb`, `series-card-thumb`, `book-cover`,
+   `collection-cover`, `subject-series-thumb`, `subject-content-thumb`). Eén verbetering zonder
+   zichtbaar gevolg: de `as any` op subject-accenten is een getypeerde `toneOf()`-hulp geworden.
+2. **`src/components/Rail.tsx`** — `Rail` + `SectionHeading`. Native CSS scroll-snap, geen
+   scroll-library; de scroller is een **benoemde, focusbare regio** (`role="region"`, `tabIndex=0`,
+   `aria-label`), zodat pijltjestoetsen werken en een schermlezer weet wat het is. Contracten die het
+   bestand zelf afdwingt: **een lege rail rendert niets** (geen kader met een plausibele `0`, geen
+   mockkaart), een ladende rail toont precies `skeletonCount` placeholders, en de kaartbreedte is een
+   parameter. Geen Spotify-geometrie of -kleur: bestaande ilmNet-vlakken, 30 px kaartritme, cream/sand.
+3. **`src/lib/contentQuery.ts`** — de filterlogica op één plek: `SHELF_TYPES`, `typeFilterToApi()`
+   (de mapping die in twee pagina's stond), `buildContentParams()`, `parseContentFilters()`,
+   `hasActiveFilters()`, `contentQueryKey()`. Puur, geen React.
+4. **`src/lib/useContentQuery.ts`** — de ene hook rond `listPublishedContents`: **abort** bij een
+   filterwijziging of unmount (een oud antwoord kan een nieuw nooit meer overschrijven), `total` uit
+   `pagination.total`, `page`/`totalPages`, en `shouldHide` voor de discovery-regel “elke rail
+   verbergt zichzelf bij een fout of een lege uitslag”. Geen cachelaag, geen staatsbibliotheek: één
+   request per query, zoals ervoor.
+5. **`src/lib/api.ts`** — `listPublishedContents(params, { signal })`: optionele `AbortSignal`, zodat
+   de hook echt kan annuleren. Geen endpoint-, veld- of contractwijziging.
+6. **`src/index.css`** — één additieve `@utility rail-scroll` (dunne scrollbar in de bestaande
+   palette). Raakt geen bestaande pagina; alleen wie de utility gebruikt verandert.
+
+De vier pagina's zijn **kleiner** geworden in plaats van groter: 432 regels dubbele kaartcode weg,
+59 regels ervoor in de plaats (de imports en de hookaanroepen). `Lectures` en `Books` halen hun data nu
+via `useContentQuery` — dezelfde URL, dezelfde `limit`, dezelfde foutafhandeling, dezelfde
+laad-/lege toestanden.
+
+### Bewijs (26 september 2026, development)
+
+| Wat | Hoe | Uitkomst |
+| --- | --- | --- |
+| Kaarten ongewijzigd | render-harnas: de pagina's **van HEAD** vs. de nieuwe gedeelde module, statisch gerenderd met vaste fixtures (video, audio zonder artwork, boek, document zonder cover, playlist, collectie, scholar met/zonder specialty, beide skeletten) | **16/16 byte-identieke HTML** |
+| Query-/filterlogica | idem, pure functies | **15/15** (o.a. `all→lecture,video,audio`, `Video→lecture,video`, `all→book,document`, `q` getrimd, `subject=all` weggelaten, `page=1` niet meegestuurd, onbekende waarde ongewijzigd doorgegeven) |
+| Rail-contracten | idem | **8/8** (leeg → niets, benoemde focusbare regio, `Show all`, skeletons, geen Spotify-kleur/woord) |
+| Draaiende pagina's | live check tegen de productie-geconfigureerde instance op `127.0.0.1:3101` (echte database, echte API): `/lectures`, `/lectures?type=audio`, `/lectures?type=video`, `/books` | **17/17** — kaarten == API-records, teller == `pagination.total`, foutpad toont de foutstaat |
+| Eerlijke teller boven de paginagrens | 140 tijdelijke rijen toegevoegd (146 gepubliceerde lectures), pagina geladen, rijen daarna verwijderd | kop toont **146** = `pagination.total` terwijl er 100 kaarten staan (was: “100”). Dat is precies audit A5 |
+| Typechecks | `tsc --noEmit` root + `server/` | beide schoon |
+| Build | `npm run build` | `dist/index.html` 659 532 B (sha256 `1ea6bfb0…`), `.gz` 164 272 B — +1 265 B t.o.v. voor D0 (de hook en de gedeelde module) |
+| Browsersuite | `npm run test:e2e:production` tegen de productie-instance | **105 groen / 3 rood**, exact dezelfde drie data-gaten als vóór D0 (geen echte YouTube-/Archive-import in deze database) |
+| Merksuite | `npm run test:e2e:brand` | **222/222** |
+| Bundel | tree-shaking gecontroleerd in `dist/index.html` | 0 treffers voor `Show all`: de Rail zit **niet** in de bundel tot D1 hem importeert |
+
+### Wat D0 bewust niet doet
+
+- **Geen zichtbare verandering.** Geen rail staat op een pagina, geen kaart kreeg een andere maat, geen
+  pagina kreeg een ander aantal items. D0 levert alleen de onderdelen die D1–D4 gaan gebruiken.
+- **Geen “Load more” en geen volledige eerlijke schaal.** De hook kan pagen (`page`, `totalPages`),
+  maar alleen de **kop-teller** op /lectures en /books gebruikt nu `pagination.total`. De “N found”-regel
+  naast de filters telt nog de geladen pagina; dat hoort bij D2 (samen met “Load more”), anders zou er
+  een half verhaal staan.
+- **Geen populariteit, geen Trending, geen Featured.** Niets verzonnen; er is nog steeds geen
+  populariteitssignaal in de API (plan B4 is niet aangevraagd).
+- **Geen scholar-hub, geen zoekpagina, geen seriecontinuïteit.** Dat is D3/D4/D5.
+- **Geen server-, schema- of dependencywijziging.** Geen TinyCMS, geen LocalStorage, geen aanpassing van
+  de environmentregel of de productieconfiguratie.
+
+### Volgende stap
+
+D1 — de discovery-rails op de landingspagina (secties 2, 4, 5 en 7 van plan §4.1) met `Rail` +
+`useContentQuery`, inclusief het vervangen van het verkeerd gelabelde scholar-blok (audit A1) en de
+mobiele overflow-check op 390×844.
 
 ## 8. Known remaining issues (not blockers)
 

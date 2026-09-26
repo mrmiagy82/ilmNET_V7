@@ -1,55 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
 import PageHeader from '../components/PageHeader';
 import { usePageMeta } from '../lib/usePageMeta';
-import { SearchBar, FilterChips, Tag, EmptyState, StatRow } from '../components/ui';
+import { SearchBar, FilterChips, EmptyState, StatRow } from '../components/ui';
 import { listPublicScholars, listPublicSubjects, listPublishedContents, type BackendScholar, type BackendSubject, type BackendContent } from '@/lib/api';
-
-function ScholarTile({ s, lectureCount, bookCount }: { s: BackendScholar; lectureCount: number; bookCount: number }) {
-  const specialtyName = (s as any).specialty?.name ?? '';
-  const accent = (s as any).accent ?? s.accent ?? 'olive';
-  return (
-    <article className="bg-cream neu-raised group flex flex-col rounded-[30px] p-7 transition-transform duration-500 hover:-translate-y-1.5">
-      <div className="flex items-center gap-4">
-        <div className={`font-display grid h-16 w-16 shrink-0 place-items-center rounded-full text-[1.3rem] font-extrabold neu-inset-sm ${accent === 'rose' ? 'bg-rose/10 text-rose' : 'bg-sand text-olive-deep'}`}>
-          {s.initials ?? s.name.slice(0, 2).toUpperCase()}
-        </div>
-        <div>
-          <h3 className="font-display text-ink text-[1.2rem] leading-tight font-extrabold tracking-[-0.02em]">
-            {s.name}
-          </h3>
-          {specialtyName && <Tag tone={accent === 'rose' ? 'rose' : 'olive'}>{specialtyName}</Tag>}
-        </div>
-      </div>
-
-      <p className="text-ink-soft mt-5 text-[0.9rem] leading-relaxed line-clamp-3">{s.bio ?? ''}</p>
-
-      <Link to="/lectures" className="border-line/70 text-ink-soft mt-6 flex items-center justify-between border-t pt-4 text-[0.82rem] font-medium transition-colors hover:text-rose">
-        <span>{lectureCount} lectures</span>
-        <span>{bookCount} books</span>
-        <span className="text-rose inline-flex items-center gap-1">
-          View work <span aria-hidden="true">→</span>
-        </span>
-      </Link>
-    </article>
-  );
-}
-
-function SkeletonTile() {
-  return (
-    <article className="bg-cream neu-raised flex flex-col rounded-[30px] p-7 animate-pulse">
-      <div className="flex items-center gap-4">
-        <div className="bg-sand neu-inset-sm h-16 w-16 rounded-full" />
-        <div className="space-y-2">
-          <div className="bg-sand h-5 w-32 rounded-full" />
-          <div className="bg-sand h-4 w-20 rounded-full" />
-        </div>
-      </div>
-      <div className="bg-sand mt-5 h-16 rounded-[16px]" />
-      <div className="bg-sand mt-6 h-4 w-full rounded-full" />
-    </article>
-  );
-}
+// Discovery step D0: the tile lives in the shared card module now (the hub in D3 extends it).
+import { ScholarTile, TileSkeleton } from '@/components/cards';
 
 export default function Scholars() {
   usePageMeta({
@@ -140,7 +95,7 @@ export default function Scholars() {
             <>
               <p className="text-ink-muted mt-8 text-[0.86rem] font-medium">Loading scholars…</p>
               <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                {Array.from({ length: 6 }).map((_, i) => <SkeletonTile key={i} />)}
+                {Array.from({ length: 6 }).map((_, i) => <TileSkeleton key={i} />)}
               </div>
             </>
           ) : error ? (
