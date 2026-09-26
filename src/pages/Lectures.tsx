@@ -2,12 +2,19 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import PageHeader from '../components/PageHeader';
 import { usePageMeta } from '../lib/usePageMeta';
-import { SearchBar, FilterChips, EmptyState, StatRow } from '../components/ui';
-import { listPublicScholars, listPublicSubjects, type BackendScholar, type BackendSubject } from '@/lib/api';
+import { EmptyState, StatRow } from '../components/ui';
 import { groupByCollection } from '@/lib/series';
-// Discovery step D0: the cards and the query logic live in one shared place now instead of in each page.
-import { LectureCard, SeriesCard, CardSkeleton } from '@/components/cards';
-import { useContentQuery } from '@/lib/useContentQuery';
+// Discovery steps D0/D2: cards, query logic, paging, filter panel and list states all live in one
+// shared place instead of in each page (audit D6 measured the drift this removes).
+import { LectureCard, SeriesCard } from '@/components/cards';
+import { Rail, RAIL_SLOT } from '@/components/Rail';
+import LibraryFilters from '@/components/LibraryFilters';
+import { CardGridSkeleton, ListErrorCard, LoadMore } from '@/components/ListStates';
+import { usePagedContentQuery, LIBRARY_PAGE_SIZE } from '@/lib/usePagedContentQuery';
+import { useFilterOptions } from '@/lib/useFilterOptions';
+
+/** The newest strip on the page shows this many items, and only when the shelf is bigger than that. */
+const NEWEST_RAIL = 12;
 
 export default function Lectures() {
   // Fase 5.5: this route previously shared index.html's title/description with every other page.
@@ -46,33 +53,35 @@ export default function Lectures() {
     return 'all';
   }, [urlFormat]);
 
-  const [scholars, setScholars] = useState<BackendScholar[]>([]);
-  const [subjects, setSubjects] = useState<BackendSubject[]>([]);
-  const scholarBySlug = useMemo(() => new Map(scholars.map(s => [s.slug, s])), [scholars]);
-  const subjectBySlug = useMemo(() => new Map(subjects.map(s => [s.slug, s])), [subjects]);
+  const { scholarOptions, subjectOptions, scholarBySlug, subjectBySlug } = useFilterOptions();
 
-  useEffect(() => {
-    let cancelled = false;
-    Promise.all([
-      listPublicScholars().catch(() => ({ data: [] as BackendScholar[] })),
-      listPublicSubjects().catch(() => ({ data: [] as BackendSubject[] })),
-    ]).then(([schRes, subjRes]) => {
-      if (cancelled) return;
-      setScholars((schRes as any).data ?? []);
-      setSubjects((subjRes as any).data ?? []);
-    });
-    return () => { cancelled = true; };
-  }, []);
-
-  // One shared query: same request as before (limit 100, the same type mapping), plus the API's own
-  // `pagination.total` so a counter can never under-report a library larger than one page.
-  const { data: contents, total, loading, error } = useContentQuery(
-    { q: searchParams.get('q') ?? undefined, scholar: urlScholar, subject: urlSubject, type: urlFormat },
-    { shelf: 'lectures', errorMessage: 'Failed to load lectures' },
+  const queryFilters = useMemo(
+    () => ({ q: searchParams.get('q') ?? undefined, scholar: urlScholar, subject: urlSubject, type: urlFormat }),
+    [searchParams, urlScholar, urlSubject, urlFormat],
   );
 
-  const subjectOptions = subjects.map((s) => ({ value: s.slug, label: s.name.replace(/ &.*/, '') }));
-  const scholarChipOptions = scholars.map((s) => ({ value: s.slug, label: s.name }));
+  // D2: real paging. The page size replaces the silent `limit: 100` that made 101 published lectures
+  // look like a complete library and made every counter under-report (audit A5).
+  const { data: contents, total, loading, loadingMore, error, loadMore, retry, hasMore } = usePagedContentQuery(queryFilters, {
+    shelf: 'lectures',
+    errorMessage: 'Failed to load lectures',
+  });
+
+  // The newest strip asks the same shelf for its newest items, whatever the current filters are. It is
+  // only rendered when the shelf holds more than one page (see `showNewestRail`): a strip that repeats
+  // the list underneath it adds nothing.
+  const newest = usePagedContentQuery(queryFilters, {
+    shelf: 'lectures',
+    pageSize: NEWEST_RAIL,
+    sort: 'publishedAt:desc',
+    // Only asked for once the shelf turns out to be bigger than one page of the grid: a strip that
+    // repeats the list underneath it would add nothing (and would cost a request).
+    enabled: total > LIBRARY_PAGE_SIZE,
+  });
+
+  const { series, standalone } = useMemo(() => groupByCollection(contents), [contents]);
+  const hasActiveFilters = Boolean(urlQ) || urlScholar !== 'all' || urlSubject !== 'all' || format !== 'all';
+  const showNewestRail = newest.total > LIBRARY_PAGE_SIZE && newest.data.length > 0;
 
   function updateParam(key: string, value: string) {
     const next = new URLSearchParams(searchParams);
@@ -81,13 +90,19 @@ export default function Lectures() {
     setSearchParams(next, { replace: false });
   }
 
-  const hasActiveFilters = urlQ || urlScholar !== 'all' || urlSubject !== 'all' || format !== 'all';
-  const { series, standalone } = useMemo(() => groupByCollection(contents), [contents]);
-
   function clearAll() {
     setInputQ('');
     setSearchParams(new URLSearchParams(), { replace: false });
   }
+
+  // The words after "Filters: …" — the same names the pages and cards use, never an id.
+  const activeSummary = (
+    <>
+      Filters: {urlQ ? `“${urlQ}”` : ''} {urlScholar !== 'all' ? `· ${scholarBySlug.get(urlScholar)?.name ?? urlScholar}` : ''}{' '}
+      {urlSubject !== 'all' ? `· ${subjectBySlug.get(urlSubject)?.name ?? urlSubject}` : ''} {format !== 'all' ? `· ${format}` : ''}{' '}
+      <span className="text-ink-soft">— share this URL</span>
+    </>
+  );
 
   return (
     <>
@@ -99,7 +114,7 @@ export default function Lectures() {
           <StatRow
             items={[
               { value: loading || error ? '—' : `${total}`, label: 'Items' },
-              { value: loading || error ? '—' : `${series.length}`, label: 'Series' },
+              { value: loading || error ? '—' : `${series.length}`, label: 'Series in view' },
               { value: 'Free', label: 'To listen' },
             ]}
           />
@@ -108,79 +123,83 @@ export default function Lectures() {
 
       <section className="px-5 pb-24 sm:px-6 lg:pb-32">
         <div className="mx-auto max-w-[1180px]">
-          <div className="bg-sand/70 neu-inset sticky top-[88px] z-30 rounded-[34px] p-4 sm:p-6">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
-              <div className="lg:flex-1">
-                <SearchBar value={inputQ} onChange={setInputQ} placeholder="Search lectures, scholars, series…" label="Search lectures" />
-              </div>
-              {hasActiveFilters && (
-                <button
-                  onClick={clearAll}
-                  className="bg-cream neu-raised-sm text-ink hover:text-rose shrink-0 rounded-full px-5 py-3 text-[0.86rem] font-semibold transition-colors"
-                >
-                  Reset filters
-                </button>
-              )}
-            </div>
-            <div className="mt-4 flex flex-col gap-4">
-              <div>
-                <p className="text-ink-muted mb-2 text-[0.7rem] font-semibold tracking-[0.14em] uppercase">Scholar</p>
-                <FilterChips options={scholarChipOptions} active={urlScholar as any} onChange={(v) => updateParam('scholar', v as string)} allLabel="All scholars" />
-              </div>
-              <div>
-                <p className="text-ink-muted mb-2 text-[0.7rem] font-semibold tracking-[0.14em] uppercase">Subject</p>
-                <FilterChips options={subjectOptions} active={urlSubject as any} onChange={(v) => updateParam('subject', v as string)} allLabel="All subjects" />
-              </div>
-              <div>
-                <p className="text-ink-muted mb-2 text-[0.7rem] font-semibold tracking-[0.14em] uppercase">Format</p>
-                <FilterChips options={[{ value: 'Audio', label: 'Audio' }, { value: 'Video', label: 'Video' }]} active={format as any} onChange={(v) => {
-                  const mapped = v === 'all' ? 'all' : v === 'Audio' ? 'audio' : 'video';
-                  updateParam('type', mapped);
-                }} allLabel="All formats" />
-              </div>
-              {hasActiveFilters && (
-                <p className="text-ink-muted text-[0.74rem]">
-                  Filters: {urlQ ? `“${urlQ}”` : ''} {urlScholar !== 'all' ? `· ${scholarBySlug.get(urlScholar)?.name ?? urlScholar}` : ''} {urlSubject !== 'all' ? `· ${subjectBySlug.get(urlSubject)?.name ?? urlSubject}` : ''} {format !== 'all' ? `· ${format}` : ''} <span className="text-ink-soft">— share this URL</span>
-                </p>
-              )}
-            </div>
-          </div>
+          <LibraryFilters
+            search={inputQ}
+            onSearch={setInputQ}
+            searchPlaceholder="Search lectures, scholars, series…"
+            searchLabel="Search lectures"
+            activeSummary={activeSummary}
+            hasActiveFilters={hasActiveFilters}
+            onReset={clearAll}
+            groups={[
+              { id: 'scholar', label: 'Scholar', options: scholarOptions, active: urlScholar, allLabel: 'All scholars', onChange: (v) => updateParam('scholar', v) },
+              { id: 'subject', label: 'Subject', options: subjectOptions, active: urlSubject, allLabel: 'All subjects', onChange: (v) => updateParam('subject', v) },
+              {
+                id: 'format',
+                label: 'Format',
+                options: [
+                  { value: 'Audio', label: 'Audio' },
+                  { value: 'Video', label: 'Video' },
+                ],
+                active: format,
+                allLabel: 'All formats',
+                onChange: (v) => updateParam('type', v === 'all' ? 'all' : v === 'Audio' ? 'audio' : 'video'),
+              },
+            ]}
+          />
 
           {loading ? (
             <>
               <p className="text-ink-muted mt-8 text-[0.86rem] font-medium">Searching lectures…</p>
-              <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                {Array.from({ length: 6 }).map((_, i) => <CardSkeleton key={i} />)}
-              </div>
+              <CardGridSkeleton count={6} />
             </>
-          ) : error ? (
-            <div className="mt-10 bg-cream neu-raised rounded-[24px] p-8 text-center">
-              <p className="font-display text-ink text-[1.1rem] font-bold">Could not load lectures</p>
-              <p className="text-ink-soft mt-2 text-[0.9rem]">{error}</p>
-              <button onClick={() => window.location.reload()} className="bg-rose text-cream mt-6 rounded-full px-6 py-3 text-[0.9rem] font-semibold">Try again</button>
-            </div>
+          ) : error && contents.length === 0 ? (
+            <ListErrorCard title="Could not load lectures" onRetry={retry} retrying={loading} />
           ) : (
             <>
-              {/* Fase 5.5: screen readers hear the result of a filter without moving focus. */}
+              {/* Fase 5.5: screen readers hear the result of a filter without moving focus.
+                  D2: the first number is the API's own total, the second is what is really on screen —
+                  the line no longer reports the loaded page as if it were the whole library (audit A5). */}
               <p className="text-ink-muted mt-8 text-[0.86rem] font-medium" role="status" aria-live="polite">
-                {contents.length} lectures found · {series.length} series, {standalone.length} singles
+                {total} lectures found{hasMore ? ` · showing ${contents.length} of ${total}` : ''} · {series.length} series, {standalone.length} singles in view
               </p>
 
+              {showNewestRail && (
+                <Rail
+                  className="mt-10"
+                  bleed={false}
+                  label="Recently added"
+                  title="Newest first"
+                  subtitle="The latest items in this view"
+                  items={newest.data.length}
+                  loading={newest.loading}
+                  skeletonCount={4}
+                  itemClassName={RAIL_SLOT.media}
+                >
+                  {newest.data.map((c) => (
+                    <LectureCard key={c.id} c={c} />
+                  ))}
+                </Rail>
+              )}
+
               {series.length > 0 && (
-                <>
-                  <h2 className="font-display text-ink mt-8 text-[1.35rem] font-extrabold tracking-[-0.02em]">Series & Playlists</h2>
-                  <p className="text-ink-muted mt-1 text-[0.82rem]">A series gathers all its episodes — open the series to see them.</p>
-                  <div className="mt-4 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                    {series.map((s) => (
-                      <SeriesCard key={s.id} s={s} />
-                    ))}
-                  </div>
-                </>
+                <Rail
+                  className="mt-12"
+                  bleed={false}
+                  title="Series & Playlists"
+                  subtitle={`Grouped from the ${contents.length} items loaded in this view — open a series to see everything it contains`}
+                  items={series.length}
+                  itemClassName={RAIL_SLOT.media}
+                >
+                  {series.map((s) => (
+                    <SeriesCard key={s.id} s={s} />
+                  ))}
+                </Rail>
               )}
 
               {standalone.length > 0 && (
                 <>
-                  <h2 className="font-display text-ink mt-10 text-[1.35rem] font-extrabold tracking-[-0.02em]">{series.length ? 'Single lectures' : 'Lectures'}</h2>
+                  <h2 className="font-display text-ink mt-12 text-[1.35rem] font-extrabold tracking-[-0.02em]">{series.length ? 'Single lectures' : 'Lectures'}</h2>
                   <div className="mt-4 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                     {standalone.map((c) => (
                       <LectureCard key={c.id} c={c} />
@@ -188,6 +207,18 @@ export default function Lectures() {
                   </div>
                 </>
               )}
+
+              {/* A failure while loading more keeps the list: only this line reports it (D2). */}
+              {error && contents.length > 0 && (
+                <p className="text-rose mt-8 text-center text-[0.86rem] font-medium" role="status">
+                  Could not load more — {''}
+                  <button type="button" onClick={retry} className="underline">
+                    try again
+                  </button>
+                </p>
+              )}
+
+              {hasMore && !error && <LoadMore shown={contents.length} total={total} noun="lecture" loading={loadingMore} onClick={loadMore} />}
 
               {contents.length === 0 && (
                 <div className="mt-10">
@@ -199,7 +230,9 @@ export default function Lectures() {
                   )}
                   <div className="mt-6 flex justify-center">
                     {hasActiveFilters && (
-                      <button onClick={clearAll} className="bg-rose text-cream rounded-full px-6 py-3 text-[0.9rem] font-semibold">Clear all filters</button>
+                      <button onClick={clearAll} className="bg-rose text-cream rounded-full px-6 py-3 text-[0.9rem] font-semibold">
+                        Clear all filters
+                      </button>
                     )}
                   </div>
                 </div>

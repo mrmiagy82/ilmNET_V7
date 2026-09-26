@@ -22,15 +22,12 @@
  */
 import { useContentQuery } from '@/lib/useContentQuery';
 import { usePublicScholars } from '@/lib/usePublicScholars';
-import { Rail } from '@/components/Rail';
+import { Rail, RAIL_SLOT } from '@/components/Rail';
 import { CardSkeleton, ContentCard, ScholarTile, TileSkeleton } from '@/components/cards';
 
 /** Cards per rail. One page of twelve, the API's own default page size for a discovery row. */
 const RAIL_LIMIT = 12;
 const SKELETONS = 4;
-const MEDIA_SLOT = 'w-[270px] shrink-0 snap-start sm:w-[330px]';
-const BOOK_SLOT = 'w-[230px] shrink-0 snap-start sm:w-[270px]';
-const SCHOLAR_SLOT = 'w-[280px] shrink-0 snap-start sm:w-[320px]';
 
 /** Page rhythm for a rail band: the house gutter, the house width (inside `Rail`), and less air than a
  *  full marketing section so several rails read as one browse surface. */
@@ -56,7 +53,7 @@ export function NewInLibrary() {
       loading={loading}
       skeletonCount={SKELETONS}
       skeleton={<CardSkeleton media="book" />}
-      itemClassName={BOOK_SLOT}
+      itemClassName={RAIL_SLOT.book}
     >
       {data.map((c) => (
         <ContentCard key={c.id} c={c} />
@@ -79,7 +76,7 @@ export function ListenRail() {
       items={data.length}
       loading={loading}
       skeletonCount={SKELETONS}
-      itemClassName={MEDIA_SLOT}
+      itemClassName={RAIL_SLOT.media}
     >
       {data.map((c) => (
         <ContentCard key={c.id} c={c} />
@@ -103,7 +100,7 @@ export function ReadRail() {
       loading={loading}
       skeletonCount={SKELETONS}
       skeleton={<CardSkeleton media="book" />}
-      itemClassName={BOOK_SLOT}
+      itemClassName={RAIL_SLOT.book}
     >
       {data.map((c) => (
         <ContentCard key={c.id} c={c} />
@@ -128,7 +125,7 @@ export function ScholarRail() {
       loading={loading}
       skeletonCount={SKELETONS}
       skeleton={<TileSkeleton />}
-      itemClassName={SCHOLAR_SLOT}
+      itemClassName={RAIL_SLOT.scholar}
     >
       {data.map((s) => (
         <ScholarTile key={s.id} s={s} linkLabel="View lectures" />

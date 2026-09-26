@@ -68,6 +68,9 @@ export default function Nav() {
           <button
             onClick={() => setOpen((v) => !v)}
             aria-label="Menu"
+              /* D2 (audit D9): the toggle states whether the panel is open and which element it controls. */
+              aria-expanded={open}
+              aria-controls="mobile-menu-panel"
             className="bg-sand neu-raised-sm grid h-10 w-10 place-items-center rounded-[14px] md:hidden"
           >
             <span className="flex flex-col gap-[5px]">
@@ -80,7 +83,7 @@ export default function Nav() {
       </nav>
 
       {open && (
-        <div className="bg-cream neu-raised mx-auto mt-3 max-w-[1180px] rounded-[26px] p-3 md:hidden">
+        <div id="mobile-menu-panel" className="bg-cream neu-raised mx-auto mt-3 max-w-[1180px] rounded-[26px] p-3 md:hidden">
           {links.map((l) => (
             <Link
               key={l.to}

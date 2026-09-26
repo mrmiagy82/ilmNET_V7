@@ -5,13 +5,16 @@ Update it after every finished phase, commit, sanity check or significant discov
 Rules: only facts that are verifiable from the repository, Git history or existing docs — and
 **never** secrets, tokens or credentials.
 
-_Last updated: D1 (26 september 2026): de homepage is een discovery-oppervlak geworden — vier echte
-_rails (nieuw in de bibliotheek, nieuwste lectures, nieuwste boeken, scholars) op echte API-data, met
-_horizontale scroll, paging-knoppen, “Show all” en een rail die zichzelf verbergt bij een fout of een
-_lege uitslag. Het verkeerd gelabelde scholar-blok is weg (audit A1) en elke scholar-tegel linkt naar
-_diens eigen gefilterde lectures (A2). Geen fake Popular/Trending, geen nieuwe dependency, geen
-_databasewijziging, geen TinyCMS (§7r). De environmentregel (§7p) blijft van kracht; promotie- en
-_pushstaat staan in §1 en `docs/RELEASES.md`._
+_Last updated: D2 (26 september 2026): `/lectures` en `/books` zijn echte discoverypagina’s geworden —
+_een strip met de nieuwste items, de series/collecties uit de geladen set, een eerlijke teller uit
+_`pagination.total`, echte paginering met “Load more” in plaats van een stille `limit=100`, en één
+_gedeeld filterpaneel, één loading/error/empty-pad en één retry voor beide planken (auditpunten A5,
+_B1–B6, D6, D9, D11 op deze twee pagina’s). Alleen echte backenddata: geen Popular/Trending, geen
+_verzonnen volgorde, afleveringnummers of aantallen. Geen nieuwe dependency, geen schemawijziging,
+_geen TinyCMS, geen authwijziging (§7s). De environmentregel (§7p) blijft van kracht; promotie- en
+_pushstaat staan in §1 en `docs/RELEASES.md`. In dezelfde fase is één echte fout in de gedeelde
+_querystack gevonden en gedicht: een request die de browser of het netwerk afbrak werd als “geannuleerd”
+_weggegooid en liet de pagina eeuwig laden (§8 punt 24)._
 
 The last phases: Fase 5.1 closed the three blockers from the Fase 5 audit (backup + restore, honest
 footer links, TLS/HSTS with a provider-agnostic runbook, §7g). Fase 5.2 hardened the deployment
@@ -35,14 +38,14 @@ uncompressed (631 kB → 157 kB over the wire, −2,3 s on a 3G profile) (§7j).
 | | |
 | --- | --- |
 | Branch | `master` |
-| Codebase state described here | `ae1c746` (Fase 6.0) + Fase 6.1 (§7o) + environmentregel (§7p) + D0 discovery foundation (§7q) + **D1 landingsrails (§7r)** |
-| This document | bijgewerkt voor de environmentregel (§7p), D0 (§7q) en D1 (§7r); de eigen revisie is zichtbaar met `git log -1 -- docs/CONTEXT.md` |
-| Working tree | D0 begon op `HEAD = 037756c` (= `origin/master`, dus de Git-levering was op dat moment bij) en raakte daarna alleen `src/` + de docs; de 8 mode-only bestanden (`ops/*.sh`, `scripts/precompress.mjs`) zijn sandboxartefacten (uitvoerbare bits) en zijn **niet** meegenomen in de commits. Na de push is `origin/master` == `HEAD` == `ce4ef58` en is de worktree schoon op die 8 mode-only bestanden |
+| Codebase state described here | `ae1c746` (Fase 6.0) + Fase 6.1 (§7o) + environmentregel (§7p) + D0 discovery foundation (§7q) + D1 landingsrails (§7r) + **D2 bibliotheek-discovery (§7s)** |
+| This document | bijgewerkt voor de environmentregel (§7p), D0 (§7q), D1 (§7r) en D2 (§7s); de eigen revisie is zichtbaar met `git log -1 -- docs/CONTEXT.md` |
+| Working tree | D2 begon ná de D1-push (master == HEAD == `8d5a27f`) en raakte alleen `src/` + de docs; de 8 mode-only bestanden (`ops/*.sh`, `scripts/precompress.mjs`) zijn sandboxartefacten (uitvoerbare bits) en zijn **niet** meegenomen in de commits. Na de D2-push hoort `origin/master` == `HEAD` == de D2-commit te zijn en de worktree schoon op die 8 mode-only bestanden |
 | Repository | `github.com/mrmiagy82/ilmNET_V7` |
 | Size | 80 files under `src/` + `server/src/` (17 716 lines). `public/brand/` 34 files incl. acht SVG’s (98 962 B); originele PNG/WebP-referenties blijven staan |
-| Build (git-ignored artefact) | D1: single-file `dist/index.html` **664 617 B** (sha256 `7f0772d3…`) / `dist/index.html.gz` **165 957 B** — +4 449 B t.o.v. D0 (de rails, de scholar-hook en de Rail-uitbreidingen) — plus `dist/fonts/` (14 subsets), `dist/brand/` (8 SVG’s, 7 favicons) en `dist/manifest.webmanifest` |
-| Phase state | D0 én D1 geïmplementeerd en gepubliceerd; D1 is de eerste zichtbare discoverystap. Bewijs: `tsc --noEmit` schoon (root + `server/`), `npm run build` ok, eigen browserharnas **35/35** (rails gevuld uit de API, eerlijk falen bij fout/leeg, scrollknoppen, “Show all”, scholar-links, mobiel), `test:e2e:production` 105 groen / 3 bekende datagaten, `test:e2e:brand` 222/222, `server:test:all` 409/0. Stagingpromotie blijft open: er is geen staginghost |
-| Roadmap | discovery in stappen (`docs/ILMNET_DISCOVERY_EXPERIENCE.md` §8): D0 + **D1 gedaan** (§7q/§7r); D2 bibliotheekrails + eerlijke schaal → D3 scholar-hub → D4 zoeken → D5 detailcontinuïteit → D6 series → D7 optioneel. Daarnaast: staginghost inrichten (environmentregel) en de host-side punten uit §8 |
+| Build (git-ignored artefact) | D2: single-file `dist/index.html` **667 891 B** (sha256 `9d0abdabc262157bac13f3dcd61dd6fca58cf3dd40d40e42a3d3afa51da06dff`) / `dist/index.html.gz` **167 375 B** — +3 274 B t.o.v. D1 (paging-hook, filterpaneel, lijststaten, nieuwste-strip) — plus `dist/fonts/` (14 subsets), `dist/brand/` (8 SVG’s, 7 favicons) en `dist/manifest.webmanifest`. Een herbouw uit dezelfde bron gaf byte-identiek hetzelfde bestand |
+| Phase state | D0, D1 én D2 geïmplementeerd; D1 is gepubliceerd, D2 is in deze fase gecommit en gepusht. Bewijs D2: `tsc --noEmit` schoon (root + `server/`), `npm run build` ok en reproduceerbaar, eigen browserharnas **47/47** tegen de wegwerp-database met schaaldata, `server:test:all` 409/0, `test:e2e:production` 105/3 (dezelfde drie bekende gaten als vóór D2), `test:e2e:brand` 222/222, `test:e2e:cms` 39/0, `test:e2e:auth` 60/0. Stagingpromotie blijft open: er is geen staginghost |
+| Roadmap | discovery in stappen (`docs/ILMNET_DISCOVERY_EXPERIENCE.md` §8): D0, D1 én **D2 gedaan** (§7q/§7r/§7s); **D3 scholar-hub** → D4 zoeken → D5 detailcontinuïteit → D6 series → D7 optioneel. Daarnaast: staginghost inrichten (environmentregel) en de host-side punten uit §8 |
 | Brand | Fase 6.1: `public/brand/logo/*.svg` are true, path-only reconstructions of the supplied branding references, not original vector masters. Original font and tiny descriptor details cannot be authenticated; see `brand/SVG_RECONSTRUCTION.md`. The favicon/app icon set and official theme tokens from Fase 6.0 are retained |
 | Open blockers | (1) Geen staginghost: tot die er is kan geen enkele release als “klaar” worden afgerond en draagt elke entry in `docs/RELEASES.md` die afwijking. (2) De vijf eigenaarsbeslissingen Q1–Q5 uit het discoveryplan staan nog open — D1 heeft ze ontweken waar mogelijk (geen serierail zonder Q2/B1) en wacht er bij D2–D7 op. (3) De host-side punten uit §8 blijven ongewijzigd |
 
@@ -1623,6 +1626,131 @@ D2 — bibliotheekrails en eerlijke schaal op `/lectures` en `/books`: “nieuws
 “Load more” met `page`/`totalPages`, `StatRow` uit `pagination.total` (audit A5) en één gedeelde
 retry/error-afhandeling (audit B4/B5).
 
+## 7s. D2 — `/lectures` en `/books` als discoverypagina’s
+
+D2 bouwt op D0 (de gedeelde kaarten, `Rail`, `useContentQuery`) en D1 (de landingsrails) voort, met
+**alleen bestaande infrastructuur**: de bestaande API, de bestaande kaarten, de bestaande
+designtokens, geen nieuwe dependency, geen schemawijziging, geen authwijziging, geen TinyCMS, geen
+LocalStorage als database. De omgevingsregel (§7p) blijft ongewijzigd: dit is development-werk, er is
+nog geen staginghost.
+
+### Wat er per pagina veranderd is
+
+**`/lectures`**
+- Kop met `StatRow` uit `pagination.total` (was: het aantal van de geladen pagina) — audit A5.
+- Echte paginering: 24 per pagina via `usePagedContentQuery` in plaats van de stille `limit: 100`;
+  “Load more” met de eerlijke regel “Showing 24 of 45”, en zodra alles geladen is alleen nog het
+  totaal (audit A5). De knop is een echte `<button>` met `aria-label`.
+- Resultaatregel: `{total} lectures found · showing {n} of {total} · {s} series, {k} singles in view` —
+  het tweede getal is wat er werkelijk op het scherm staat, en dat is controleerbaar tegen de DOM.
+- “Newest first”-strip (`sort=publishedAt:desc`, 12 items) die **alleen verschijnt als het schap groter
+  is dan één pagina** (anders herhaalt de strip de lijst eronder); hij vraagt dan ook pas data op.
+- “Series & Playlists”-rail uit `groupByCollection` over de geladen set, met de ondertitel die zegt
+  waar hij uit gegroepeerd is (“Grouped from the N items loaded in this view”) — geen verzonnen
+  volledigheid, geen verzonnen volgorde of afleveringnummers.
+- Eén gedeeld filterpaneel (`LibraryFilters`): zoeken blijft altijd zichtbaar, de chips staan op een
+  telefoon achter een echte disclosure (`aria-expanded`/`aria-controls`) — audit B1.
+- Eén loading-, error- en empty-pad (`ListStates`): skeletonrij, foutkaart met bezoekerstaal en
+  “Try again” dat **opnieuw ophaalt in plaats van de pagina te herladen** — audit B4/B5/D11. Een fout
+  tijdens “Load more” laat de geladen lijst staan en meldt zich alleen op die regel.
+- Lege uitkomst met filters zegt “No lectures match” en biedt “Clear all filters”; zonder filters zegt
+  hij dat er nog niets gepubliceerd is.
+
+**`/books`** — dezelfde principes, met de boekenkaarten en de boek/document-scheiding intact:
+eerlijke teller uit `pagination.total`, 24 per pagina, “Load more” (alleen als het echt nodig is),
+“Newest first”-strip onder dezelfde voorwaarde, “Collections”-rail uit de geladen set, hetzelfde
+filterpaneel met dezelfde groepsnamen, dezelfde lijststaten, en hetzelfde onderscheid tussen
+“No books match” (filters) en “No books yet” (lege plank).
+
+### De vier gedeelde modules (in plaats van twee keer hetzelfde)
+
+| Module | Wat het weghaalt |
+| --- | --- |
+| `src/lib/usePagedContentQuery.ts` | pagineren/accumuleren over `useContentQuery` heen: afgeleide pagina, samenvoegen op id, `loadMore`, `retry`, “fout met lijst” versus “fout zonder lijst” |
+| `src/components/LibraryFilters.tsx` | het filterpaneel van beide pagina’s: zoekveld, chips per groep, disclosure op mobiel, actieve-filterregel, reset |
+| `src/components/ListStates.tsx` | skeletonrij, foutkaart met retry en de “Load more”-regel — één versie in plaats van twee die uit elkaar liepen (audit D6) |
+| `src/lib/useFilterOptions.ts` | de scholars/subjects-lijsten voor de chips, inclusief de **echte** namen (audit B2: geen `replace(/ &.*/, '')` meer) |
+
+`Rail.tsx` exporteert nu `RAIL_SLOT` (media/book/scholar) zodat de landingsrails en de bibliotheekrails
+dezelfde kaartbreedtes gebruiken; `LandingRails.tsx` gebruikt die constanten in plaats van eigen kopieën.
+
+### Auditpunten die deze fase dicht
+
+| Punt | Wat er nu staat |
+| --- | --- |
+| A5 | `/lectures` en `/books`: geen stille `limit=100` meer, tellers uit `pagination.total`, echte paginering. De overige zes `limit=100`-plekken (`SubjectDetail`, `SeriesDetail`, `Scholars`, `Subjects`, `components/Subjects.tsx`) horen bij D3–D5 en staan er nog |
+| B1 | chips inklapbaar op mobiel op beide planken; zoeken blijft zichtbaar. De panelen van `Scholars`/`Subjects` zijn D3 |
+| B2 | chip-labels zijn de echte namen (“Tafsīr & Qur’ānic Sciences”, niet “Tafsīr”) |
+| B3 | hetzelfde besturingselement heet op beide planken **Format**, met groepsopschriften op beide |
+| B4 | één retry-pad: opnieuw ophalen, geen `window.location.reload()` |
+| B5 | de foutkaart schrijft bezoekerstaal; de ruwe client-/API-tekst komt niet meer op het scherm (in het harnas gecontroleerd) |
+| B6 | de badges in de gedeelde kaarten gebruiken één maat (0,7 rem); de resterende 0,62/0,68 rem-plekken zitten in admin en in `SeriesDetail`/`ContentDetail`/`SubjectDetail` (D5) |
+| D6 | de duplicatie tussen de twee pagina’s is weg: paneel, staten, referentielijsten en paginering bestaan één keer |
+| D8 | de resultaatregel op beide planken houdt `role="status"` + `aria-live="polite"` (was al zo sinds 5.5); de vier andere lijsten zijn D3/D5 |
+| D9 | chips hebben `aria-pressed` en een benoemde `role="group"`; het mobiele menu heeft `aria-expanded`/`aria-controls`; de filter-disclosure idem |
+| D11 | één loading/error/empty-grens op beide planken, inclusief het geval “fout na een geslaagde eerste lading” |
+
+### Bewijs (26 september 2026, development op een productie-geconfigureerde instance)
+
+- Instantie: `ENVIRONMENT=production NODE_ENV=production` op `127.0.0.1:3111`, zonder `.env`, met
+  `FRONTEND_DIR` naar deze build en **`DATABASE_URL` naar de wegwerp-database `ilmnet_d2_scratch`**.
+- Schaaldata in die wegwerp-database (rijen, geen schemawijziging): 40 lectures + 8 boeken, waarvan 20
+  in twee collecties en 4 in een boekenplank → 45 lectures en 13 boeken gepubliceerd.
+- Eigen browserharnas: **47/47**. Onder andere: kopteller == `pagination.total` (45/13) en == een
+  directe telling op de API; één pagina kaarten voor 24 geladen items; “Load more” → 45 items en de
+  knop verdwijnt; de claim van de pagina == de DOM (2 series, 25 singles); de nieuwste-strip toont de
+  12 nieuwste en is echt op `publishedAt` gesorteerd; de serie-rail zegt waar hij uit gegroepeerd is en
+  er staat geen “Show all” dat nergens heen kan; chips dragen de echte subjectnaam en `aria-pressed`;
+  een gefilterde uitslag laat teller en regel met elkaar kloppen; de foutkaart toont bezoekerstaal en
+  “Try again” haalt opnieuw op zonder de URL of de filters te verliezen; op 390×844 geen horizontale
+  overflow (ook niet met het paneel open), de disclosure werkt met `aria-expanded`, en “Load more”
+  werkt op een telefoon; boven de paginagrens toont de kop 45 terwijl er één pagina kaarten staat.
+- Suites: `npx tsc --noEmit` schoon (root én `server/`), `npm run build` ok en **reproduceerbaar**
+  (herbouw uit dezelfde bron gaf dezelfde sha256), `server: npm run test:all` **409 checks, 0 fail**
+  (identiek aan de D1-baseline), `test:e2e:production` **105 pass / 3 fail** (dezelfde twee
+  medafixture-gaten en dezelfde `TypeError … 'slug'` als vóór D2, plus de D2-relevante pins:
+  laadtoestand, “Could not load…” en de retry-actie op `/lectures`), `test:e2e:brand` **222/222**,
+  `test:e2e:cms` **39/0**, `test:e2e:auth` **60/0**.
+- `test:e2e:media` kan met de seed **niet starten**: de suite eist een gepubliceerde archive-audio met
+  een `item--file`-identifier, en de seed heeft die niet. Met een wegwerp-fixture in de wegwerp-database
+  liep de suite wel en was de D2-relevante pin groen (**21 pass / 6 fail** — de zes rode checks zijn de
+  echte-afspeelcontroles, die een gefabriceerde identifier niet kan halen; dat is geen D2-regressie).
+
+### Database- en testveiligheid tijdens deze fase
+
+- Muterende suites draaien uitsluitend tegen de wegwerp-database `ilmnet_d2_scratch` (aangemaakt en
+  geseed naast de normale `ilmnet`, met dezelfde seed). `server/test/production.test.ts` heeft ook nu
+  weer een bestaand gepubliceerd record hard verwijderd — gemeten: de wegwerp-database ging van 58 naar
+  57 gepubliceerde records, in de **wegwerp**-database, en de normale database bleef onveranderd.
+- De normale database is na alle runs gecontroleerd: **15 contents, 10 gepubliceerd, 8 scholars,
+  11 subjects, 1 importjob**, en een telling op testtitels/slugs gaf **0** testresten. Er is dus geen
+  testdata in de normale database achtergebleven en er is geen seed- of productiecontent verwijderd om
+  een test te laten slagen.
+- De testbeheerders (`e2e-admin`, `media-e2e-admin`) en de mediafixtures bestaan alleen in de
+  wegwerp-database; hun wachtwoord staat buiten de repo in `/tmp` en is nergens vastgelegd.
+
+### Wat D2 bewust niet doet
+
+- **Geen populariteits-, trending- of “aanbevolen voor jou”-rail.** Er is geen echt signaal, dus geen
+  rail.
+- **Geen verzonnen series-orde, afleveringnummers, voortgang, luister- of weergaveaantallen.** De
+  series-rail groepeert wat geladen is, zegt dat, en linkt naar de seriepagina waar de volledige inhoud
+  staat.
+- **Geen “Show all” zonder bestemming.** Een “Show all” verschijnt alleen als er echt een volledige
+  pagina bestaat om naartoe te linken; op deze twee pagina’s is dat nu nergens het geval, dus staat er
+  geen.
+- **Geen nieuw endpoint, geen nieuw veld, geen schema- of API-wijziging, geen extra dependency.** De
+  pagina’s gebruiken `GET /api/contents` (`type`, `scholar`, `subject`, `q`, `page`, `limit`,
+  `sort` ∈ {`updatedAt`, `publishedAt`, …}), `GET /api/scholars` en `GET /api/subjects` — precies wat er
+  al was.
+- **De overige lijstpagina’s** (`/subjects`, `/scholars`, `/series/:id`, `/subjects/:slug`) blijven zoals
+  ze zijn; die horen bij D3–D5.
+
+### Volgende stap
+
+D3 — de scholar-hub: `/scholars` en `/scholars/:slug` als echte discovery-oppervlakken (nu linkt alles
+naar `/lectures?scholar=<slug>`), met dezelfde gedeelde panelen en staten als D2 hier introduceerde.
+
 ## 8. Known remaining issues (not blockers)
 
 From `docs/FASE3_9_CODEBASE_REVIEW.md` § Restrisico's plus the 3.9.1 report:
@@ -1743,6 +1871,23 @@ From `docs/FASE3_9_CODEBASE_REVIEW.md` § Restrisico's plus the 3.9.1 report:
       known `TypeError … 'slug'` aborts the suite earlier, and the fixture stayed behind until it was
       removed by hand. Rule that follows: **point these suites at a throwaway database**, and verify the
       state afterwards — the `AGENTS.md` warning about mutating suites now has a measured example.
+
+24. **Een request die buiten de app om werd afgebroken, liet de pagina eeuwig laden.** De gedeelde
+        querystack (`src/lib/useContentQuery.ts`) gooide elke fout met de naam `AbortError` weg als
+        “geannuleerd”. Dat is te ruim: de eigen cleanup zet `active = false` vóór hij aborteert, dus die
+        vlag vertelt de twee gevallen al uit elkaar — een request die de *browser* of het netwerk zelf
+        afbreekt (geblokkeerd verzoek, `net::ERR_ABORTED`) kwam daardoor nooit als fout aan, en de pagina
+        bleef op haar laadtoestand staan zonder dat een bezoeker kon herstellen. Gevonden in D2 door het
+        verzoek op netwerkniveau te blokkeren; gefixt door alleen nog op `active` te gaten. Elke pagina
+        die deze stack gebruikt (de landingsrails, beide bibliotheekplanken) profiteert mee.
+25. **`tests/e2e/media.spec.mjs` start niet op de seed.** De suite eist een gepubliceerde archive-audio
+        waarvan `externalIdentifier` een `item--file` bevat (nodig voor een directe MP3-URL); de seed
+        heeft die niet, dus de suite stopt bij regel 79 met “no published archive audio found to test
+        playback”. Dat is een bestaande datavoorwaarde, geen regressie. Met een wegwerp-fixture in een
+        wegwerp-database loopt de suite door (21/6) en is de D2-relevante pin — `/lectures?q=…` toont het
+        record/de serie en de ilmNet-placeholder en géén zwarte Archive-afbeelding — groen; de zes rode
+        checks zijn de echte-afspeelcontroles, die een gefabriceerde identifier niet kan halen. De suite
+        en de seed zijn in D2 daarom niet aangepast.
 
 ## 9. Next step
 

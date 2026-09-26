@@ -74,18 +74,18 @@ export function LectureCard({ c }: { c: BackendContent }) {
             <PlayGlyph className="h-7 w-7" />
           </span>
         </div>
-        <span className="bg-cream/90 text-ink neu-raised-sm absolute right-3 top-3 rounded-full px-3 py-1.5 text-[0.72rem] font-semibold">
+        <span className="bg-cream/90 text-ink neu-raised-sm absolute right-3 top-3 rounded-full px-3 py-1.5 text-[0.7rem] font-semibold">
           {format}
         </span>
-        {c.provider === 'youtube' && <span className="bg-rose/90 text-cream absolute left-3 top-3 rounded-full px-2.5 py-1 text-[0.62rem] font-bold">YouTube</span>}
-        {c.provider === 'archive' && <span className="bg-olive/90 text-white absolute left-3 top-3 rounded-full px-2.5 py-1 text-[0.62rem] font-bold">Archive</span>}
+        {c.provider === 'youtube' && <span className="bg-rose/90 text-cream absolute left-3 top-3 rounded-full px-2.5 py-1 text-[0.7rem] font-bold">YouTube</span>}
+        {c.provider === 'archive' && <span className="bg-olive/90 text-white absolute left-3 top-3 rounded-full px-2.5 py-1 text-[0.7rem] font-bold">Archive</span>}
       </MediaThumb>
 
       <div className="flex flex-1 flex-col px-1 pt-5">
         <div className="flex items-center gap-2 flex-wrap">
           {subj && <Tag tone={toneOf(subj.accent)}>{subj.name}</Tag>}
           <Tag tone="plain">{isVideo ? 'Video' : 'Audio'}</Tag>
-          {c.language && <span className="bg-sand text-ink-soft rounded-full px-2.5 py-1 text-[0.62rem] font-medium">{c.language}</span>}
+          {c.language && <span className="bg-sand text-ink-soft rounded-full px-2.5 py-1 text-[0.7rem] font-medium">{c.language}</span>}
         </div>
         <h3 className="font-display text-ink mt-3 text-[1.18rem] leading-snug font-extrabold tracking-[-0.02em] line-clamp-2">
           {c.title}
@@ -123,9 +123,9 @@ export function SeriesCard({ s }: { s: SeriesGroup }) {
       >
         <div className="bg-cream/90 neu-raised-sm absolute left-3 top-3 flex items-center gap-2 rounded-full px-3 py-1.5">
           <span className={`h-2 w-2 rounded-full ${isPlaylist ? 'bg-rose' : 'bg-olive'}`} />
-          <span className="text-ink text-[0.68rem] font-bold tracking-[0.08em] uppercase">{isPlaylist ? 'Playlist' : s.type === 'collection' ? 'Collection' : 'Series'} · {s.count}</span>
+          <span className="text-ink text-[0.7rem] font-bold tracking-[0.08em] uppercase">{isPlaylist ? 'Playlist' : s.type === 'collection' ? 'Collection' : 'Series'} · {s.count}</span>
         </div>
-        <span className="bg-cream/90 text-ink neu-raised-sm absolute right-3 top-3 rounded-full px-3 py-1.5 text-[0.68rem] font-semibold">
+        <span className="bg-cream/90 text-ink neu-raised-sm absolute right-3 top-3 rounded-full px-3 py-1.5 text-[0.7rem] font-semibold">
           {s.provider === 'youtube' ? 'YouTube' : s.provider === 'archive' ? 'Archive' : s.provider}
         </span>
         <div className="bg-cream neu-raised-sm text-ink absolute bottom-3 left-3 right-3 flex items-center justify-between rounded-[14px] px-4 py-3">
@@ -226,9 +226,9 @@ export function CollectionCard({ s }: { s: SeriesGroup }) {
       >
         <div className="bg-cream/90 neu-raised-sm absolute left-3 top-3 flex items-center gap-2 rounded-full px-3 py-1.5">
           <span className="bg-olive h-2 w-2 rounded-full" />
-          <span className="text-ink text-[0.68rem] font-bold tracking-[0.08em] uppercase">Collection · {s.count}</span>
+          <span className="text-ink text-[0.7rem] font-bold tracking-[0.08em] uppercase">Collection · {s.count}</span>
         </div>
-        <span className="bg-olive/90 text-white absolute right-3 top-3 rounded-full px-2.5 py-1 text-[0.62rem] font-bold">Archive</span>
+        <span className="bg-olive/90 text-white absolute right-3 top-3 rounded-full px-2.5 py-1 text-[0.7rem] font-bold">Archive</span>
         <div className="bg-cream neu-raised-sm text-ink absolute bottom-3 left-3 right-3 flex items-center justify-between rounded-[14px] px-4 py-3">
           <span className="text-[0.78rem] font-semibold">{s.count} books</span>
           <span className="text-rose text-[0.78rem] font-bold">Open collection →</span>
@@ -262,7 +262,7 @@ export function CompactSeriesCard({ s }: { s: SeriesGroup }) {
         className="bg-sand neu-inset aspect-[16/10] rounded-[22px]"
         fallback={<div className="absolute inset-0 bg-gradient-to-br from-olive/15 to-rose/15" />}
       >
-        <span className="bg-cream/90 text-ink absolute left-3 top-3 rounded-full px-3 py-1.5 text-[0.68rem] font-bold">Series · {s.count}</span>
+        <span className="bg-cream/90 text-ink absolute left-3 top-3 rounded-full px-3 py-1.5 text-[0.7rem] font-bold">Series · {s.count}</span>
         <span className="bg-cream neu-raised-sm absolute bottom-3 left-3 right-3 flex items-center justify-between rounded-[12px] px-3 py-2 text-[0.76rem] font-semibold">
           <span>{s.count} parts</span><span className="text-rose">Open →</span>
         </span>
@@ -287,7 +287,7 @@ export function CompactContentCard({ c }: { c: BackendContent }) {
         className={`bg-sand neu-inset rounded-[22px] ${isBook ? 'aspect-[3/4]' : 'aspect-[16/10]'}`}
         fallback={<div className="absolute inset-0 bg-gradient-to-br from-sand to-cream" />}
       >
-        <span className="bg-cream/90 absolute right-3 top-3 rounded-full px-2.5 py-1 text-[0.62rem] font-semibold">{isBook ? 'Book' : c.type === 'audio' ? 'Audio' : 'Video'}</span>
+        <span className="bg-cream/90 absolute right-3 top-3 rounded-full px-2.5 py-1 text-[0.7rem] font-semibold">{isBook ? 'Book' : c.type === 'audio' ? 'Audio' : 'Video'}</span>
       </MediaThumb>
       <h3 className="font-display text-ink mt-4 line-clamp-2 text-[1.05rem] font-bold">{c.title}</h3>
       <p className="text-ink-muted mt-2 line-clamp-2 text-[0.82rem]">{c.description?.slice(0, 80) ?? ''}</p>

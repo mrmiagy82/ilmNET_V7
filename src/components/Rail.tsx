@@ -104,7 +104,18 @@ export type RailProps = {
   children?: ReactNode;
 };
 
-const DEFAULT_ITEM = 'w-[280px] shrink-0 snap-start sm:w-[320px]';
+/**
+ * Card slots for the rails (D2: *one* set of rail widths, so the same kind of card has the same width
+ * on the landing page and on a library page). `media` is the 16:10 lecture/series frame, `book` the
+ * 3:4 cover frame, `scholar` the tile.
+ */
+export const RAIL_SLOT = {
+  media: 'w-[270px] shrink-0 snap-start sm:w-[330px]',
+  book: 'w-[230px] shrink-0 snap-start sm:w-[270px]',
+  scholar: 'w-[280px] shrink-0 snap-start sm:w-[320px]',
+} as const;
+
+const DEFAULT_ITEM = RAIL_SLOT.scholar;
 
 export function Rail({
   title,

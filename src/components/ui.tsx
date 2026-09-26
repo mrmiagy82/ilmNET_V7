@@ -53,11 +53,17 @@ export function FilterChips<T extends string>({
   active,
   onChange,
   allLabel = 'All',
+  groupLabel,
 }: {
   options: { value: T; label: string }[];
   active: T | 'all';
   onChange: (v: T | 'all') => void;
   allLabel?: string;
+  /**
+   * Accessible name of the chip row (D2, audit D9). Without it a screen-reader user met a bare
+   * "Tafsīr, button" and had to guess what the row filtered on.
+   */
+  groupLabel?: string;
 }) {
   const base =
     'rounded-full px-4 py-2.5 text-[0.88rem] font-semibold tracking-[-0.01em] transition-all duration-300';
@@ -65,13 +71,20 @@ export function FilterChips<T extends string>({
     `${base} ${
       selected ? 'bg-rose text-cream shadow-[7px_9px_20px_rgba(204,58,99,0.28)]' : 'bg-cream text-ink neu-raised-sm hover:-translate-y-0.5'
     }`;
+  // D2 (audit D9): `aria-pressed` states whether a chip is on. Before this the only signal was colour.
   return (
-    <div className="flex flex-wrap gap-2.5">
-      <button className={chip(active === 'all')} onClick={() => onChange('all')}>
+    <div className="flex flex-wrap gap-2.5" role="group" aria-label={groupLabel}>
+      <button type="button" className={chip(active === 'all')} aria-pressed={active === 'all'} onClick={() => onChange('all')}>
         {allLabel}
       </button>
       {options.map((o) => (
-        <button key={o.value} className={chip(active === o.value)} onClick={() => onChange(o.value)}>
+        <button
+          type="button"
+          key={o.value}
+          className={chip(active === o.value)}
+          aria-pressed={active === o.value}
+          onClick={() => onChange(o.value)}
+        >
           {o.label}
         </button>
       ))}

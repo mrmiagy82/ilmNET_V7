@@ -42,6 +42,11 @@ export type UseContentQueryOptions = {
   enabled?: boolean;
   /** Page-specific fallback text shown when the error carries no message. */
   errorMessage?: string;
+  /**
+   * Bump this to re-run the *same* query (D2: the retry action). Without it a retry would have to
+   * change a filter — i.e. pretend the visitor asked for something else — or reload the page.
+   */
+  refreshKey?: number;
 };
 
 const EMPTY: ContentQueryResult = {
@@ -56,7 +61,7 @@ const EMPTY: ContentQueryResult = {
 
 export function useContentQuery(
   filters: ContentQueryFilters,
-  { shelf, limit = 100, page = 1, sort, enabled = true, errorMessage }: UseContentQueryOptions,
+  { shelf, limit = 100, page = 1, sort, enabled = true, errorMessage, refreshKey = 0 }: UseContentQueryOptions,
 ): ContentQueryResult {
   const params = useMemo(
     () => buildContentParams(filters, { shelf, limit, page, sort }),
@@ -92,8 +97,12 @@ export function useContentQuery(
         });
       })
       .catch((e: unknown) => {
-        // An aborted request is not a failure: a newer query is already on its way.
-        if (!active || (e as Error)?.name === 'AbortError') return;
+        // A request that *this hook* cancelled is not a failure: the cleanup above cleared `active`
+        // before aborting, so that flag alone tells the two apart. Gating on the error name as well
+        // (as this code did until D2) also swallowed aborts that came from outside — a request the
+        // browser or the network killed — and left the page on its loading state forever, with no way
+        // for the visitor to retry. Found in D2 by blocking the request at the network layer.
+        if (!active) return;
         const message = (e as Error)?.message || errorMessage || 'The request failed';
         setResult({ ...EMPTY, error: message, shouldHide: true });
       });
@@ -103,8 +112,9 @@ export function useContentQuery(
       controller.abort();
     };
     // `params` is rebuilt only when a filter changes, and `key` captures that change precisely.
+    // `refreshKey` is the deliberate exception: it exists to re-run the identical query on request.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, enabled]);
+  }, [key, enabled, refreshKey]);
 
   return result;
 }
