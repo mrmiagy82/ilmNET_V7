@@ -15,7 +15,7 @@
     "test": "tsx test/audit.test.ts",
     "test:watch": "tsx --watch test/audit.test.ts",
     "test:uploads": "tsx test/uploads.test.ts",
-    "test:all": "tsx test/audit.test.ts && tsx test/uploads.test.ts && tsx test/production.test.ts && tsx test/env-hardening.test.ts && tsx test/ops.test.ts && tsx test/youtube.test.ts && tsx test/auth.test.ts",
+    "test:all": "tsx test/audit.test.ts && tsx test/uploads.test.ts && tsx test/production.test.ts && tsx test/env-hardening.test.ts && tsx test/environment.test.ts && tsx test/ops.test.ts && tsx test/youtube.test.ts && tsx test/auth.test.ts",
     "test:production": "tsx test/production.test.ts",
     "test:imports": "tsx test/regression-imports.test.ts",
     "seed:reference": "tsx src/seed.ts --reference",
@@ -28,6 +28,7 @@
     "admin:enable": "tsx src/scripts/admin-user.ts enable",
     "admin:list": "tsx src/scripts/admin-user.ts list",
     "test:env": "tsx test/env-hardening.test.ts",
+    "test:environment": "tsx test/environment.test.ts",
     "test:ops": "tsx test/ops.test.ts"
   },
   "dependencies": {

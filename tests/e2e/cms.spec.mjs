@@ -16,10 +16,13 @@
  */
 import { chromium } from 'playwright';
 import { signInBrowser, tamperedCookieFor } from './lib/admin-session.mjs';
+import { announceTargetEnvironment } from './lib/env-banner.mjs';
 
 const SITE = process.env.SITE_URL || 'http://localhost:3101';
 const API = process.env.API_URL || SITE;
 const TOKEN = process.env.ADMIN_TOKEN || 'prod-test-token-1234567890';
+
+await announceTargetEnvironment('admin CMS (browser)', { site: SITE, api: API });
 const COLLECTION_ID = 'e2e-admin-cms-collection';
 const COLLECTION_TITLE = 'E2E admin CMS collection';
 

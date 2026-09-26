@@ -25,6 +25,7 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import type { AddressInfo } from 'node:net';
+import { announceEnvironment } from './env-banner';
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const OPS = path.join(REPO_ROOT, 'ops');
@@ -130,6 +131,7 @@ function receiver() {
 }
 
 async function main() {
+  announceEnvironment('operations scripts');
   if (!have('bash') || !fs.existsSync(path.join(OPS, 'alert.sh'))) {
     skip('ops scripts or bash are not available in this environment');
     console.log('\n✅ ops regression passed (nothing to run) (0 passed, 0 failed)');

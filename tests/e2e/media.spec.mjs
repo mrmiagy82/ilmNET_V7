@@ -11,9 +11,12 @@ import { chromium } from 'playwright';
 import { signInBrowser } from './lib/admin-session.mjs';
 import fs from 'fs';
 import path from 'path';
+import { announceTargetEnvironment } from './lib/env-banner.mjs';
 
 const SITE = process.env.SITE_URL || 'http://localhost:5173';
 const API = process.env.API_URL || 'http://localhost:3001';
+
+await announceTargetEnvironment('media & player (browser)', { site: SITE, api: API });
 const TOKEN = process.env.ADMIN_TOKEN || 'ilmnet-admin-dev-2026';
 
 let passed = 0;

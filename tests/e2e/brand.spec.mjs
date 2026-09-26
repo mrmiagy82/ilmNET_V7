@@ -19,9 +19,12 @@ import { chromium } from 'playwright';
 import ts from 'typescript';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { announceTargetEnvironment } from './lib/env-banner.mjs';
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 const SITE = (process.env.SITE_URL || 'http://localhost:4173').replace(/\/$/, '');
+
+await announceTargetEnvironment('brand assets (static preview, no API expected)', { site: SITE });
 const EVIDENCE = process.env.BRAND_EVIDENCE_DIR || await mkdtemp(path.join(tmpdir(), 'ilmnet-brand-'));
 await mkdir(EVIDENCE, { recursive: true });
 const variants = [

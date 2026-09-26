@@ -13,10 +13,13 @@
  * Note: the two state checks delay/abort the *real* API request (fault injection) — no mock data.
  */
 import { chromium } from 'playwright';
+import { announceTargetEnvironment } from './lib/env-banner.mjs';
 
 const SITE = process.env.SITE_URL || 'http://localhost:3101';
 const API = process.env.API_URL || SITE;
 const TOKEN = process.env.ADMIN_TOKEN || 'prod-test-token-1234567890';
+
+await announceTargetEnvironment('production readiness (browser)', { site: SITE, api: API });
 
 let passed = 0;
 let failed = 0;

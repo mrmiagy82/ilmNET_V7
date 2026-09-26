@@ -20,10 +20,13 @@
  */
 import { chromium } from 'playwright';
 import { E2E_PASSWORD, E2E_USERNAME, apiLogin, sessionCookieFor, tamperedCookieFor } from './lib/admin-session.mjs';
+import { announceTargetEnvironment } from './lib/env-banner.mjs';
 
 const SITE = process.env.SITE_URL || 'http://localhost:3101';
 const API = process.env.API_URL || SITE;
 const TOKEN = process.env.ADMIN_TOKEN || 'prod-test-token-1234567890';
+
+await announceTargetEnvironment('admin authentication (browser)', { site: SITE, api: API });
 
 // Markers that only exist inside the CMS (never on the login screen).
 const CMS_MARKERS = ['Add content', 'Published lectures', 'Archive.org Bulk'];

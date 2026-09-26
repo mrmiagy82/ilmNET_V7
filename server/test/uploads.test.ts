@@ -14,6 +14,7 @@ import path from 'path';
 import { buildApp } from '../src/server';
 import { prisma } from '../src/lib/prisma';
 import { UPLOADS_DIR } from '../src/routes/uploads';
+import { announceEnvironment } from './env-banner';
 
 const TOKEN = process.env.ADMIN_TOKEN || 'ilmnet-admin-dev-2026';
 let passed = 0;
@@ -59,6 +60,7 @@ function multipartBody(fieldName: string, filename: string, contentType: string,
 }
 
 async function main() {
+  announceEnvironment('uploads');
   const app = await buildApp();
   const createdContentIds: string[] = [];
   const createdFiles: string[] = [];

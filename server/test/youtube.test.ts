@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import { parseYouTubeUrl, previewYouTube, youtubeVideoLink, youtubeEmbedLink, youtubePlaylistEmbedLink, youtubeApiConfigured } from '../src/services/youtube.service.js';
 import { parseDurationToMinutes } from '../src/services/archive.service.js';
 import { prisma } from '../src/lib/prisma.js';
+import { announceEnvironment } from './env-banner';
 
 function ok(msg: string) { console.log(`✅ ${msg}`); }
 function fail(msg: string, err: any) { console.error(`❌ ${msg}:`, err?.message || err); process.exitCode = 1; }
@@ -427,6 +428,7 @@ async function testOptionalDataApi() {
 }
 
 async function main() {
+  announceEnvironment('youtube import');
   console.log('=== YouTube Fase 2B 14+ case audit ===');
   try {
     await testParse();

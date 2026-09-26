@@ -39,11 +39,19 @@ const ENV_FILE_CANDIDATES = [
   path.resolve(process.cwd(), '.env'),
 ];
 
-/** Guard keys: configuration that decides whether the production protections are active. */
-const GUARD_KEYS = ['NODE_ENV', 'ADMIN_TOKEN', 'CORS_ORIGIN', 'ADMIN_ALLOW_LOCALHOST'];
+/**
+ * Guard keys: configuration that decides whether the production protections are active.
+ * `ENVIRONMENT` belongs here since the environment rule: a `.env` file may never decide whether a
+ * process runs as staging or production (or claim a development identity on a production boot).
+ */
+const GUARD_KEYS = ['NODE_ENV', 'ENVIRONMENT', 'ADMIN_TOKEN', 'CORS_ORIGIN', 'ADMIN_ALLOW_LOCALHOST'];
 
-/** Deployment signals: a process environment that carries these is a deployment, not a laptop. */
-const DEPLOYMENT_KEYS = ['DATABASE_URL', 'ADMIN_TOKEN', 'CORS_ORIGIN', 'UPLOADS_DIR'];
+/**
+ * Deployment signals: a process environment that carries these is a deployment, not a laptop.
+ * `ENVIRONMENT` is one of them — naming an environment is deployment configuration, so a process
+ * that carries it must also declare `NODE_ENV` explicitly (rule R2 below).
+ */
+const DEPLOYMENT_KEYS = ['DATABASE_URL', 'ENVIRONMENT', 'ADMIN_TOKEN', 'CORS_ORIGIN', 'UPLOADS_DIR'];
 
 const MIN_ADMIN_TOKEN_LENGTH = 16;
 
@@ -147,6 +155,85 @@ export function fileProvidedKeys(keys: string[]): string[] {
   });
 }
 
+// ── Environment identity (environment rule) ─────────────────────────────────────
+/**
+ * ilmNet runs in exactly three environments: **development**, **staging** and **production**
+ * (`docs/ENVIRONMENTS.md`). This module is the single place that decides which one is active, and it
+ * encodes the rules that keep them from blurring:
+ *
+ *   E0  an unknown `ENVIRONMENT` value refuses the boot — a process that cannot say what it is must
+ *       never pick its guard rails by accident;
+ *   E1  `ENVIRONMENT=staging|production` requires `NODE_ENV=production`: staging runs the *same*
+ *       configuration, the same build and the same guards as production, so a development-configured
+ *       process may never carry their identity;
+ *   E1b `NODE_ENV=production` with `ENVIRONMENT=development` is a contradiction and is refused;
+ *   E2  in production mode a `.env` file may not supply `ENVIRONMENT` (it is a guard key, rule R3),
+ *       so the identity of a deployment always comes from its environment.
+ *
+ * Backwards compatibility: a host that sets only `NODE_ENV=production` keeps working — its identity is
+ * then *derived* as `production` and the boot log says so (`environmentSource() === 'derived'`).
+ * Staging is never derived: it must be explicit.
+ */
+export type Environment = 'development' | 'staging' | 'production';
+
+/** How the environment identity was determined. */
+export type EnvironmentSource = 'process' | 'file' | 'derived';
+
+const ENVIRONMENT_NAMES: readonly Environment[] = ['development', 'staging', 'production'];
+
+/** Live value of `ENVIRONMENT` from the process environment, then from a `.env` file. */
+function environmentValue(): string | undefined {
+  const fromProcess = process.env.ENVIRONMENT?.trim();
+  // `process.env.X = undefined` stores the *string* "undefined" — never treat that as a real value.
+  if (fromProcess && fromProcess !== 'undefined' && fromProcess !== 'null') return fromProcess.toLowerCase();
+  const fromFile = ENV_FILES.values.ENVIRONMENT?.trim();
+  if (fromFile) return fromFile.toLowerCase();
+  return undefined;
+}
+
+/**
+ * Where the identity came from. `'derived'` means no `ENVIRONMENT` was supplied anywhere and the
+ * identity follows `NODE_ENV` — honest, but an operator should set it explicitly on a deployment.
+ */
+export function environmentSource(): EnvironmentSource {
+  const raw = environmentValue();
+  if (!raw) return 'derived';
+  if (PROCESS_ENV.ENVIRONMENT?.trim()) return 'process';
+  if (ENV_FILES.values.ENVIRONMENT?.trim()) return 'file';
+  // assigned at runtime after the snapshot was taken (tests, scripts)
+  if (process.env.ENVIRONMENT?.trim()) return 'process';
+  return 'derived';
+}
+
+/**
+ * The active environment. Throws on an unknown or contradictory value instead of guessing: a typo
+ * such as `ENVIRONMENT=stagin` must never produce a process that silently looks like development.
+ */
+export function activeEnvironment(): Environment {
+  const raw = environmentValue();
+  if (raw === undefined) return isProduction() ? 'production' : 'development';
+  if (!(ENVIRONMENT_NAMES as readonly string[]).includes(raw)) {
+    throw new Error(
+      `ENVIRONMENT has an unknown value ("${raw}"). Use one of: ${ENVIRONMENT_NAMES.join(', ')}. ` +
+        'ilmNet refuses to guess which guard rails apply. See docs/ENVIRONMENTS.md.',
+    );
+  }
+  return raw as Environment;
+}
+
+/** Is this process the staging environment? Never true for a development-configured process (E1). */
+export function isStaging(): boolean {
+  return activeEnvironment() === 'staging';
+}
+
+/** One-line identity for logs, tests and health payloads: `staging · NODE_ENV=production (process)`. */
+export function environmentLabel(): string {
+  const environment = activeEnvironment();
+  const source = environmentSource();
+  const mode = declaredMode();
+  return `${environment} · NODE_ENV=${mode}${source === 'derived' ? ' (derived — set ENVIRONMENT explicitly)' : ` (${source})`}`;
+}
+
 // ── Legacy admin token (Fase 5.3) ───────────────────────────────────────────────
 /**
  * Is the legacy shared `ADMIN_TOKEN` accepted as an alternative to a signed-in operator?
@@ -245,6 +332,9 @@ export function assertSecureAdminToken(token: string): void {
 export function assertBootConfiguration(): void {
   const mode = declaredMode();
 
+  // E0 — the process must be able to name its environment. An unknown value refuses the boot.
+  const environment = activeEnvironment();
+
   // R2 — a deployment must declare its mode; never fall back to development silently.
   // (An explicit NODE_ENV=development in the process environment stays a valid opt-in for local
   // runs that point at another database.)
@@ -256,8 +346,28 @@ export function assertBootConfiguration(): void {
           'ilmNet refuses to guess the mode. Set NODE_ENV=production for a deployment, or NODE_ENV=development explicitly for a local run.',
       );
     }
+
+    // E1 — staging and production require production mode: same configuration, same build, same guards.
+    if (environment === 'staging' || environment === 'production') {
+      throw new Error(
+        `ENVIRONMENT=${environment} requires NODE_ENV=production, but this process is in development mode ` +
+          `(ENVIRONMENT came from ${environmentSource()}). Staging and production run the same configuration, ` +
+          'the same build and the same guards, so a development-configured process may never carry their ' +
+          'identity. Set NODE_ENV=production in the process environment — never in a .env file.',
+      );
+    }
+
     applyEnvFiles();
     return;
+  }
+
+  // E1b — production mode with a development identity is a contradiction.
+  if (environment === 'development') {
+    throw new Error(
+      'NODE_ENV=production but ENVIRONMENT=development: this process would run production guards while ' +
+        'claiming to be a development environment. Set ENVIRONMENT=production or ENVIRONMENT=staging ' +
+        'explicitly, or drop NODE_ENV=production for a local run.',
+    );
   }
 
   // R3 — a `.env` file may not configure a production boot.
@@ -268,6 +378,15 @@ export function assertBootConfiguration(): void {
         'In production all configuration must come from the process environment ' +
         '(systemd EnvironmentFile, docker compose environment:, PaaS env vars). ' +
         'Remove the .env file from the server directory, or set these variables in the service environment.',
+    );
+  }
+
+  // E2 — the identity of a staging/production process is explicit (R3 covers a file-supplied value).
+  if (environmentSource() === 'file') {
+    throw new Error(
+      `ENVIRONMENT came from ${ENV_FILES.paths.join(', ')}. A deployment must name its environment in the ` +
+        'process environment (systemd EnvironmentFile, docker compose environment:, PaaS env var), never in a ' +
+        'file that can be copied between environments. See docs/ENVIRONMENTS.md.',
     );
   }
 

@@ -25,6 +25,7 @@ import {
   fileProvidedKeys,
   isProduction,
 } from '../src/lib/env';
+import { announceEnvironment } from './env-banner';
 
 const SERVER_DIR = path.resolve(__dirname, '..');
 const ENV_LIB = path.join(SERVER_DIR, 'src', 'lib', 'env.ts');
@@ -138,6 +139,7 @@ try {
 }
 
 function main() {
+  announceEnvironment('env/security hardening (Fase 3.8.1)');
   console.log(`Guard regression · lib: ${path.relative(SERVER_DIR, ENV_LIB)}\n`);
 
   // ── 1. provenance helpers ────────────────────────────────────────────────────

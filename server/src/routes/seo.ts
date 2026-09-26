@@ -3,6 +3,7 @@ import { gzip } from 'zlib';
 import { promisify } from 'util';
 import { prisma } from '../lib/prisma';
 import { publicOrigin } from '../lib/proxy';
+import { isStaging } from '../lib/env';
 
 /**
  * `/robots.txt` and `/sitemap.xml` (Fase 5.5).
@@ -114,8 +115,23 @@ async function buildSitemap(origin: string): Promise<{ xml: string; lastModified
   };
 }
 
-async function sitemapFor(origin: string): Promise<SitemapCacheEntry> {
-  const cached = sitemapCache.get(origin);
+  async function sitemapFor(origin: string): Promise<SitemapCacheEntry> {
+    // Staging publishes no URLs (environment rule): the same pages are advertised from the production
+    // origin, and an empty sitemap keeps every crawler-side check (deploy-check.sh) honest about what
+    // this deployment actually offers instead of leaking a staging hostname into search results.
+    if (isStaging()) {
+      return {
+        xml:
+          '<?xml version="1.0" encoding="UTF-8"?>\n' +
+          '<!-- ilmNet staging: no URLs are advertised outside production. See docs/ENVIRONMENTS.md. -->\n' +
+          '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n</urlset>\n',
+        gzip: null,
+        expiresAt: Date.now() + CACHE_TTL_MS,
+        lastModified: null,
+      };
+    }
+
+    const cached = sitemapCache.get(origin);
   if (cached && cached.expiresAt > Date.now()) return cached;
 
   const { xml, lastModified } = await buildSitemap(origin);
@@ -139,17 +155,30 @@ async function sendXml(req: FastifyRequest, reply: FastifyReply, entry: SitemapC
   return reply.type('application/xml; charset=utf-8').send(entry.xml);
 }
 
-function robotsFor(origin: string): string {
-  const lines = [
-    '# ilmNet — a free public library; only the CMS and the API are off limits.',
-    'User-agent: *',
-    'Allow: /',
-    'Disallow: /admin',
-    'Disallow: /api/',
-  ];
-  if (origin) lines.push('', `Sitemap: ${origin}/sitemap.xml`);
-  return `${lines.join('\n')}\n`;
-}
+  function robotsFor(origin: string): string {
+    // Environment rule (docs/ENVIRONMENTS.md): a staging deployment must never be crawled. It serves
+    // the same build and the same content as production, so an indexed staging host would compete
+    // with the real site for the same pages. Staging therefore advertises nothing at all.
+    if (isStaging()) {
+      return (
+        [
+          '# ilmNet — staging environment: crawling is disabled on purpose.',
+          '# The same content exists on the production origin; index that one.',
+          'User-agent: *',
+          'Disallow: /',
+        ].join('\n') + '\n'
+      );
+    }
+    const lines = [
+      '# ilmNet — a free public library; only the CMS and the API are off limits.',
+      'User-agent: *',
+      'Allow: /',
+      'Disallow: /admin',
+      'Disallow: /api/',
+    ];
+    if (origin) lines.push('', `Sitemap: ${origin}/sitemap.xml`);
+    return `${lines.join('\n')}\n`;
+  }
 
 /** Exposed for the production test suite so a test can drop the cache between assertions. */
 export function resetSeoCache(): void {

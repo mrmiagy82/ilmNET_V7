@@ -19,6 +19,7 @@ import {
   verifyPassword,
   resetLoginThrottle,
 } from '../src/lib/auth';
+import { announceEnvironment } from './env-banner';
 
 // Starts with `test-` on purpose: the production boot guard (server/src/lib/env.ts) refuses it,
 // so this suite default can never authenticate a real deployment.
@@ -307,6 +308,7 @@ async function cleanup() {
 }
 
 async function main() {
+  announceEnvironment('admin authentication');
   // The suite is the operator: no session cookie exists yet and the localhost convenience is off,
   // so every check below exercises the real protection hook.
   process.env.NODE_ENV = 'test';

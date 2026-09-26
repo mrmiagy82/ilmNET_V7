@@ -5,10 +5,12 @@ Update it after every finished phase, commit, sanity check or significant discov
 Rules: only facts that are verifiable from the repository, Git history or existing docs — and
 **never** secrets, tokens or credentials.
 
-_Last updated: Fase 6.1 (26 September 2026): eight transparent path-only SVG reconstructions,
-shared BrandLogo integration and 222/222 focused branding checks — §7o. Original raster references,
-favicons and backend/auth/database code are unchanged. Git delivery still requires configured safe
-push authentication; do not infer remote equality from this document._
+_Last updated: environmentregel (26 September 2026): drie strikte omgevingen (development, staging,
+_productie) met een expliciet vastgelegde promotieflow — §7p. De code draagt de identiteit en de
+_guards (E0–E2, R2–R4), staging is niet indexeerbaar, elke suite noemt zijn doelomgeving, en
+_`docs/ENVIRONMENTS.md` + `docs/RELEASES.md` leggen de regel en het promotieregister vast. Er is nog
+_geen echte staginghost uitgerold en de push van `a8f1a88` is nog geblokkeerd; leid geen remote-
+_gelijkheid uit dit document af._
 
 The last phases: Fase 5.1 closed the three blockers from the Fase 5 audit (backup + restore, honest
 footer links, TLS/HSTS with a provider-agnostic runbook, §7g). Fase 5.2 hardened the deployment
@@ -32,16 +34,16 @@ uncompressed (631 kB → 157 kB over the wire, −2,3 s on a 3G profile) (§7j).
 | | |
 | --- | --- |
 | Branch | `master` |
-| Codebase state described here | `ae1c746` (Fase 6.0) + Fase 6.1 (§7o); this document ships with the SVG reconstruction commit |
-| This document | updated in Fase 6.1; its own revision is visible with `git log -1 -- docs/CONTEXT.md` |
-| Working tree | the phase began clean at `master == origin/master == ae1c746`; verify the current delivery state with `git status -sb` and both commit IDs — push is not confirmed at this documentation checkpoint |
+| Codebase state described here | `ae1c746` (Fase 6.0) + Fase 6.1 (§7o) + de environmentregel (§7p). De environmentregel is de eerste fase sinds 6.1 die backendcode raakt (identiteit en guards in `server/src/lib/env.ts`, health/robots/sitemap, `ops/*.sh`) |
+| This document | updated voor de environmentregel (§7p); de eigen revisie is zichtbaar met `git log -1 -- docs/CONTEXT.md` |
+| Working tree | de fase begon op `HEAD = a8f1a88` met een dirty worktree: 8 mode-only wijzigingen (uitvoerbare bits, sandboxreset) plus de bestanden van deze fase; `docs/ILMNET_DISCOVERY_EXPERIENCE.md` is nog untracked. Controleer de leveringsstaat met `git status -sb` — push is op dit documentatiepunt niet bevestigd |
 | Repository | `github.com/mrmiagy82/ilmNET_V7` |
 | Size | 77 files under `src/` + `server/src/` (76 `.ts`/`.tsx`, 17 184 lines). `public/brand/` now has 34 files, including eight new SVGs (98 962 B total); original PNG/WebP references remain unchanged |
-| Build (git-ignored artefact) | Fase 6.1: single-file `dist/index.html` 658 219 B / `dist/index.html.gz` 163 620 B, plus unchanged self-hosted `dist/fonts/` and `dist/brand/` including the eight SVGs. The production preview serves the exact SVG files, checked by byte equality |
-| Phase state | Fase 6.1 implementation and scoped verification done: eight vector variants, transparent symbol/wordmark/descriptor paths, SVG-only BrandLogo, unchanged header/footer/admin placements, 222/222 brand checks. Full database/auth/media/runtime suites were not rerun; earlier results below remain historical. Git push is a remaining delivery prerequisite (§7o) |
-| Roadmap | production finishing, UI/UX and performance toward live deployment (§9). The Fase 6.1 logo work is validated locally; Git delivery still needs safe authentication. Host-side work and optional follow-ups remain as previously documented, not freshly re-audited here |
+| Build (git-ignored artefact) | environmentregel-fase: single-file `dist/index.html` 658 267 B / `dist/index.html.gz` 163 628 B (sha256 `58f62a5b…`), plus `dist/fonts/` en `dist/brand/` (8 SVG’s, 7 favicons) en `dist/manifest.webmanifest`; dezelfde build is naar de twee nagebootste omgevingen geserveerd |
+| Phase state | environmentregel geïmplementeerd en in deze sandbox geverifieerd: `npm run test:all` exit 0 (uploads 30/30, production 163/163, env-hardening 13/13, environment 38/38, ops 21/21, auth 69/69), beide typechecks schoon, en `ops/deploy-check.sh` groen op een staging- (13/13) en een productie-identiteit (11/11) — zie §7p. Een **echte** staginghost is er nog niet, dus de promotie van de release staat open |
+| Roadmap | de environmentregel is de eerste stap van de weg naar live: elke volgende fase doorloopt development → staging → productie (§7p, `docs/ENVIRONMENTS.md`, `docs/RELEASES.md`). Daarnaast blijven de UI/UX- en performancepunten uit §8/§9 staan |
 | Brand | Fase 6.1: `public/brand/logo/*.svg` are true, path-only reconstructions of the supplied branding references, not original vector masters. Original font and tiny descriptor details cannot be authenticated; see `brand/SVG_RECONSTRUCTION.md`. The favicon/app icon set and official theme tokens from Fase 6.0 are retained |
-| Open blockers | SVG delivery: safe GitHub push authentication was not configured at the validation checkpoint, so push / `local == origin/master` is not confirmed. No database or full production verification was performed in this branding-only phase; earlier host-side and known-issue lists (§8) are carried forward, not declared resolved |
+| Open blockers | (1) Geen staginghost: tot die er is, kan geen enkele release als “klaar” worden afgerond en draagt elke entry in `docs/RELEASES.md` die afwijking. (2) Git-levering: de push van `a8f1a88` is niet gelukt (geen pushcredentials) en GitHub `master` is inmiddels `6d67ad5`, dus geen fast-forward; niets is geforceerd of herschreven. (3) De host-side punten uit §8 blijven ongewijzigd staan |
 
 ## 2. Completed phases (from Git history)
 
@@ -295,15 +297,20 @@ empty states, errors) live in the React components — there is no content layer
 
 ## 6. Testing
 
-**Fresh Fase 6.1 verification:** both TypeScript checks and the frontend build passed; the new
-`test:e2e:brand` passed **222/222** on the static production preview. Full database-dependent,
-authenticated CMS, media/provider and backend runtime suites were not rerun in this phase. Their
-Fase 6.0/5.x totals below are historical, not a claim about a new full-stack run.
+**Fresh verification (environmentregel, 26 september 2026, §7p):** beide typechecks, de frontendbuild
+en de **volledige serversuite** zijn hier gedraaid tegen een development-database — `npm run test:all`
+exit 0 (audit, uploads 30/30, production **163/163**, env-hardening 13/13, environment **38/38**,
+ops 21/21, youtube 14+ cases, auth 69/69). Daarnaast: `ops/deploy-check.sh` **13/13** tegen een
+staging-geconfigureerde instantie en **11/11** tegen een productie-geconfigureerde instantie (en exit 1
+bij de verkeerde verwachting), en de browser-productiesuite **105 groen / 3 rood** (geen geïmporteerde
+YouTube-/Archive-media in deze database). Elke suite print nu tegen welke omgeving en database hij
+draait. De Fase 6.1-totalen verderop blijven historisch waar ze niet opnieuw zijn gedraaid.
 
 | Command | What it covers | Last verified result |
 | --- | --- | --- |
 | `npx tsc --noEmit` (root + `server/`) | types | 0 errors (Fase 5.5) |
 | `npm run build` (root) | single-file production build + `dist/index.html.gz` (+ `dist/fonts/`, favicons, manifest) | 657.57 kB raw / 159.34 kB gzip, plus 14 font subsets (582 kB, only the used subsets are downloaded) — Fase 5.5 |
+| `cd server && npm run test:environment` | de environmentregel zelf: identiteit en herkomst, guardpariteit (staging/production eisen `NODE_ENV=production`, een typefout wordt geweigerd, `NODE_ENV=production` + `ENVIRONMENT=development` wordt geweigerd) in **echte childprocessen**, een stale `.env` dat niet voor een deployment mag beslissen, en de staging crawl-posture over echte HTTP (`inject`) | **38/38** (environmentregel, §7p) |
 | `cd server && npm run test:all` | audit (32), uploads (30), production readiness (**163**, incl. TLS/HSTS, proxy trust, boot guards, readiness, public payload, delete confirmation, magic bytes, admin posture, list-projection, gzip/304 of the SPA fallback, robots/sitemap/404s/headers/API-JSON compression/font caching, **release identity + `LOG_LEVEL`**, **the official brand/icon set + manifest tokens (Fase 6.0)**), env hardening (13), **`ops` script regression (21, §7m)**, youtube (+ Data API fallback), **auth (69)** | Fase 6.0, with published content in the database: audit 32, uploads 30, production **163**, env 13, ops **21**, youtube 14+ cases, auth 69 — **all green, exit 0** (**328 ✅**). Needs content: on a reference-only database the production suite reports **158/163** (§ *Test-data condition*) |
 | `ops/backup.sh` + `ops/restore-drill.sh` | database + uploads backup, then a restore into a throwaway database with count and checksum comparison | PASSED in Fase 5.1 (seven tables + two upload files, §7g) and again in Fase 5.6, that time **from an off-site copy** made by `ops/offsite-copy.sh` (25/8/11 rows and 50+50 joins matching the manifest, §7l) |
 | `ops/healthcheck.sh` · `ops/alert.sh` · `ops/deploy-check.sh` | watchdog (health, readiness, **the release the API reports**, backup freshness, disk, database), alert delivery to a webhook/mail, and an eleven-check post-deploy/rollback proof | Fase 5.6.1: watchdog `result: OK (8 checks)` on a healthy host, **0 bytes** on a healthy `--quiet` run and exit 1 with its FAIL lines + release on stderr on a failing one; the 21-check `ops` regression in the server suite covers the payload escaping, the release line, `--quiet`, the unit's exit codes and the manifest guard (§7m); deploy check **11 passed, 0 failed** against the production build (§7l) |
@@ -1321,6 +1328,101 @@ push `master`, fetch
 and compare the full `HEAD` / `origin/master` IDs and confirm a clean working tree. Refresh this
 checkpoint with the actual outcome; never claim `local == origin/master` from an old fetch.
 
+## 7p. Wat de environmentregel veranderde — development, staging, productie
+
+Instructie: het project werkt vanaf nu met **drie strikte omgevingen** — development (ontwikkelen en
+lokaal testen), staging (productie-achtig, waar de complete release wordt getest met dezelfde
+configuratiestructuur, security, build en deploymentaanpak als productie) en production (alleen een
+release die eerst staging heeft gehaald). Developmentconfiguratie mag nooit automatisch in staging of
+productie belanden, productie leest nooit een lokaal `.env`-bestand, omgevingswaarden komen expliciet
+uit de deployment, de productie-guards staan al aan in staging, er wordt **één keer gebouwd** en die
+release wordt in staging gevalideerd voordat dezelfde release naar productie gaat, en er komen geen
+productie-only fixes. Elke fase controleert welke omgeving actief is en elke testsuite zegt tegen welke
+omgeving hij draait.
+
+### De regel is vastgelegd, niet beloofd
+
+| Regel | Waar | Gedrag |
+| --- | --- | --- |
+| **E0** | `server/src/lib/env.ts` | Een onbekende `ENVIRONMENT`-waarde (typefout) weigert de boot in plaats van stil guardrails te kiezen |
+| **E1** | idem | `staging`/`production` eisen `NODE_ENV=production` **in de procesomgeving**: een developmentproces kan die identiteit niet dragen |
+| **E1b** | idem | `NODE_ENV=production` + `ENVIRONMENT=development` is een tegenspraak en stopt de boot |
+| **E2** | idem | `ENVIRONMENT` is een guard-key (R3): op een staging-/productieboot mag hij niet uit een `.env` komen — de identiteit komt van de deployment |
+| **R2/R3/R4** | idem (bestaand) | Deploymentconfiguratie zonder expliciete `NODE_ENV` weigert; geen guard-keys uit `.env` in productie; tokenkwaliteit geldt **ook** in staging |
+
+`ENVIRONMENT=development|staging|production` is de enige nieuwe variabele. **`NODE_ENV=staging` bestaat
+niet**: staging draait `NODE_ENV=production` met `ENVIRONMENT=staging`, zodat staging alle
+productie-guards erft in plaats van ze te beloven. Zonder `ENVIRONMENT` leidt de server de identiteit af
+uit `NODE_ENV=production` (bestaande hosts blijven werken) en waarschuwt hij in het log; staging wordt
+nooit afgeleid.
+
+Zichtbaarheid, zodat een deploy aantoonbaar is: `/api/health` meldt `environment` +
+`environmentSource` (`process|file|derived`) naast de bestaande `env`, `version` en `commit`; het
+startlog print `Environment: … (proces|bestand|afgeleid)` en waarschuwt bij een afgeleide identiteit en
+bij staging; `/api/ready` blijft bewust minimaal (contract vastgepind in `server/test/production.test.ts`); 
+`ops/deploy-check.sh` kreeg check 12 (`--expect-environment|--expect-env`) en asserts op staging ook de
+non-indexeerbaarheid; `ops/healthcheck.sh` meldt de omgeving in zijn log, zijn `--quiet`-samenvatting en
+de alerttekst.
+
+### Staging is niet indexeerbaar en erft de guards
+
+- `robots.txt` op staging: alleen `Disallow: /` (geen `Allow: /`, geen `Sitemap:`-regel).
+- `sitemap.xml` op staging: geldige XML met **nul** `<loc>`-regels, met de reden erin.
+- `x-robots-tag: noindex, nofollow` wordt door de **server** gezet (niet in de bundel), dus dezelfde
+  build kan naar beide omgevingen — er is geen aparte staging-build.
+- De demo-seed blijft in productiemodus geweigerd; staging krijgt referentiedata plus echte imports.
+
+### Documenten
+
+- `docs/ENVIRONMENTS.md` (nieuw, bindend): de drie omgevingen, de matrix (NODE_ENV, configuratiebron,
+  build, guards, crawling, database, uploads, data), de guardmatrix E0–E2/R2–R4, de staginginrichting
+  (systemd/compose-voorbeeld), de promotieflow development → tests → build → commit → push → staging
+  → productie met de exacte commando's per stap, de promotieregistratie en wat alleen de host kan.
+- `docs/RELEASES.md` (nieuw): het promotieregister. Per release wordt vastgelegd wat er van development
+  naar staging en naar productie gaat, met commando's en cijfers; de twee openstaande releases staan er
+  met hun afwijking in (nog geen staginghost, push geblokkeerd).
+- `docs/DEPLOYMENT.md`: `ENVIRONMENT` in de variabelentabel, leesregels 2–5 bijgewerkt (identiteit,
+  staging-guards, non-indexeerbaarheid), `--expect-environment` in §5, en een kop die verwijst naar
+  `docs/ENVIRONMENTS.md` en `docs/RELEASES.md`.
+- `server/.env.example`: blok “Which environment is this?” met de drie waarden en de regel dat
+  `ENVIRONMENT` op een deployment uit de procesomgeving komt.
+
+### Tests zeggen nu tegen welke omgeving ze draaien
+
+Elke suite print vóór de eerste check een banner: suite, omgeving, `NODE_ENV`, herkomst van de
+identiteit (`process|file|derived`), welk configuratiebestand meedoet, de **database zonder
+credentials** (`user@host:port/db`) en het API-doel. De browser-specs vragen de omgeving aan
+`/api/health` van de server die ze bezoeken, in plaats van hem uit een URL af te leiden — een groene run
+kan dus niet meer over een andere omgeving gaan dan degene die antwoordde. Nieuw bestand:
+`server/test/environment.test.ts` (`npm run test:environment`), dat de identiteit, de guardpariteit in
+echte childprocessen, het niet-doorsijpelen van developmentconfiguratie en de stagingposture over echte
+HTTP (Fastify `inject`, geen mocks) vastpint.
+
+### Bewijs uit deze sandbox (26 september 2026)
+
+| Wat | Commando | Uitkomst |
+| --- | --- | --- |
+| Typechecks | `npx tsc --noEmit` en `cd server && npx tsc --noEmit` | beide schoon |
+| Volledige serversuite | `npm run test:all` (NODE_ENV=development, eigen database) | exit 0: audit ✓, uploads 30/30, production 163/163, env-hardening 13/13, **environment 38/38**, ops 21/21, youtube 14+, auth 69/69 |
+| Build | `npm run build` | `dist/index.html` 658 267 B (sha256 `58f62a5b…`), `.gz` 163 628 B |
+| Stagingposture, echt | `ENVIRONMENT=staging NODE_ENV=production` op `127.0.0.1:3100`, `.env`-loze map | bootlog `Environment: staging · NODE_ENV=production (process)` + stagingwaarschuwing; `robots.txt` alleen `Disallow: /`; sitemap leeg; `x-robots-tag: noindex, nofollow` |
+| Deploycheck op staging | `ops/deploy-check.sh --expect-environment staging --expect-commit a8f1a88` | **13 passed, 0 failed** (incl. check 12 en de staging-robots/sitemap) |
+| Deploycheck faalt dicht | dezelfde staginginstantie met `--expect-environment production` | exit **1**: “environment is “staging” but production was expected” |
+| Deploycheck op productie-identiteit | `ENVIRONMENT=production` op `127.0.0.1:3101` | **11 passed, 0 failed**: normale robots.txt, sitemap met 28 `<loc>`, géén `x-robots-tag` |
+| Watchdog | `ops/healthcheck.sh` | `environment reported by /api/health: staging` in de uitvoer; WARN alleen wegens ontbrekende `BACKUP_DIR` |
+| Browsersuite | `npm run test:e2e:production` tegen de productie-geconfigureerde instance | banner meldt `production (source: process) · release 1.0.0 (a8f1a88)`, 105 checks groen; 3 fouten omdat de seeddatabase geen echte YouTube/Archive-items bevat (geen providerimport in deze fase) |
+
+### Wat hiermee niet is gedaan (en waarom)
+
+Er is **geen echte staginghost** uitgerold: die vereist een host, DNS/TLS, een eigen database, een eigen
+uploadsvolume en het staging-env-bestand (`docs/ENVIRONMENTS.md` §8). De stagingconfiguratie is hier
+lokaal nagebootst met dezelfde vorm (procesomgeving, geen `.env`, productieguards, eigen
+uploadsmap) om de code en de scripts te bewijzen. De regel “een feature is pas klaar als staging hem met
+productie-achtige configuratie heeft gevalideerd” blijft dus openstaan voor de eerstvolgende release, en
+staat als afwijking in `docs/RELEASES.md`. De GitHub-push van `a8f1a88` is nog steeds geblokkeerd door
+ontbrekende pushcredentials (en GitHub `master` is inmiddels `6d67ad5`, dus geen fast-forward); daarom is
+er in deze fase niets gepusht en blijft de promotie van de twee openstaande releases open.
+
 ## 8. Known remaining issues (not blockers)
 
 From `docs/FASE3_9_CODEBASE_REVIEW.md` § Restrisico's plus the 3.9.1 report:
@@ -1436,6 +1538,21 @@ From `docs/FASE3_9_CODEBASE_REVIEW.md` § Restrisico's plus the 3.9.1 report:
 then verify a clean working tree and fresh `HEAD == origin/master`. The SVG implementation, build,
 both typechecks and 222 focused branding checks passed; this is not a fresh claim that every
 full-stack suite is green. Earlier backend/CMS/provider results below remain historical.
+
+**De environmentregel is nu de poort voor alles wat hierna komt** (§7p, `docs/ENVIRONMENTS.md`). De
+volgorde is niet vrijblijvend:
+
+1. **Eerst leveren wat er lokaal ligt** — de push van `a8f1a88` (+ de commit van deze fase) met veilige
+   credentials, daarna `HEAD == origin/master` controleren. Zonder push kan er niets naar staging.
+2. **Daarna de staginghost inrichten** — DNS/TLS, eigen database, eigen uploadsvolume,
+   `/etc/ilmnet/staging.env` met `ENVIRONMENT=staging` + `NODE_ENV=production`, eigen beheerdersaccount,
+   dezelfde build erop, en `ops/deploy-check.sh --expect-environment staging` groen krijgen
+   (`docs/ENVIRONMENTS.md` §4/§8).
+3. **Daarna pas de eerste echte promotie** — ontwikkelen → tests → één keer bouwen → commit → push →
+   staging → volledige stagingcontroles → dezelfde release naar productie → productiesmoke, met een
+   volledige entry in `docs/RELEASES.md`.
+4. **Inhoudelijk werk daarna**: de auditfixvolgorde uit `docs/LIBRARY_UX_AUDIT.md` §5 en het
+   discoveryplan D0–D7 uit `docs/ILMNET_DISCOVERY_EXPERIENCE.md` — beide nog steeds plan, geen code.
 
 The account/session model from Fase 4.5 (§7f), the provider investigation (§7e) and the cleanup/login
 phases (§7c–§7d) remain as documented; this branding phase changes none of them.

@@ -13,16 +13,21 @@
 #   2. /api/health   → 200 + status ok, and prints the release it reports (version + commit)
 #   3. /             → 200 and the app shell is really in the response
 #   4. /lectures     → 200 (deep link: the SPA fallback works, a refresh on a subpage survives)
-#   5. /robots.txt   → 200 + Disallow: /admin
-#   6. /sitemap.xml  → 200 + XML, and at least one <loc> on the base origin
+#   5. /robots.txt   → 200 + Disallow: /admin  (on staging: Disallow: / and no sitemap line)
+#   6. /sitemap.xml  → 200 + XML + at least one <loc> on the base origin
+#                       (on staging: valid XML with zero <loc> — staging advertises nothing)
 #   7. /brand/favicon/favicon-32.png → 200 with an image content type  (Fase 6.0: the official
 #      IlmNet icon set; the package ships no .ico, so the old check on /favicon.ico was replaced)
 #   8. /admin        → 200 HTML (the CMS gate answers; signing in is the operator's step)
 #   9. /<random>.png → 404 (a missing *file* is not answered with the app shell and HTTP 200)
 #  10. gzip          → / sends `content-encoding: gzip` when the client accepts it (Fase 5.4/5.5)
 #  11. --expect-commit → the commit reported by /api/health starts with the expected value
+#  12. --expect-environment → the environment /api/health reports matches (development|staging|
+#      production). For staging, "must not be indexable" is asserted as well: robots.txt disallows
+#      everything and the HTML carries x-robots-tag: noindex.
 #
-# Env: BASE_URL (default http://127.0.0.1:3001) · CURL_TIMEOUT (10) · EXPECT_COMMIT.
+# Env: BASE_URL (default http://127.0.0.1:3001) · CURL_TIMEOUT (10) · EXPECT_COMMIT ·
+#      EXPECT_ENVIRONMENT.
 # Exit codes: 0 all checks passed · 1 a check failed · 2 a required tool is missing · 3 usage error.
 #
 # NO new dependencies: curl and coreutils.
@@ -31,6 +36,7 @@ set -Eeuo pipefail
 BASE_URL="${BASE_URL:-http://127.0.0.1:3001}"
 CURL_TIMEOUT="${CURL_TIMEOUT:-10}"
 EXPECT_COMMIT="${EXPECT_COMMIT:-}"
+EXPECT_ENVIRONMENT="${EXPECT_ENVIRONMENT:-}"
 
 PASSED=0
 FAILED=0
@@ -45,6 +51,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --base)          BASE_URL="${2:-}"; shift 2 ;;
     --expect-commit) EXPECT_COMMIT="${2:-}"; shift 2 ;;
+    --expect-environment|--expect-env) EXPECT_ENVIRONMENT="${2:-}"; shift 2 ;;
     --expect-sitemap-origin) EXPECT_SITEMAP_ORIGIN="${2%/}"; shift 2 ;;
     -h|--help)       usage 0 ;;
     *) die "unknown option: $1 (try --help)" 3 ;;
@@ -110,6 +117,35 @@ if [[ -n "$EXPECT_COMMIT" ]]; then
   fi
 fi
 
+# ── 12. the environment this deployment says it is (environment rule) ────────
+DEPLOYED_ENVIRONMENT="$(printf '%s' "$BODY" | grep -o -m1 '"environment":"[^"]*"' | cut -d'"' -f4 || true)"
+if [[ -n "$EXPECT_ENVIRONMENT" ]]; then
+  if [[ "$DEPLOYED_ENVIRONMENT" == "$EXPECT_ENVIRONMENT" ]]; then
+    pass "/api/health reports environment \"${DEPLOYED_ENVIRONMENT}\" as expected"
+  else
+    fail "environment is \"${DEPLOYED_ENVIRONMENT:-not reported}\" but ${EXPECT_ENVIRONMENT} was expected (wrong target, or ENVIRONMENT is not set on the host)"
+  fi
+elif [[ -n "$DEPLOYED_ENVIRONMENT" ]]; then
+  pass "/api/health reports environment \"${DEPLOYED_ENVIRONMENT}\" (pass --expect-environment to assert it)"
+else
+  warn "/api/health reports no environment (host predates the environment rule — set ENVIRONMENT)"
+fi
+
+# Staging must never be crawlable. Asserted here so a staging deploy check proves the posture instead
+# of assuming it. Production is checked the other way round in the production suite (robots.txt
+# advertises the sitemap and carries no x-robots-tag).
+if [[ "$DEPLOYED_ENVIRONMENT" == "staging" ]]; then
+  # The crawl rules themselves are asserted in check 5, which already knows it is talking to staging.
+  # Here the server-set header is proven, because a `noindex` that only lives in the bundle is a promise.
+  RESP="$(fetch "$BASE_URL/" identity)"; CODE="$(status_of "$RESP")"
+  ROBOTS_HEADER="$(printf '%s' "$RESP" | sed -n 's/^x-robots-tag: *//p' | head -1)"
+  if printf '%s' "$ROBOTS_HEADER" | grep -q "noindex"; then
+    pass "HTML responses carry x-robots-tag: noindex (staging posture)"
+  else
+    fail "staging responses carry no x-robots-tag: noindex (crawlers could index staging)"
+  fi
+fi
+
 # ── 3. the app shell ────────────────────────────────────────────────────────
 RESP="$(fetch "$BASE_URL/" identity)"; CODE="$(status_of "$RESP")"; BODY="$(printf '%s' "$RESP" | sed -n '/---BODY---/,$p')"
 if [[ "$CODE" == "200" ]] && [[ "$BODY" == *'<div id="root"'* ]]; then
@@ -128,7 +164,16 @@ fi
 
 # ── 5. robots.txt ───────────────────────────────────────────────────────────
 RESP="$(fetch "$BASE_URL/robots.txt" identity)"; CODE="$(status_of "$RESP")"; BODY="$(printf '%s' "$RESP" | sed -n '/---BODY---/,$p')"
-if [[ "$CODE" == "200" ]] && [[ "$BODY" == *"Disallow: /admin"* ]]; then
+if [[ "${DEPLOYED_ENVIRONMENT:-}" == "staging" ]]; then
+  # Staging is production-like everywhere except crawlability: it must keep crawlers out entirely and
+  # must not advertise the production sitemap (docs/ENVIRONMENTS.md §2). Production keeps the CMS-only
+  # disallow checked below.
+  if [[ "$CODE" == "200" ]] && [[ "$BODY" == *"Disallow: /"* ]] && [[ "$BODY" != *"Allow: /"* ]] && [[ "$BODY" != *"Sitemap:"* ]]; then
+    pass "/robots.txt → 200, everything disallowed and no sitemap advertised (staging posture)"
+  else
+    fail "/robots.txt → HTTP $CODE: staging must disallow everything and advertise no sitemap"
+  fi
+elif [[ "$CODE" == "200" ]] && [[ "$BODY" == *"Disallow: /admin"* ]]; then
   pass "/robots.txt → 200 with the CMS disallowed"
 else
   fail "/robots.txt → HTTP $CODE (expected the script route to answer, not the SPA fallback)"
@@ -136,7 +181,15 @@ fi
 
 # ── 6. sitemap.xml ──────────────────────────────────────────────────────────
 RESP="$(fetch "$BASE_URL/sitemap.xml" identity)"; CODE="$(status_of "$RESP")"; BODY="$(printf '%s' "$RESP" | sed -n '/---BODY---/,$p')"
-if [[ "$CODE" == "200" ]] && [[ "$BODY" == *"<urlset"* ]] && [[ "$BODY" == *"<loc>"* ]]; then
+if [[ "${DEPLOYED_ENVIRONMENT:-}" == "staging" ]]; then
+  # A staging sitemap is served (so the route is proven to work) but lists nothing: the same content is
+  # published on the production origin and must be indexed there, not here.
+  if [[ "$CODE" == "200" ]] && [[ "$BODY" == *"<urlset"* ]] && [[ "$BODY" != *"<loc>"* ]]; then
+    pass "/sitemap.xml → 200, valid XML with no <loc> entries (staging advertises nothing)"
+  else
+    fail "/sitemap.xml → HTTP $CODE: a staging sitemap must be empty"
+  fi
+elif [[ "$CODE" == "200" ]] && [[ "$BODY" == *"<urlset"* ]] && [[ "$BODY" == *"<loc>"* ]]; then
   # The sitemap is built from PUBLIC_ORIGIN (Fase 5.5), so its origin is judged on its own: one origin
   # for every <loc>, and — in production — the same one you are testing.
   SITEMAP_ORIGIN="$(printf '%s' "$BODY" | grep -o -m1 '<loc>[^<]*</loc>' | sed -E 's#<loc>(https?://[^/]+)/.*#\1#' || true)"

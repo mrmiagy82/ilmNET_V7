@@ -126,12 +126,18 @@ check_http "ready " "$READY_URL" "status" "ready"
 # Report the release the API claims to run (in the log and in the alert message). Empty when the health
 # check itself failed — the release is then simply unknown, not guessed.
 RELEASE=""
+ENVIRONMENT=""
 if [[ -n "$HEALTH_JSON" ]]; then
   RELEASE="$(json_field "$HEALTH_JSON" version)"
   COMMIT="$(json_field "$HEALTH_JSON" commit)"
   if [[ -n "$COMMIT" ]]; then RELEASE="$RELEASE ($COMMIT)"; fi
+  # Environment rule (docs/ENVIRONMENTS.md): an incident report must say *which* environment it is
+  # about, so the watchdog and its alert carry it next to the release. Empty when the health payload
+  # does not report one — then it is unknown, not guessed.
+  ENVIRONMENT="$(json_field "$HEALTH_JSON" environment)"
 fi
 if [[ -n "$RELEASE" ]]; then ok "release reported by /api/health: $RELEASE"; fi
+if [[ -n "$ENVIRONMENT" ]]; then ok "environment reported by /api/health: $ENVIRONMENT"; fi
 
 # ── 3. uploads directory ────────────────────────────────────────────────────
 if [[ -n "$UPLOADS_DIR" ]]; then
@@ -237,6 +243,7 @@ elif [[ "$FAILED" -eq 1 || ( "$STRICT" -eq 1 && "$WARNED" -eq 1 ) ]]; then
     elif [[ "$STRICT" -eq 1 && "$line" == WARN* ]]; then printf '  %s\n' "$line" >&2; fi
   done
   if [[ -n "$RELEASE" ]]; then printf '  release: %s\n' "$RELEASE" >&2; fi
+  if [[ -n "$ENVIRONMENT" ]]; then printf '  environment: %s\n' "$ENVIRONMENT" >&2; fi
 fi
 
 summary=""
@@ -253,7 +260,7 @@ if [[ "$summary" != "OK" ]]; then
     body="$(printf '%s\n' "${REPORT[@]}")"
     severity="warning"; if [[ "$FAILED" -eq 1 ]]; then severity="critical"; fi
     "$SELF_DIR/alert.sh" --subject "ilmNet healthcheck $summary on $(hostname)" \
-      --body "$body${RELEASE:+$'\n'release: $RELEASE}" --severity "$severity" || true
+      --body "$body${RELEASE:+$'\n'release: $RELEASE}${ENVIRONMENT:+$'\n'environment: $ENVIRONMENT}" --severity "$severity" || true
   else
     # Say this out loud even in quiet mode: it is the difference between "somebody was told" and
     # "this failure exists only in a journal nobody reads".

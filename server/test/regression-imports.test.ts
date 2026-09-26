@@ -5,6 +5,8 @@
  * Run with the backend up:   npx tsx test/regression-imports.test.ts
  * (writes real content to the configured database — intended for dev/staging)
  */
+import { announceEnvironment } from './env-banner';
+
 const API = process.env.API_URL || 'http://localhost:3001';
 const TOKEN = process.env.ADMIN_TOKEN || 'ilmnet-admin-dev-2026';
 
@@ -19,6 +21,8 @@ const fail = (m: string) => {
   console.log(`❌ ${m}`);
 };
 const check = (cond: boolean, m: string) => (cond ? ok(m) : fail(m));
+
+announceEnvironment('live provider imports (regression)');
 
 async function api(path: string, method = 'GET', body?: any) {
   const res = await fetch(`${API}${path}`, {

@@ -6,6 +6,7 @@
 import assert from 'node:assert/strict';
 import { parseDurationToMinutes } from '../src/services/archive.service.js';
 import { prisma } from '../src/lib/prisma.js';
+import { announceEnvironment } from './env-banner';
 
 // helpers
 function ok(msg: string) { console.log(`✅ ${msg}`); }
@@ -247,6 +248,7 @@ async function testGenericContent() {
 }
 
 async function main() {
+  announceEnvironment('audit');
   try {
     await testDurationParsing();
     await testDuplicateConstraint();

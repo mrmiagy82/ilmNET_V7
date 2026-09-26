@@ -10,7 +10,7 @@ import sensible from '@fastify/sensible';
 import fastifyStatic from '@fastify/static';
 // Imported before ./lib/prisma on purpose: the snapshot of the real process environment has to be
 // taken before Prisma/dotenv can load a .env file (Fase 3.8.1).
-import { assertAdminAccessPossible, assertBootConfiguration, adminAuthPosture, isProduction, legacyAdminTokenEnabled } from './lib/env';
+import { assertAdminAccessPossible, assertBootConfiguration, adminAuthPosture, environmentLabel, environmentSource, isProduction, isStaging, legacyAdminTokenEnabled } from './lib/env';
 import { prisma } from './lib/prisma';
 import { healthRoutes } from './routes/health';
 import { contentRoutes } from './routes/content';
@@ -235,6 +235,13 @@ export async function buildApp() {
     // (and ready to promote) without the chance of a blank page in production. See
     // docs/DEPLOYMENT.md §5f for what to change to enforce it.
     reply.header('content-security-policy-report-only', CSP_REPORT_ONLY);
+    // Environment rule (docs/ENVIRONMENTS.md): staging serves the same build and the same content as
+    // production, so it must never end up in a search index. The header is set by the *server*, not
+    // baked into the bundle — the artifact that runs in staging is byte-identical to the one that goes
+    // to production (build once, promote the same release).
+    if (isStaging()) {
+      reply.header('x-robots-tag', 'noindex, nofollow');
+    }
     // HSTS (Fase 5.1) — only on a request that really arrived over HTTPS: direct TLS or a proxy
     // that sets `x-forwarded-proto` (trustProxy). Over plain HTTP a browser ignores it anyway, so
     // sending it would only be misleading. `includeSubDomains`/`preload` are deliberately NOT set:
@@ -483,6 +490,19 @@ if (require.main === module) {
 
       await app.listen({ port: PORT, host: HOST });
       app.log.info(`Server listening on http://${HOST}:${PORT} [${isProduction() ? 'production' : 'development'}]`);
+      app.log.info(`Environment: ${environmentLabel()}`);
+      if (environmentSource() === 'derived') {
+        app.log.warn(
+          'ENVIRONMENT is not set in the process environment: the identity was derived from NODE_ENV. ' +
+            'Set ENVIRONMENT=staging or ENVIRONMENT=production explicitly on a deployment (docs/ENVIRONMENTS.md).',
+        );
+      }
+      if (isStaging()) {
+        app.log.warn(
+          'Staging posture: crawling is disabled (robots.txt, x-robots-tag). A release is built once and ' +
+            'deployed to both environments — never move a staging instance into production.',
+        );
+      }
       app.log.info(`CORS origins: ${corsOrigins().join(', ')}`);
       app.log.info(
         `Admin protection: session sign-in enabled (${activeAccounts} active account${activeAccounts === 1 ? '' : 's'})` +

@@ -38,6 +38,7 @@ import { adminAuthPosture, assertAdminAccessPossible, legacyAdminTokenEnabled } 
 import { resetSeoCache } from '../src/routes/seo';
 import { releaseInfo, resetReleaseCache } from '../src/lib/release';
 import { gunzipSync } from 'node:zlib';
+import { announceEnvironment } from './env-banner';
 
 // Fase 3.8.1: production refuses development/placeholder tokens, so the suite uses a
 // production-grade value (a real deployment provides its own via the process environment).
@@ -115,6 +116,7 @@ function findKeysDeep(value: any, keys: string[], path = ''): string[] {
 }
 
 async function main() {
+  announceEnvironment('production readiness');
   const { app, base } = await prodApp();
   const createdIds: string[] = [];
 

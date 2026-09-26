@@ -1,6 +1,11 @@
 # ilmNet — Deployment runbook (productie)
 
 Alles wat je nodig hebt om ilmNet op een echte server te zetten. Getest tegen
+**Dit is het runbook voor de host.** Welke omgeving je ermee bedient en welke promotieflow daarbij hoort
+(development → staging → production, één keer bouwen en dezelfde release doorzetten) staat in
+`docs/ENVIRONMENTS.md`; elke uitrol krijgt een regel in `docs/RELEASES.md`. De commando's hieronder gelden
+voor staging én productie — alleen de waarden en het doel verschillen.
+
 PostgreSQL 17 + Node 20 in productiemodus (`NODE_ENV=production`), met een verse database,
 een persistent uploads-volume en de volledige testset (server-suites + browser-e2e).
 
@@ -15,7 +20,8 @@ een persistent uploads-volume en de volledige testset (server-suites + browser-e
 | Variabele | Verplicht | Betekenis |
 | --- | --- | --- |
 | `DATABASE_URL` | ja | Postgres-URL, bv. `postgresql://user:pass@host:5432/ilmnet?schema=public`. Optioneel erbij: `&connection_limit=<n>` (Prisma's pool, standaard `2 × CPU + 1`). `ops/*.sh` filteren Prisma-parameters er zelf uit voordat ze `pg_dump` aanroepen |
-| `NODE_ENV` | ja (prod) | `production` → admin-token verplicht, CORS-wildcard verboden, `secure`-cookies/fallbacks uit |
+| `NODE_ENV` | ja (prod) | `production` → admin-token verplicht, CORS-wildcard verboden, `secure`-cookies/fallbacks uit. **`NODE_ENV=staging` bestaat niet** — staging draait `NODE_ENV=production` |
+| `ENVIRONMENT` | ja (deployment) | Welke van de drie omgevingen dit is: `development`, `staging` of `production` (docs/ENVIRONMENTS.md). Komt **uit de procesomgeving**; op een staging-/productieboot weigert de server een `.env`-waarde en een onbekende waarde. `staging`/`production` vereisen `NODE_ENV=production`; `NODE_ENV=production` + `ENVIRONMENT=development` is een tegenspraak en stopt de boot. Zonder `ENVIRONMENT` leidt de server de identiteit af uit `NODE_ENV=production` (met waarschuwing in het log) — zet hem expliciet per deployment |
 | `ADMIN_TOKEN` | alleen als `ADMIN_LEGACY_TOKEN=true` | Uniek geheim, **minimaal 16 tekens** (`openssl rand -hex 32`). Alleen de fallback voor scripts/CI naast de sessie-login; in productie staat dit pad **standaard uit** (Fase 5.3). Bekende dev-/voorbeeldwaarden worden geweigerd |
 | `ADMIN_LEGACY_TOKEN` | nee | `true`/`false`. Zonder waarde: **aan in development, uit in productie** (Fase 5.3). Op `true` in productie is `ADMIN_TOKEN` verplicht; op `false` moet er minstens één actief beheerdersaccount bestaan, anders weigert de server te starten |
 | `CORS_ORIGIN` | ja | Exacte browser-origin(s) die de API mogen aanroepen, kommagescheiden. `*` is verboden in prod |
@@ -50,14 +56,23 @@ deze regels:
 1. **Modus** — `NODE_ENV` uit de procesomgeving wint; anders de waarde uit `.env`; anders
    `development`.
 2. **Geen stille terugval** — draagt de procesomgeving deploymentconfiguratie (`DATABASE_URL`,
-   `ADMIN_TOKEN`, `CORS_ORIGIN` of `UPLOADS_DIR`) maar is `NODE_ENV` daar niet gezet, dan weigert de
+   `ENVIRONMENT`, `ADMIN_TOKEN`, `CORS_ORIGIN` of `UPLOADS_DIR`) maar is `NODE_ENV` daar niet gezet, dan weigert de
    server te starten in plaats van stil naar development te vallen. Zet `NODE_ENV=production`
    (deployment) of expliciet `NODE_ENV=development` (lokale run met eigen database).
-3. **Een `.env` mag productie niet configureren** — in productie mogen `NODE_ENV`, `ADMIN_TOKEN`,
-   `CORS_ORIGIN` en `ADMIN_ALLOW_LOCALHOST` niet uit een `.env`-bestand komen. Gebeurt dat toch, dan
+3. **Een `.env` mag productie niet configureren** — in productie mogen `NODE_ENV`, `ENVIRONMENT`,
+   `ADMIN_TOKEN`, `CORS_ORIGIN` en `ADMIN_ALLOW_LOCALHOST` niet uit een `.env`-bestand komen. Gebeurt dat toch, dan
    stopt de server met een melding die het bestand én de variabelen noemt.
 4. **Tokenkwaliteit** — in productie moet `ADMIN_TOKEN` minimaal 16 tekens hebben en mag het geen
-   bekende dev-/voorbeeldwaarde zijn (zoals `change-me-dev-only` of het token uit dit project).
+   bekende dev-/voorbeeldwaarde zijn (zoals `change-me-dev-only` of het token uit dit project). Dit geldt
+   **ook voor staging**.
+5. **Omgevingsidentiteit** — `ENVIRONMENT` bepaalt de identiteit naast de modus. Een onbekende waarde
+   (typefout) stopt de boot; `staging` en `production` eisen `NODE_ENV=production` in de procesomgeving;
+   `NODE_ENV=production` met `ENVIRONMENT=development` is een tegenspraak en wordt geweigerd. De
+   identiteit staat in `/api/health` (`environment` + `environmentSource` `process|file|derived`) en in
+   `/api/ready`, en het startlog meldt hem — óók wanneer hij is afgeleid. **Staging erft zo alle
+   productie-guards** (tokenkwaliteit, CORS-allowlist, geen `.env`) en zet zichzelf niet-indexeerbaar:
+   `robots.txt` met alleen `Disallow: /`, een lege `sitemap.xml` en `x-robots-tag: noindex, nofollow` op
+   elke respons. Zie `docs/ENVIRONMENTS.md`.
 
 > **Zet dus nooit een `.env` in de app-map van een productiehost.** De server leest zo'n bestand
 > niet alleen zelf (dotenv), maar ook via de Prisma-client, ongeacht de werkmap. In Docker is dat
@@ -181,8 +196,8 @@ npm run admin:enable  -- --username admin
 ## 5. Verificatie na elke deploy
 
 ```bash
-curl -s https://ilmnet.example/api/health   # status ok, database up, storage.writable true, adminProtection "sessions" (of "sessions+legacy-token")
-curl -s https://ilmnet.example/api/ready    # status ready + database up (goedkope probe voor een load balancer)
+curl -s https://ilmnet.example/api/health   # status ok, database up, storage.writable true, adminProtection "sessions" (of "sessions+legacy-token"), environment "production"
+curl -s https://ilmnet.example/api/ready    # status ready + database up (goedkope probe, bewust zonder diagnosepayload)
 ```
 
 - `/` en diepe links (`/lectures`, `/books`, `/series/<id>`, `/lectures/<slug>`) geven 200 en
@@ -214,9 +229,12 @@ curl -s https://ilmnet.example/api/ready    # status ready + database up (goedko
   ```
 - **Alles in één keer (Fase 5.6):**
   ```bash
-  BASE_URL=https://ilmnet.example ops/deploy-check.sh --expect-commit "$(git rev-parse --short HEAD)"
-  #   ~11 checks: readiness, deep health + release, app-shell, diepe link, robots.txt, sitemap,
-  #   favicon, /admin, ontbrekend bestand = 404, gzip op /. Exit 1 zodra één check faalt.
+  BASE_URL=https://ilmnet.example ops/deploy-check.sh --expect-commit "$(git rev-parse --short HEAD)" \
+    --expect-environment production
+  #   ~12 checks: readiness, deep health + release, app-shell, diepe link, robots.txt, sitemap,
+  #   favicon, /admin, ontbrekend bestand = 404, gzip op /, omgevingsidentiteit (+ op staging:
+  #   robots.txt Disallow: / en x-robots-tag: noindex). Exit 1 zodra één check faalt.
+  #   Op een staginghost: --expect-environment staging — dezelfde check, andere verwachting.
   ```
 - Admin: `/admin` vraagt om gebruikersnaam + wachtwoord; na inloggen verschijnen drafts, imports en uploads (het dashboard toont de echte totalen).
 - Upload-test: voeg in het CMS een thumbnail toe, herlaad de pagina — het bestand moet daarna nog

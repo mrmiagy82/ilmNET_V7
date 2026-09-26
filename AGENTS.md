@@ -13,10 +13,21 @@ This file is the entry point for every automated session on **ilmNet**. Follow i
    git fetch origin && git log --oneline origin/master -1
    ```
    A dirty tree or a diverged `origin/master` is a blocker: report it instead of building on it.
-3. **Update `docs/CONTEXT.md`** after any of these: a finished phase, a commit, a sanity check, or a
+3. **Check which environment is active** (`docs/ENVIRONMENTS.md`) before you run or change anything:
+   ```bash
+   echo "NODE_ENV=${NODE_ENV:-unset} ENVIRONMENT=${ENVIRONMENT:-unset}"
+   curl -s "${API_URL:-http://localhost:3001}/api/health" | grep -o '"environment":"[^"]*"'
+   ```
+   Report it: **development** (local work), **staging** (production-like validation) or **production**
+   (live). Never develop against staging or production data, never set `ENVIRONMENT=staging` on a
+   production host. Every suite prints its own environment banner, so a green run only counts for the
+   environment it names. A change travels development → staging → production; the release is built
+   **once** and validated in staging before the same release is promoted, and every release gets an
+   entry in `docs/RELEASES.md`.
+4. **Update `docs/CONTEXT.md`** after any of these: a finished phase, a commit, a sanity check, or a
    discovery that changes how the project must be understood. It is the memory between sessions —
    if it is stale, the next session starts misinformed.
-4. **After every change**: run the relevant tests → TypeScript/build → commit → push. Never leave a
+5. **After every change**: run the relevant tests → TypeScript/build → commit → push. Never leave a
    pushed commit that does not build, and never leave work uncommitted "for later".
 
 ## 1. The project in one paragraph

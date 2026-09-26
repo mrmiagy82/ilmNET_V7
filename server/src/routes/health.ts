@@ -1,7 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { prisma } from '../lib/prisma';
 import { uploadsHealth } from '../lib/storage';
-import { adminAuthPosture } from '../lib/env';
+import { activeEnvironment, adminAuthPosture, environmentSource } from '../lib/env';
 import { releaseInfo } from '../lib/release';
 
 /**
@@ -44,7 +44,14 @@ export async function healthRoutes(app: FastifyInstance) {
       // Fase 5.6: the real version from server/package.json, plus the commit the host deployed.
       version: release.version,
       commit: release.commit,
-      env: process.env.NODE_ENV || 'development',
+        env: process.env.NODE_ENV || 'development',
+        // Environment rule (docs/ENVIRONMENTS.md): the environment identity a deploy or staging check
+        // can assert on. `env` above stays the raw NODE_ENV; `environment` is the ilmNet identity
+        // (`development` | `staging` | `production`) and `environmentSource` says where it came from
+        // (`process` = supplied by the deployment, `derived` = only NODE_ENV was set). No secrets,
+        // no host names, no paths.
+        environment: activeEnvironment(),
+        environmentSource: environmentSource(),
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
       database,
@@ -71,10 +78,14 @@ export async function healthRoutes(app: FastifyInstance) {
     }
     const ready = database === 'up';
     reply.code(ready ? 200 : 503);
-    return {
-      status: ready ? 'ready' : 'not_ready',
-      service: 'ilmnet-server',
-      database,
+      return {
+        // Deliberately minimal (pinned by `server/test/production.test.ts`): a load balancer must
+        // not pay for a storage walk, and this payload is not a diagnostic surface. The environment
+        // identity lives in `/api/health` (above), in the boot log, and in
+        // `ops/deploy-check.sh --expect-environment` — see docs/ENVIRONMENTS.md §3.
+        status: ready ? 'ready' : 'not_ready',
+        service: 'ilmnet-server',
+        database,
       timestamp: new Date().toISOString(),
     };
   };
