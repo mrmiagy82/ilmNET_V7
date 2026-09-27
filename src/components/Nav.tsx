@@ -9,6 +9,19 @@ const links = [
   { label: 'Subjects', to: '/subjects' },
 ];
 
+/**
+ * The magnifier of the search entry point (D4). Decorative: every place that renders it also has a real
+ * label next to it, so a screen reader hears "Search the library", never an unlabelled graphic.
+ */
+function SearchGlyph({ className = '' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className={className}>
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-3.2-3.2" />
+    </svg>
+  );
+}
+
 export default function Nav() {
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
@@ -52,6 +65,19 @@ export default function Nav() {
               </Link>
             );
           })}
+          {/* D4 (audit A6): one entry point to the whole library. A link, not a field: a second search
+              box inside a fixed header would compete with the field on every page and could not show
+              its own results. On a phone it lives in the menu panel below, where there is room for it. */}
+          <Link
+            to="/search"
+            aria-label="Search the library"
+            className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-[0.94rem] font-medium transition-colors ${
+              pathname.startsWith('/search') ? 'bg-sand text-rose' : 'text-ink-soft hover:bg-sand/70 hover:text-ink'
+            }`}
+          >
+            <SearchGlyph className="h-[1.05rem] w-[1.05rem]" />
+            Search
+          </Link>
         </div>
 
         <div className="flex items-center gap-2">
@@ -84,6 +110,17 @@ export default function Nav() {
 
       {open && (
         <div id="mobile-menu-panel" className="bg-cream neu-raised mx-auto mt-3 max-w-[1180px] rounded-[26px] p-3 md:hidden">
+          {/* D4 (audit A6): the same entry point on a phone, one tap away and readable at 390 px. */}
+          <Link
+            to="/search"
+            aria-label="Search the library"
+            className={`border-line/70 flex items-center gap-3 border-b px-4 py-3.5 text-[1.05rem] font-medium ${
+              pathname.startsWith('/search') ? 'text-rose' : 'text-ink'
+            }`}
+          >
+            <SearchGlyph className="h-[1.15rem] w-[1.15rem]" />
+            Search the library
+          </Link>
           {links.map((l) => (
             <Link
               key={l.to}

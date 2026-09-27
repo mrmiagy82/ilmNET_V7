@@ -1,46 +1,13 @@
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
 import PageHeader from '../components/PageHeader';
 import { usePageMeta } from '../lib/usePageMeta';
 import { EmptyState, StatRow } from '../components/ui';
-import { TileSkeleton } from '@/components/cards';
+// D4: the subject tile lives in the shared card module now, so the hub and the search results use one card.
+import { SubjectTile, TileSkeleton } from '@/components/cards';
 import LibraryFilters from '@/components/LibraryFilters';
 import { ListErrorCard } from '@/components/ListStates';
 import { usePublicSubjects } from '@/lib/usePublicReference';
 import { subjectGroups } from '../data';
-import type { BackendSubject } from '@/lib/api';
-
-/**
- * One subject tile (D3).
- *
- * The tile used to print "N lectures / N books" counted in the browser from a `limit=100` content
- * request — a number that silently stopped at the 100th published record (audit A5). Either a tile
- * needs one counting request per subject, or it shows no number at all; `AGENTS.md` §2 allows exactly
- * these two options ("Public counters come from the API ..., or are not shown at all"), so D3 chose the
- * second and moved the real total to the subject's own page, where it is `pagination.total`.
- */
-function SubjectTile({ s }: { s: BackendSubject }) {
-  const badge = s.accent === 'rose' ? 'bg-rose text-cream' : s.accent === 'olive' ? 'bg-olive text-[#22251a]' : 'bg-sand text-ink-soft';
-  return (
-    <article className="bg-cream neu-raised group flex h-full flex-col rounded-[32px] p-7 transition-transform duration-500 hover:-translate-y-1.5">
-      <div className="flex items-start justify-between gap-4">
-        <div className={`font-display grid h-14 w-14 shrink-0 place-items-center rounded-[18px] text-[1.25rem] font-extrabold neu-raised-sm ${badge}`}>
-          {s.name.charAt(0)}
-        </div>
-        <span className="text-ink-muted text-[0.7rem] font-semibold tracking-[0.16em] uppercase">{s.group}</span>
-      </div>
-
-      <h3 className="font-display text-ink mt-5 text-[1.4rem] leading-tight font-extrabold tracking-[-0.03em]">{s.name}</h3>
-      <p className="text-ink-soft mt-3 flex-1 text-[0.92rem] leading-relaxed line-clamp-3">{s.description ?? ''}</p>
-
-      <div className="border-line/70 mt-6 flex items-center justify-end border-t pt-5">
-        <Link to={`/subjects/${encodeURIComponent(s.slug)}`} className="text-rose inline-flex items-center gap-1.5 text-[0.86rem] font-semibold transition-all group-hover:gap-2.5">
-          Explore <span aria-hidden="true">→</span>
-        </Link>
-      </div>
-    </article>
-  );
-}
 
 export default function Subjects() {
   usePageMeta({

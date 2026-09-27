@@ -26,6 +26,7 @@ import LectureDetail from './pages/LectureDetail';
 import BookDetail from './pages/BookDetail';
 import SeriesDetail from './pages/SeriesDetail';
 import SubjectDetail from './pages/SubjectDetail';
+import Search from './pages/Search';
 import NotFound from './pages/NotFound';
 
 export default function App() {
@@ -74,6 +75,8 @@ export default function App() {
             <Route path="scholars/:id" element={<ScholarDetail />} />
             <Route path="subjects" element={<Subjects />} />
             <Route path="subjects/:id" element={<SubjectDetail />} />
+            {/* D4: one search box for the whole library (audit A6) — the header links here. */}
+            <Route path="search" element={<Search />} />
             {/* Fase 5.5: unknown paths get a real 404 page instead of a second copy of the landing
                 page — the address in the bar never matches what is on screen otherwise. */}
             <Route path="*" element={<NotFound />} />

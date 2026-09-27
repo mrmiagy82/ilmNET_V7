@@ -45,7 +45,13 @@ export default function Lectures() {
       }
     }, 340);
     return () => clearTimeout(t);
-  }, [inputQ]); // eslint-disable-line react-hooks/exhaustive-deps
+    // D4 (found while checking the new search page): the URL values belong in this dependency list.
+    // React Router applies `setSearchParams` as a transition, so there is a real render in between where
+    // the field is already empty but `searchParams` still holds the old query. That render scheduled a
+    // keystroke timer whose closure kept the *old* URL; 340 ms later it wrote those old parameters back
+    // minus `q`. "Reset filters" therefore undid itself — on `/lectures?q=x&subject=y` the reset left
+    // `?subject=y` behind. Re-running the effect when the URL changes clears that timer.
+  }, [inputQ, urlQ, searchParams, setSearchParams]);
 
   const format: 'all' | 'Audio' | 'Video' = useMemo(() => {
     if (urlFormat === 'audio') return 'Audio';
