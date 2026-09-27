@@ -383,6 +383,17 @@ order exists, slimmer artwork block when there is no real cover (audit C1/C4); p
 "Continue" affordance **if Q1 is answered yes**.
 *Verify:* recommendations never include the current item or unpublished records; a book without a
 cover does not render the 420 px empty frame.
+*Status (implemented in D5, 27 September 2026):* "More like this" is built exactly as planned
+(subject, then scholar, the current item excluded, hidden on empty results or a failed request).
+Series next/previous is **omitted on purpose**: there is no ordering field anywhere in the data, so any
+next/previous would be invented; the series block now shows a true count from `pagination.total` and
+leaves ordering and numbering to D6. The artwork fix keeps the existing ilmNet audio placeholder — the
+media suite pins that contract — but bounds it to its own 16:10 shape instead of the full-width 420 px
+frame, so the C1/C4 "empty frame" is gone without removing a documented fallback. Q1 was answered *yes*
+by the D5 instruction, so the device-local "Continue" rail is built: verified per entry against the
+API, with a visible clear-list action, and it never leaves the device. Details and evidence:
+`docs/CONTEXT.md` §7v.
+
 
 **D6 — Series that behaves like a series.**
 Series page ordering/numbering per the Q5 answer, "start from the beginning", position display;

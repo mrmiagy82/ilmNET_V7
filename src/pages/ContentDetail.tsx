@@ -2,13 +2,19 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import PageHeader from '../components/PageHeader';
 import { Tag } from '../components/ui';
-import { getPublishedContent, listPublishedContents, type BackendContent } from '@/lib/api';
+import { getPublishedContent, type BackendContent } from '@/lib/api';
 import AudioPlayer from '@/components/AudioPlayer';
 import { getDownloadUrl, getAudioStreamUrl } from '@/lib/series';
 import { resolveCover, resolveThumbnail, resolveCardMedia } from '@/lib/thumbnail';
 import AudioPlaceholder from '@/components/AudioPlaceholder';
 import MediaThumb from '@/components/MediaThumb';
 import { usePageMeta } from '../lib/usePageMeta';
+// Discovery step D5: the page remembers (on this device only) that it was opened, adds a real
+// "More like this" row, and passes the content id to the audio player so a real playback position can
+// be continued. The series block keeps its existing meaning but stops reporting a slice as the total.
+import { recordOpen } from '@/lib/localActivity';
+import MoreLikeThis from '@/components/MoreLikeThis';
+import { useContentQuery } from '@/lib/useContentQuery';
 
 function Embed({ c }: { c: BackendContent }) {
   const audioSrc = c.type === 'audio' ? getAudioStreamUrl(c) : null;
@@ -18,7 +24,14 @@ function Embed({ c }: { c: BackendContent }) {
   if (c.type === 'audio') {
     return (
       <div className="space-y-4">
-        <AudioPlayer src={audioSrc} title={c.title} embedFallback={c.embedUrl} provider={c.provider} sourceUrl={c.sourceUrl} />
+        <AudioPlayer
+          src={audioSrc}
+          title={c.title}
+          embedFallback={c.embedUrl}
+          provider={c.provider}
+          sourceUrl={c.sourceUrl}
+          activity={{ id: c.id, slug: c.slug }}
+        />
         {downloadUrl && (
           <div className="flex justify-center">
             <a href={downloadUrl} target="_blank" rel="noreferrer" className="bg-cream neu-raised-sm text-ink hover:text-rose inline-flex items-center gap-2 rounded-full px-6 py-3 text-[0.86rem] font-semibold">
@@ -122,51 +135,48 @@ function Embed({ c }: { c: BackendContent }) {
   );
 }
 
+/** Sibling rows shown in the series block before the visitor opens the series page itself. */
+const SERIES_PREVIEW = 6;
+
+/**
+ * "More in this series" (Discovery step D5, was: a 100-item read plus a full-library fallback).
+ *
+ * Three things changed, none of them visual:
+ *   - the block asks one question — the existing `collection=<identifier>` filter (Fase 5.4 made it an
+ *     index-backed equality) with the page size it actually shows;
+ *   - the fallback is gone. It fetched **every** published record (`limit: 100`) to look for records the
+ *     first, correct query had already ruled out (audit A5/D10);
+ *   - the count is true. The old line printed `siblings.length + 1` ("7 parts") while six were shown and
+ *     the rest of the collection was unknown — audit A4, the one number on a detail page a visitor can
+ *     catch. It now reads "6 of 9 other items shown", where 9 is `pagination.total` minus this item.
+ *
+ * No order is claimed and none is invented: the API's own order is used, and the D6 phase brings real
+ * episode ordering once the data can carry it (owner instruction §3 — deliberately not faked here).
+ */
 function SeriesNav({ c }: { c: BackendContent }) {
-  const [siblings, setSiblings] = useState<BackendContent[]>([]);
-  const [loading, setLoading] = useState(false);
+  const collection = c.collectionIdentifier ?? undefined;
+  const siblings = useContentQuery({ collection }, { shelf: 'library', limit: SERIES_PREVIEW, enabled: Boolean(collection) });
 
-  useEffect(() => {
-    if (!c.collectionIdentifier) return;
-    let cancelled = false;
-    setLoading(true);
-    // Fase 5.4: equality on the collection instead of a nine-column free-text search (see SeriesDetail)
-    listPublishedContents({ limit: 100, collection: c.collectionIdentifier })
-      .then((res) => {
-        if (cancelled) return;
-        let filtered = (res.data as BackendContent[]).filter((x) => x.collectionIdentifier === c.collectionIdentifier && x.id !== c.id);
-        if (filtered.length === 0) {
-          // fallback fetch all
-          return listPublishedContents({ limit: 100 }).then((all) => {
-            if (cancelled) return;
-            filtered = (all.data as BackendContent[]).filter((x) => x.collectionIdentifier === c.collectionIdentifier && x.id !== c.id);
-            filtered.sort((a, b) => a.title.localeCompare(b.title));
-            setSiblings(filtered.slice(0, 6));
-          });
-        } else {
-          filtered.sort((a, b) => a.title.localeCompare(b.title));
-          setSiblings(filtered.slice(0, 6));
-        }
-      })
-      .catch(() => {
-        // The sibling list is a convenience block: on failure we show nothing rather than stale items.
-        if (!cancelled) setSiblings([]);
-      })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [c.collectionIdentifier, c.id]);
+  if (!collection) return null;
+  const others = siblings.data.filter((x) => x.id !== c.id);
+  // A failed or empty answer hides the block (as before), and so does the loading state: a card that
+  // might turn out to be empty is not worth painting.
+  if (siblings.loading || siblings.error || others.length === 0) return null;
 
-  if (!c.collectionIdentifier || (!loading && siblings.length === 0)) return null;
+  const othersTotal = Math.max(siblings.total - 1, 0);
+  const shown = others.slice(0, SERIES_PREVIEW);
 
   return (
     <div className="bg-cream neu-raised rounded-[28px] p-6 sm:p-8">
       <div className="flex items-center justify-between">
         <h3 className="font-display text-ink text-[1.1rem] font-bold">More in this series</h3>
-        <Link to={`/series/${encodeURIComponent(c.collectionIdentifier!)}`} className="text-rose text-[0.82rem] font-semibold">View all →</Link>
+        <Link to={`/series/${encodeURIComponent(collection)}`} className="text-rose text-[0.82rem] font-semibold">View all →</Link>
       </div>
-      <p className="text-ink-muted mt-1 text-[0.78rem]">{c.collectionTitle || c.collectionIdentifier} · {siblings.length + 1} parts</p>
+      <p className="text-ink-muted mt-1 text-[0.78rem]">
+        {c.collectionTitle || collection} · {shown.length} of {othersTotal} other {othersTotal === 1 ? 'item' : 'items'} shown
+      </p>
       <div className="mt-4 grid gap-3">
-        {siblings.map((s) => (
+        {shown.map((s) => (
           <Link key={s.id} to={`/${s.type === 'book' || s.type === 'document' ? 'books' : 'lectures'}/${s.slug}`} className="bg-sand neu-inset flex gap-3 rounded-[16px] p-3 hover:opacity-80">
             <MediaThumb
               src={resolveCardMedia(s).src}
@@ -181,7 +191,6 @@ function SeriesNav({ c }: { c: BackendContent }) {
             </div>
           </Link>
         ))}
-        {loading && <p className="text-ink-muted text-[0.78rem]">Loading series…</p>}
       </div>
     </div>
   );
@@ -227,6 +236,14 @@ export default function ContentDetail({ expectedType }: { expectedType?: 'lectur
       .catch((e: any) => setError(e.message || 'Failed to load'))
       .finally(() => setLoading(false));
   }, [id, expectedType]);
+
+  // Discovery step D5: remember that this device opened this item, for the landing's "Continue" rail.
+  // Only the id, the slug, the kind and the timestamp — the rail resolves everything else from the API
+  // (see `lib/localActivity.ts`). Runs once per loaded item, never for a page that failed to load.
+  useEffect(() => {
+    if (!content) return;
+    recordOpen({ id: content.id, slug: content.slug, type: content.type });
+  }, [content?.id]);
 
   // Same item, wrong section? Move to the canonical address (replace, so Back still leaves the page).
   useEffect(() => {
@@ -381,13 +398,19 @@ export default function ContentDetail({ expectedType }: { expectedType?: 'lectur
           <SeriesNav c={c} />
 
           {(() => {
-            const coverMedia = c.type === 'book' || c.type === 'document' ? resolveCover(c) : resolveThumbnail(c);
-            const audioFallback = c.type === 'audio' && !coverMedia.src;
-            if (!coverMedia.src && !audioFallback) return null;
+            const isBookish = c.type === 'book' || c.type === 'document';
+            const coverMedia = isBookish ? resolveCover(c) : resolveThumbnail(c);
+            // An audio item with no usable image (no upload, no provider thumbnail — and never the black
+            // Archive.org service image) gets the ilmNet audio placeholder, which is the product's
+            // documented fallback. D5, audit C4: that placeholder used to sit in the same full-width
+            // 420 px frame as a real cover, which made a placeholder look like a tall empty panel. It is
+            // now bounded to the placeholder's own 16:10 shape; a real cover keeps the tall frame.
+            const placeholderOnly = !coverMedia.src && coverMedia.kind === 'placeholder-audio';
+            if (!coverMedia.src && !placeholderOnly) return null;
             return (
               <div className="bg-cream neu-raised rounded-[28px] p-6 sm:p-8">
                 <div className="flex items-center justify-between">
-                  <h3 className="font-display text-ink text-[1.1rem] font-bold">{c.type === 'book' || c.type === 'document' ? 'Cover' : 'Artwork'}</h3>
+                  <h3 className="font-display text-ink text-[1.1rem] font-bold">{isBookish ? 'Cover' : 'Artwork'}</h3>
                   {coverMedia.source === 'custom' && <span className="bg-olive/15 text-olive-deep rounded-full px-3 py-1 text-[0.68rem] font-bold">Custom upload</span>}
                 </div>
                 <MediaThumb
@@ -395,21 +418,30 @@ export default function ContentDetail({ expectedType }: { expectedType?: 'lectur
                   kind={coverMedia.kind}
                   eager
                   testId="detail-cover"
-                  className="bg-sand neu-inset mt-4 grid place-items-center rounded-[18px] p-2"
+                  className={`bg-sand neu-inset mt-4 grid place-items-center rounded-[18px] p-2 ${placeholderOnly ? 'mx-auto max-w-[360px]' : ''}`}
                   imgClassName="object-contain"
+                  // The image URL exists but did not load: a bounded placeholder, not a 420 px void.
                   fallback={
                     <div className="absolute inset-0 grid place-items-center p-2">
-                      <AudioPlaceholder className="aspect-[16/10] w-full rounded-[14px]" />
+                      <AudioPlaceholder className="max-h-[280px] w-full rounded-[14px]" />
                     </div>
                   }
                 >
-                  <div className="h-[420px] w-full" aria-hidden="true" />
+                  {placeholderOnly ? (
+                    <div className="aspect-[16/10] w-full" aria-hidden="true" />
+                  ) : (
+                    <div className="h-[420px] w-full" aria-hidden="true" />
+                  )}
                 </MediaThumb>
               </div>
             );
           })()}
         </div>
       </section>
+
+      {/* D5: the same subject (or scholar) elsewhere in the library, current item excluded. Hides
+          itself when there is nothing to show or the request fails — never an empty band. */}
+      <MoreLikeThis c={c} />
     </>
   );
 }

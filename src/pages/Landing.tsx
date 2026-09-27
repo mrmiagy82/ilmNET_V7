@@ -4,6 +4,8 @@ import Library from '../components/Library';
 import Subjects from '../components/Subjects';
 import { HowItWorks, FinalCTA } from '../components/Closing';
 import { ListenRail, NewInLibrary, ReadRail, ScholarRail } from '../components/LandingRails';
+// D5: the device-local rail (only rendered when this browser actually remembers something).
+import ContinueRail from '../components/ContinueRail';
 
 export default function Landing() {
   // Fase 5.5: keeps the tab/OG title right after navigating back from a detail page (index.html
@@ -24,6 +26,9 @@ export default function Landing() {
   return (
     <>
       <Hero />
+      {/* D5: personal continuity comes first for a returning visitor on this device — and costs
+          nothing (not even a request) for a visitor who has never opened a content page. */}
+      <ContinueRail />
       <NewInLibrary />
       <Library />
       <ListenRail />

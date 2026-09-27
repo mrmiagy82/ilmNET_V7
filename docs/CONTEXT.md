@@ -5,7 +5,16 @@ Update it after every finished phase, commit, sanity check or significant discov
 Rules: only facts that are verifiable from the repository, Git history or existing docs — and
 **never** secrets, tokens or credentials.
 
-_Last updated: D4 (27 september 2026): zoeken is één globale discovery-ervaring geworden — de header
+_Last updated: D5 (27 september 2026): detailpagina’s hebben nu echte continuïteit — een
+_apparaat-lokale “Continue where you left off.”-rail (één geïsoleerde module, niets verlaat de browser),
+_een eerlijke “More like this”-rail (subject, dan scholar; het huidige item altijd uitgesloten), een
+_echte audio-afspeelpositie die alleen voor het juiste audio-item wordt hersteld, een serieblok dat een
+_waar aantal uit de API toont in plaats van een geladen deelverzameling als totaal te presenteren, en
+_een begrensd artworkblok in plaats van een 420 px leeg paneel (audit C4). **Geen** verzonnen
+_afleveringsvolgorde, **geen** verzonnen leespercentage, geen backendwijziging, geen nieuwe dependency
+_(§7v).
+
+_Oudere samenvatting (D4): zoeken is één globale discovery-ervaring geworden — de header
 _heeft een echte ingang naar `/search`, en die pagina groepeert de treffers naar wat ze zijn: items uit
 _de bestaande `q`-zoekopdracht van `/api/contents` (met de filters die die API echt heeft) plus
 _scholars en subjects uit de bestaande referentielijsten. Alle aantallen komen uit de API of staan er
@@ -35,14 +44,14 @@ uncompressed (631 kB → 157 kB over the wire, −2,3 s on a 3G profile) (§7j).
 | | |
 | --- | --- |
 | Branch | `master` |
-| Codebase state described here | `ae1c746` (Fase 6.0) + Fase 6.1 (§7o) + environmentregel (§7p) + D0 discovery foundation (§7q) + D1 landingsrails (§7r) + D2 bibliotheek-discovery (§7s) + D3 scholar-/subjectpagina’s (§7t) + **D4 globale zoekervaring (§7u)** |
-| This document | bijgewerkt voor de environmentregel (§7p), D0 (§7q), D1 (§7r), D2 (§7s), D3 (§7t) en D4 (§7u); de eigen revisie is zichtbaar met `git log -1 -- docs/CONTEXT.md` |
-| Working tree | D4 begon ná de D3-push (master == HEAD == `805e54f`) en raakte `src/` + de docs; de 8 mode-only bestanden (`ops/*.sh`, `scripts/precompress.mjs`) zijn sandboxartefacten (uitvoerbare bits) en zijn **niet** meegenomen in de commits. Na de D4-push hoort `origin/master` == `HEAD` te zijn en de worktree schoon op die 8 mode-only bestanden |
+| Codebase state described here | `ae1c746` (Fase 6.0) + Fase 6.1 (§7o) + environmentregel (§7p) + D0 discovery foundation (§7q) + D1 landingsrails (§7r) + D2 bibliotheek-discovery (§7s) + D3 scholar-/subjectpagina’s (§7t) + D4 globale zoekervaring (§7u) + **D5 detailcontinuïteit (§7v)** |
+| This document | bijgewerkt voor de environmentregel (§7p), D0 (§7q), D1 (§7r), D2 (§7s), D3 (§7t), D4 (§7u) en D5 (§7v); de eigen revisie is zichtbaar met `git log -1 -- docs/CONTEXT.md` |
+| Working tree | D5 begon op `255ee22` (de eigenaar-upload `docs/DESIGN (3).md` ná de D4-push; fast-forward, geen rebase) en raakte `src/` + `tests/` + de docs. De 8 mode-only bestanden (`ops/*.sh`, `scripts/precompress.mjs`) zijn sandboxartefacten (uitvoerbare bits) en zijn **niet** meegenomen in de commits. Na de D5-push hoort de GitHub-master == `HEAD` te zijn en de worktree schoon op die 8 mode-only bestanden |
 | Repository | `github.com/mrmiagy82/ilmNET_V7` |
 | Size | 88 files under `src/` + `server/src/` (*.ts/*.tsx/*.css, geteld met `find … -exec cat {} + | wc -l`), 19 259 regels — D3 voegde 2 bestanden toe, verwijderde er 1 en wijzigde 6 andere (+438 regels netto t.o.v. D2, met dezelfde methode gemeten). `public/brand/` 34 files incl. acht SVG’s (98 962 B); originele PNG/WebP-referenties blijven staan |
-| Build (git-ignored artefact) | D4: single-file `dist/index.html` **683 021 B** (sha256 `727d59374d5d1c22afde96d3f5dc4608655e8f9c80c4289c80cb4035469ef637`) / `.gz` **170 953 B** — +10 329 B t.o.v. D3 (zoekpagina, header-ingang, gedeelde subjecttegel) — plus `dist/fonts/` (14 subsets), `dist/brand/` (8 SVG’s, 7 favicons) en `dist/manifest.webmanifest`. Een herbouw uit dezelfde bron gaf byte-identiek hetzelfde bestand |
-| Phase state | D0, D1, D2, D3 én D4 geïmplementeerd; D1–D3 zijn gepubliceerd, D4 is in deze fase gecommit en gepusht. Bewijs D4: `npx tsc --noEmit` schoon (root én `server/`), `npm run build` ok, eigen browserharnas **60/60** tegen de wegwerp-database met schaaldata, `server:test:all` 409/0, `test:e2e:production` 105/3 (dezelfde drie bekende gaten als vóór D4), `test:e2e:brand` 222/222, `test:e2e:cms` 39/0, `test:e2e:auth` 60/0. Stagingpromotie blijft open: er is geen staginghost |
-| Roadmap | discovery in stappen (`docs/ILMNET_DISCOVERY_EXPERIENCE.md` §8): D0–D4 **gedaan**; **D5 detailcontinuïteit** → D6 series → D7 optioneel. Daarnaast: staginghost inrichten (environmentregel) en de host-side punten uit §8 |
+| Build (git-ignored artefact) | D5: single-file `dist/index.html` **689 674 B** (sha256 `c918d9e3ef22e721a9c95b699f970cb371286f41c6660e8ee571c1086f60570e`) / `.gz` **173 407 B** — +6 653 B t.o.v. D4 (apparaat-lokale activiteit, More-like-this-rail, audioherstel, serieblok) — plus `dist/fonts/` (14 subsets), `dist/brand/` (8 SVG’s, 7 favicons) en `dist/manifest.webmanifest` |
+| Phase state | D0–D5 geïmplementeerd; D1–D4 zijn gepubliceerd, D5 is in deze fase gecommit en gepusht. Bewijs D5: `npx tsc --noEmit` schoon (root én `server/`), `npm run build` ok, unit-suite rond `localActivity` **53/53**, eigen browserharnas **81/81** tegen een wegwerp-database met fixtures, `server:test:all` 409/0, `test:e2e:production` 105/3 (dezelfde drie bekende gaten), `test:e2e:brand` 222/222, `test:e2e:media` 22/5 (alle vijf rood in de echte-afspeelsectie: de sandbox heeft geen internet), `test:e2e:cms` 40/0, `test:e2e:auth` 61/0. Stagingpromotie blijft open: er is geen staginghost |
+| Roadmap | discovery in stappen (`docs/ILMNET_DISCOVERY_EXPERIENCE.md` §8): D0–D5 **gedaan**; **D6 seriegedrag/collecties** → D7 optioneel; de afzonderlijke visuele polishfase komt na D6. Daarnaast: staginghost inrichten (environmentregel) en de host-side punten uit §8 |
 | Brand | Fase 6.1: `public/brand/logo/*.svg` are true, path-only reconstructions of the supplied branding references, not original vector masters. Original font and tiny descriptor details cannot be authenticated; see `brand/SVG_RECONSTRUCTION.md`. The favicon/app icon set and official theme tokens from Fase 6.0 are retained |
 | Open blockers | (1) Geen staginghost: tot die er is kan geen enkele release als “klaar” worden afgerond en draagt elke entry in `docs/RELEASES.md` die afwijking. (2) De vijf eigenaarsbeslissingen Q1–Q5 uit het discoveryplan staan nog open — D1 heeft ze ontweken waar mogelijk (geen serierail zonder Q2/B1) en wacht er bij D2–D7 op. (3) De host-side punten uit §8 blijven ongewijzigd |
 
@@ -2027,6 +2036,166 @@ URL-waarden. Zonder deze reparatie zou de nieuwe zoekpagina dezelfde fout hebben
   na het terugzetten was `test:all` 409/0. Er is niets in dat bestand gewijzigd en het is niet in de
   repository terechtgekomen.
 
+## 7v. D5 — detailcontinuïteit
+
+D5 bouwt op D0 (gedeelde kaarten, `Rail`, `useContentQuery`), D1 (rails), D2 (`usePagedContentQuery`, `ListStates`),
+D3 (scholar-/subjectpagina’s) en D4 (`/search`) voort, met **alleen bestaande infrastructuur**: de
+bestaande API’s, de bestaande kaarten en designtokens — **geen backendwijziging**, geen nieuwe
+dependency, geen schemawijziging, geen authwijziging, geen TinyCMS, en `localStorage` bestaat alleen
+binnen één module. De environmentregel (§7p) blijft ongewijzigd: dit is development-werk, er is nog geen
+staginghost.
+
+### Wat er gebouwd is
+
+**Eén apparaat-lokale module: `src/lib/localActivity.ts`.** Alle opslaglogica zit in dit ene bestand;
+geen enkele andere module raakt `localStorage`.
+- Sleutel `ilmnet.local-activity.v1` (versie in de naam), maximaal 20 items, bewaartermijn 120 dagen.
+- Per item alleen `{ id, slug, kind, lastOpenedAt }` en — uitsluitend voor audio — `positionSec` en
+  `durationSec`. **Geen titel, geen beschrijving, geen scholar, geen subject, geen zoekgeschiedenis,
+  geen persoonsgegevens.** Er gaat niets naar de server en er is geen account.
+- `kindForType` vertaalt het contenttype naar `media`/`book`/`audio`; `detailPathFor` bouwt het
+  bestaande detailadres (`/books/<slug>`, `/lectures/<slug>`).
+- Robuust tegen een vijandige opslag: elke lees- en schrijfactie zit in `try/catch` (privémodus, quota,
+  geblokkeerde opslag ⇒ de site gedraagt zich alsof er niets onthouden is), onleesbare of
+  handgeschreven JSON wordt **weggegooid en opgeruimd** in plaats van gegooid, items met ontbrekende of
+  verkeerde velden vallen individueel af, en klokonzin (een tijdstempel in de toekomst of ouder dan de
+  bewaartermijn) wordt geweigerd.
+- `recordPlayback` accepteert alleen een echte positie: geen duur, een negatieve positie of een positie
+  voorbij het einde wordt geweigerd — liever niets dan een getal dat nergens op slaat.
+- `resumePointFor` geeft alleen een positie terug voor **hetzelfde id**, voor een item van **kind
+  `audio`**, en alleen tussen 20 s en (duur − 20 s). Een lezing, boek of document kan dus nooit als
+  audiopositie gelden, een item van iemand anders niet, en de laatste seconden van een bestand niet.
+- Wissen kan per item (`forgetActivity`, gebruikt wanneer de API 404 zegt) en in één keer
+  (`clearActivity`).
+
+**“Continue where you left off.” op de landingspagina.** De rail
+(`src/components/ContinueRail.tsx` + `src/lib/useLocalActivity.ts`) is de bestaande `Rail` met de
+bestaande kaarten.
+- Elk onthouden id wordt **eerst geverifieerd** bij `GET /api/contents/:id|slug`; een 404 betekent
+  “bestaat niet meer” en wordt vergeten, elke andere fout laat het item staan (een offline moment mag
+  iemands lijst niet wissen). Het antwoord moet hetzelfde id hebben als het onthouden item.
+- Zonder lokale geschiedenis kost de landingspagina **nul** extra verzoeken en is er geen rail — geen
+  lege band, geen “meld je aan”.
+- De rail verschijnt pas ná die controle (een kaart die achteraf verdwenen blijkt te zijn, is precies
+  het valse resultaat dat dit project verbiedt), toont alleen de nog bestaande content en linkt naar het
+  bestaande detailadres, waar de pagina de **actuele** API-gegevens laadt — de opgeslagen slug is alleen
+  een link, nooit een bron van inhoud.
+- Is alles wat onthouden was niet meer gepubliceerd, dan staat er één eerlijke lege toestand met de
+  enige zinvolle actie: de lijst wissen. De ondertitel bij de rail zegt waar de lijst vandaan komt
+  (“Kept in this browser only — nothing is sent to ilmNet.”), met de wis-link ernaast.
+
+**Echte audio-positie in `AudioPlayer`.** De speler heeft nu een optionele prop
+`activity={{ id, slug }}`; alleen de audiospeler op een audiopagina krijgt die mee.
+- Bij het spelen wordt de echte `currentTime`/`duration` bewaard (vertraagd tot één schrijfactie per
+  10 s, en geforceerd bij pauzeren, bij `ended` en bij unmount, zodat een gesloten tab geen positie
+  kost).
+- Zonder echte duur of positie wordt er **niets** geschreven (een stream die zijn metadata nog niet
+  kende levert geen gok op), en een positie voorbij het einde of uit de laatste seconden wordt niet
+  hersteld.
+- Herstellen gebeurt pas als het element de metadata echt kent, en slechts één keer; een late
+  `durationchange` kan een luisteraar dus niet terugtrekken naar een oude positie.
+- De speler meldt het eerlijk: “Resumed at 0:35 — your last position for this audio on this device. It
+  is stored in this browser only.” Alle bestaande functionaliteit (echte waveform via de Web Audio API,
+  seek, pauzeren, embed-fallback) is ongewijzigd.
+
+**“More like this” (`src/components/MoreLikeThis.tsx`).** Eén eerlijke vraag aan de bestaande API, via
+de bestaande `useContentQuery`: eerst andere gepubliceerde items met **hetzelfde subject**, en alleen
+als die vraag niets oplevert en de pagina een scholar heeft, ander gepubliceerd werk van **dezelfde
+scholar**. Verder:
+- het huidige item wordt **altijd** uitgesloten, bij elke render (niet één keer bij het laden);
+- de gebruikte filters zijn precies wat de API heeft (`subject=`, `scholar=`), met per plank het eigen
+  contenttype (`books` voor boek/document, `lectures` voor media), zodat een PDF nooit tussen de
+  audiokaarten belandt;
+- concepten kunnen niet opduiken: `/api/contents` filtert op `status=published`;
+- **geen rangorde- of relevantieclaim** — de ondertitel zegt waar de rail op gebaseerd is (“Other
+  published items in Fiqh”, “Other published work by Dr. Yusuf Karim”) en “All items in …” linkt naar de
+  bestaande subject-/scholarpagina;
+- geen subject én geen scholar, geen resultaat ná het uitsluiten van het huidige item, of een API-fout
+  ⇒ **geen rail** in plaats van een lege band.
+
+**Serieblok eerlijk gemaakt (`SeriesNav` in `ContentDetail.tsx`).** Het blok las **alle** gepubliceerde
+records (`limit: 100`) en viel terug op de hele catalogus om broers en zussen te vinden die de eerste,
+correcte vraag al had uitgesloten; het toonde daarna `siblings.length + 1` als “N parts” — een getal dat
+niet klopte zodra de collectie groter was dan wat geladen werd (audit A4/A5/D10). Nu: één gerichte
+`collection=<identifier>`-vraag met de paginagrootte die het toont (6), geen fallback, en een **waar**
+aantal uit `pagination.total` (“6 of 9 other items shown”). De collectietitel en de identifier komen
+uit de bestaande velden. **Er is geen volgorde verzonnen**: de API-volgorde wordt gebruikt, er staat
+nergens “part x of y” of “episode x of y”, en er is geen next/previous — de data heeft geen
+volgordekolom, dus D6 kan echte seriecontinuïteit toevoegen zonder D5 te herbouwen.
+
+**Artworkblok zonder dode panelen (audit C4).** Een audio-item zonder bruikbare afbeelding (geen
+upload, geen provider-thumbnail, en nooit de zwarte Archive.org-service-afbeelding) houdt de bestaande
+ilmNet-audioplaceholder — dat is het gedocumenteerde productcontract en de media-suite toetst erop —
+maar in een **begrensd 16:10-frame** (`max-w-[360px]`) in plaats van in hetzelfde volledig-brede 420
+px-paneel als een echte cover. Een echte cover houdt het hoge frame; een boek of document zonder cover
+toont geen lege band.
+
+### Wat bewust niet is gedaan
+
+- **Geen verzonnen serievolgorde** — geen “Episode 3 of 12”, geen next/previous, geen nieuwe
+  databasekolom, geen importerwijziging. De bestaande collectie-informatie wordt getoond zoals ze is.
+- **Geen leesvoortgang voor boeken/documenten** — er is geen betrouwbare leespositie in de data, dus
+  geen percentage, geen balk, geen “68% read”. `pages` blijft een bestaand catalogusveld.
+- **Geen accounts, geen synchronisatie, geen servergeschiedenis** — de activiteit is per apparaat en
+  per browser, en blijft daar.
+- **Geen backendwijziging** — de bestaande API’s en filters waren voldoende; er is geen schema-,
+  route-, auth- of importerwijziging nodig geweest.
+- **Geen nieuwe visuele taal** — bestaande `Rail`, `SectionHeading`, kaarten, tokens en
+  neumorphic-utilities; geen nieuwe kleuren, geen Spotify-copy, geen Hero-wijziging, geen nieuwe
+  kaartvorm of animatielaag, geen wijziging aan `DESIGN`-documenten of branding. De eigenaar-upload
+  `docs/DESIGN (3).md` (een Discord-stijlreferentie) is gelezen en **niet** toegepast; visuele polish is
+  een eigen fase ná D6.
+- **Audit C2 en de resterende `limit=100`-plekken blijven staan** — `SeriesDetail.tsx` toont nog de
+  ruwe `collectionIdentifier`, en `SeriesDetail.tsx:72` / `src/admin/store.tsx:147` lezen nog met
+  `limit:100`; dat hoort bij D6.
+
+### Bewijs (27 september 2026, development + staging-vorm op wegwerp-databases)
+
+- **Unit-suite `tests/e2e/local-activity.spec.mjs` 53/53.** Laadt de echte module (via de
+  TypeScript-compiler) tegen een nep-`localStorage` en test opslaan/ophalen/wissen, corrupte JSON, een
+  blokkerende browser, quota, cap/retentie/volgorde, het weigeren van onzin-posities, en dat hervatten
+  alleen gebeurt voor hetzelfde item, van het juiste soort, met een zinvolle positie. Draait met
+  `node tests/e2e/local-activity.spec.mjs` (geen nieuwe dependency). De suite vond tijdens deze fase
+  één echt gat: `resumePointFor` keek niet naar het soort, waardoor een handgeschreven boek-item met
+  een positie alsnog als audiopositie kon gelden — nu geweigerd en getest.
+- **Eigen browserharnas 81/81** (Playwright, staging-vorm van de build tegen `ilmnet_d5_scratch` met
+  fixtures): bestaande detailpagina’s (boek, lezing, audio, document), More-like-this (subject,
+  scholar-fallback, geen signaal, lege uitslag, API-fout, uitleg, huidige item uitgesloten, concepten
+  nooit), serieblok (waar aantal, geen nummering, concept-lid niet zichtbaar, verbergt bij één lid),
+  artwork (begrensde placeholder, geen zwarte afbeelding, echte cover hoog, geen lege band), de
+  Continue-rail (vers, na openen, na herladen, corrupte opslag, verdwenen content, ongepubliceerde
+  content, wissen, nul extra verzoeken zonder geschiedenis) en de echte audiostream — een lokale bron
+  van 60 s wordt onderschept zodat de duur echt is: positie 35 s wordt bewaard, na herladen hersteld en
+  gemeld; een positie van andere content wordt niet hersteld, 5 s en 55 s ook niet, en een video krijgt
+  nooit een positie. Mobiel 390 × 844 zonder horizontale overloop op beide pagina’s.
+  Log: `/home/user/d5-verify-final.log` (buiten de repository).
+- `npx tsc --noEmit` schoon (root én `server/`); `npm run build` ok → `dist/index.html` **689 674 B**,
+  `.gz` **173 407 B**.
+- `test:e2e:production` **105/3** (dezelfde drie bekende gaten als vóór D5), `test:e2e:brand`
+  **222/222**, `test:e2e:cms` **40/0**, `test:e2e:auth` **61/0**, server `test:all` **409/0**.
+- `test:e2e:media` **22/5**: de vijf rode checks zijn alle vijf de echte-afspeelcontroles van sectie 1
+  — de sandbox heeft geen internet, dus de stream van archive.org laadt niet (`readyState 0`,
+  `currentTime 0`). Sectie 2 (placeholder in plaats van de zwarte Archive-afbeelding, op de
+  detailpagina, in de serie en in de lijst), sectie 3 (custom upload wint) en sectie 4 (CMS-upload)
+  zijn groen.
+
+### Database- en testveiligheid tijdens deze fase
+
+- Muterende suites draaien uitsluitend tegen wegwerp-databases: `ilmnet_d5_scratch` voor het harnas en
+  de preview, `ilmnet_d5_e2e` voor de e2e-suites (met `e2e-admin` en `media-e2e-admin` als
+  wegwerpaccounts). De development-database is na de fase weer 15 contents / 10 gepubliceerd.
+- Twee bestaande testproblemen gevonden en gedicht respectievelijk vastgelegd (§8 punten 27 en 28): de
+  media-suite hield de API-envelope vast, waardoor hij op `#/lectures/undefined` controleerde in plaats
+  van op het record, en `npm run test:all` op de development-database verwijdert de seed-lezing met
+  `externalIdentifier=dQw4w9WgXcQ`; die rij is uit een identiek geseede wegwerpkloon teruggezet.
+
+### Volgende stap
+
+**D6 — seriegedrag en collecties** (`docs/ILMNET_DISCOVERY_EXPERIENCE.md` §8), daarna de afzonderlijke
+visuele polishfase. D5 heeft daar bewust ruimte voor gelaten: het serieblok toont nu alleen wat de data
+werkelijk zegt, dus D6 kan volgorde, afleveringsnummering en next/previous toevoegen op het moment dat
+de gegevens dat dragen — zonder D5 te herbouwen.
+
 ## 8. Known remaining issues (not blockers)
 
 From `docs/FASE3_9_CODEBASE_REVIEW.md` § Restrisico's plus the 3.9.1 report:
@@ -2177,13 +2346,34 @@ From `docs/FASE3_9_CODEBASE_REVIEW.md` § Restrisico's plus the 3.9.1 report:
     `/lectures?q=fiqh&subject=fiqh` liet Reset `?subject=fiqh` staan; op `/books?q=fiqh` bleef het goed
     omdat er dan geen tweede parameter was. Gedicht door de URL-waarden aan de dependencylijst toe te
     voegen (één regel per pagina), en vastgelegd in het D4-harnas (§7u).
+
+27. **`tests/e2e/media.spec.mjs` testte op `#/lectures/undefined`.** De suite maakte zijn
+    zwarte-thumbnail-fixture met de admin-API en gebruikte daarna `fixture.slug`, maar de
+    admin-endpoints antwoorden met `{ data: <record> }` — de envelope werd niet uitgepakt, dus de slug
+    was `undefined` en de sectie navigeerde naar een niet-bestaande pagina. Dat viel niet eerder op
+    omdat de suite op de seed al stopte vóór die sectie (punt 25). In D5 gedicht (`.data`, één regel
+    plus een toelichtende opmerking), waarna de sectie de placeholder-pin echt toetst. **Thema:** een
+    harnas dat zijn eigen fixture niet terugvindt, test niets — laat een suite falen op de data die hij
+    zelf maakt in plaats van stil ergens anders te kijken.
+
+28. **`npm run test:all` met de development-`server/.env` verwijdert een seed-record.** De eigen
+    YouTube-suite ruimt op met `provider: 'youtube'` + vaste identifiers (`dQw4w9WgXcQ` en enkele
+    andere). De demo-seed gebruikt voor “Opening the Qurʾān: Sūrat al-Fātiḥah” precies
+    `externalIdentifier: 'dQw4w9WgXcQ'`, dus die gepubliceerde lezing verdween uit de
+    development-database (15 → 14 contents). Geen D5-regressie en geen productfout — wel een
+    testdisciplinepunt: **draai `test:all` tegen een wegwerp-`DATABASE_URL`**, of accepteer dat de
+    dev-database daarna gerepareerd moet worden. De rij is in D5 teruggezet uit een identiek geseede
+    wegwerpkloon (incl. `content_scholars`/`content_subjects`), waarna de dev-database weer 15/10 was.
+    De suite zelf is niet aangepast (buiten de D5-scope).
 ## 9. Next step
 
-**Immediate next step: Fase D5 (detailcontinuïteit)** — “More like this” (eerst subject, dan scholar,
-het huidige item uitgesloten), serie-next/previous **alleen** als er een echte volgorde is, en een
-slanker artworkblok als er geen echte cover is (audit C1/C3/C4), plus de resterende `limit=100`-plekken
-in `ContentDetail`/`SeriesDetail`. Daarna D6 seriegedrag, D7 optioneel. De Git-levering van de
-branding- en discoveryfasen loopt mee: D0–D4 staan op `origin/master` (zie `docs/RELEASES.md`).
+**Immediate next step: Fase D6 (seriegedrag en collecties)** — echte seriecontinuïteit op de bestaande
+collectievelden: de ruwe `collectionIdentifier` op de seriepagina (audit C2), de resterende
+`limit=100`-plekken (`SeriesDetail.tsx:72`, `src/admin/store.tsx:147`) en, als de data het draagt, een
+echte volgorde of afleveringsnummering. D5 heeft dat bewust niet verzonnen (§7v). Daarna D7 optioneel,
+en pas daarna de afzonderlijke visuele polishfase (waarvoor `docs/DESIGN (3).md` als referentie in de
+repository staat). De Git-levering van de branding- en discoveryfasen loopt mee: D0–D5 staan op
+`origin/master` (zie `docs/RELEASES.md`).
 
 **De environmentregel is nu de poort voor alles wat hierna komt** (§7p, `docs/ENVIRONMENTS.md`). De
 volgorde is niet vrijblijvend:

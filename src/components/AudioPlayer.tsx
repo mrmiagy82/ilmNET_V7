@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+// Discovery step D5: the real playback position of this item is remembered on this device only, and a
+// real remembered position is restored. The module is the single place that touches storage.
+import { getActivityEntry, recordPlayback, resumePointFor } from '@/lib/localActivity';
 
 type Props = {
   src: string | null;
@@ -6,7 +9,16 @@ type Props = {
   embedFallback?: string | null;
   provider?: string;
   sourceUrl?: string;
+  /**
+   * Identity of the content this player belongs to. Passed only for a real audio item: without it the
+   * player behaves exactly as it did before D5 (no reading, no writing, no restore), which is what keeps
+   * a lecture, a book or a document from ever being treated as audio progress.
+   */
+  activity?: { id: string; slug: string } | null;
 };
+
+/** Seconds of playback between two writes to the device-local store (throttle, not a data limit). */
+const SAVE_EVERY_SECONDS = 10;
 
 const BAR_COUNT = 24;
 const IDLE_BARS = [14, 26, 38, 22, 44, 30, 52, 36, 24, 42, 18, 32, 46, 26, 16, 34, 22, 40, 28, 18, 30, 44, 20, 36];
@@ -35,7 +47,7 @@ function PlayIcon({ playing }: { playing: boolean }) {
  * ilmNet audio player — neumorphic styling, Web Audio API AnalyserNode waveform
  * that moves with the real audio signal during playback.
  */
-export default function AudioPlayer({ src, title, embedFallback, provider, sourceUrl }: Props) {
+export default function AudioPlayer({ src, title, embedFallback, provider, sourceUrl, activity }: Props) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const ctxRef = useRef<AudioContext | null>(null);
   const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
@@ -43,6 +55,8 @@ export default function AudioPlayer({ src, title, embedFallback, provider, sourc
   const dataRef = useRef<Uint8Array | null>(null);
   const rafRef = useRef<number | null>(null);
   const lastSignalRef = useRef<number>(0);
+  const savedAtRef = useRef<number>(-Infinity);
+  const restoredRef = useRef<boolean>(false);
 
   const [playing, setPlaying] = useState(false);
   const [live, setLive] = useState(false); // true while the analyser is actually receiving signal
@@ -50,6 +64,67 @@ export default function AudioPlayer({ src, title, embedFallback, provider, sourc
   const [duration, setDuration] = useState(0);
   const [progress, setProgress] = useState(0);
   const [levels, setLevels] = useState<number[]>(IDLE_BARS);
+
+  // The position this device remembered for *this* item, once it has really been applied to the element.
+  const [resumedFrom, setResumedFrom] = useState<number | null>(null);
+  const activityId = activity?.id ?? null;
+  const activitySlug = activity?.slug ?? null;
+
+  /**
+   * Writes the real position to the device-local store. Called while playing (throttled), and forced on
+   * pause, on `ended` and on unmount, so a visitor who closes the tab keeps their place.
+   * It refuses to store anything the element cannot stand behind: a paused, unloaded or streamed-unknown
+   * file (no duration yet) leaves the store untouched instead of recording a guess.
+   */
+  const savePosition = useCallback(
+    (force = false) => {
+      const a = audioRef.current;
+      if (!a || !activityId || !activitySlug) return;
+      const duration = a.duration;
+      const position = a.currentTime;
+      if (!Number.isFinite(duration) || duration <= 0 || !Number.isFinite(position)) return;
+      if (!force && Math.abs(position - savedAtRef.current) < SAVE_EVERY_SECONDS) return;
+      savedAtRef.current = position;
+      recordPlayback({ id: activityId, slug: activitySlug, positionSec: position, durationSec: duration });
+    },
+    [activityId, activitySlug],
+  );
+  const saveRef = useRef(savePosition);
+  saveRef.current = savePosition;
+
+  /**
+   * Restores a remembered position once the element knows the file's real duration. `resumePointFor`
+   * decides: only this content's own entry, only a position well inside the real duration. Anything else
+   * (a tick into the file, the last seconds, an entry from another item) is not resumed and not shown.
+   */
+  useEffect(() => {
+    const a = audioRef.current;
+    if (!a || !src || !activityId) return;
+    restoredRef.current = false;
+    const apply = () => {
+      if (restoredRef.current) return; // a late metadata event must not pull a listener back mid-listen
+      const point = resumePointFor(getActivityEntry(activityId), activityId);
+      if (!point) return;
+      if (!Number.isFinite(a.duration) || a.duration <= 0) return;
+      if (point.positionSec >= a.duration) return;
+      restoredRef.current = true;
+      a.currentTime = point.positionSec;
+      savedAtRef.current = point.positionSec;
+      setCurrent(point.positionSec);
+      setProgress((point.positionSec / a.duration) * 100);
+      setResumedFrom(point.positionSec);
+    };
+    if (a.readyState >= 1) apply();
+    a.addEventListener('loadedmetadata', apply);
+    a.addEventListener('durationchange', apply);
+    return () => {
+      a.removeEventListener('loadedmetadata', apply);
+      a.removeEventListener('durationchange', apply);
+    };
+  }, [src, activityId]);
+
+  // Last write on the way out, so leaving the page mid-listen is not a lost position.
+  useEffect(() => () => saveRef.current(true), []);
 
   // ── progress / duration events ──
   useEffect(() => {
@@ -59,11 +134,13 @@ export default function AudioPlayer({ src, title, embedFallback, provider, sourc
       setCurrent(a.currentTime);
       setDuration(a.duration || 0);
       setProgress(a.duration ? (a.currentTime / a.duration) * 100 : 0);
+      saveRef.current(); // throttled inside
     };
     const onLoaded = () => setDuration(a.duration || 0);
     const onEnded = () => {
       setPlaying(false);
       setLive(false);
+      saveRef.current(true); // the end of the file is a real position too; resume refuses it
     };
     a.addEventListener('timeupdate', onTime);
     a.addEventListener('loadedmetadata', onLoaded);
@@ -314,6 +391,12 @@ export default function AudioPlayer({ src, title, embedFallback, provider, sourc
       <p className="text-ink-muted mt-4 text-[0.7rem]">
         Direct stream {provider === 'archive' ? 'via Archive.org' : ''} — the waveform moves in realtime with the audio signal (Web Audio API).
       </p>
+
+      {resumedFrom !== null && (
+        <p className="text-ink-muted mt-2 text-[0.7rem]" role="status" data-testid="resume-note">
+          Resumed at {formatTime(resumedFrom)} — your last position for this audio on this device. It is stored in this browser only.
+        </p>
+      )}
     </div>
   );
 }

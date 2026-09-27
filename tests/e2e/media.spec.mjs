@@ -151,19 +151,24 @@ async function main() {
     if (!blackThumbAudio) {
       // real fixture: a record whose provider thumbnail is the black Archive.org services image
       const stamp = Date.now();
-      const fixture = await api('/api/admin/contents', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          type: 'audio',
-          title: `E2E archive black thumbnail ${stamp}`,
-          provider: 'archive',
-          sourceUrl: 'https://archive.org/details/RenewingOurIntentions',
-          externalIdentifier: `e2e-blackthumb-${stamp}`,
-          status: 'published',
-          thumbnailUrl: 'https://archive.org/services/img/RenewingOurIntentions',
-        }),
-      });
+      // The create endpoint answers `{ data: <record> }` (like every other admin write); this fixture
+      // used to keep the envelope, so `fixture.slug` was `undefined` and the section silently navigated
+      // to `#/lectures/undefined` instead of the record it had just made.
+      const fixture = (
+        await api('/api/admin/contents', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            type: 'audio',
+            title: `E2E archive black thumbnail ${stamp}`,
+            provider: 'archive',
+            sourceUrl: 'https://archive.org/details/RenewingOurIntentions',
+            externalIdentifier: `e2e-blackthumb-${stamp}`,
+            status: 'published',
+            thumbnailUrl: 'https://archive.org/services/img/RenewingOurIntentions',
+          }),
+        })
+      ).data;
       createdContentIds.push(fixture.id);
       blackThumbAudio = fixture;
       console.log(`Created archive-black-thumbnail fixture: ${fixture.slug}`);
