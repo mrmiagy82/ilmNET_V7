@@ -5,13 +5,13 @@ Update it after every finished phase, commit, sanity check or significant discov
 Rules: only facts that are verifiable from the repository, Git history or existing docs — and
 **never** secrets, tokens or credentials.
 
-_Last updated: D3 (26 september 2026): scholar en subject hebben een eigen pagina geworden —
-_`/scholars` toont de echte scholars en opent `/scholars/:id` met hun werk, `/subjects` laat de
-_afgekapte item-tellers los, en `/subjects/:id` haalt zijn identiteit uit één call in plaats van de
-_browser-fallback (audit A2, A5, A7, D10 en de B/D-punten op deze vier pagina’s). Alle aantallen komen
-_uit `pagination.total` of staan er niet; geen verzonnen statistiek, geen nieuwe dependency, geen
-_schemawijziging, geen backendwijziging (§7t). De environmentregel (§7p) blijft van kracht; promotie- en
-_pushstaat staan in §1 en `docs/RELEASES.md`._
+_Last updated: D4 (27 september 2026): zoeken is één globale discovery-ervaring geworden — de header
+_heeft een echte ingang naar `/search`, en die pagina groepeert de treffers naar wat ze zijn: items uit
+_de bestaande `q`-zoekopdracht van `/api/contents` (met de filters die die API echt heeft) plus
+_scholars en subjects uit de bestaande referentielijsten. Alle aantallen komen uit de API of staan er
+_niet; geen trending, geen relevantiescore, geen verzonnen suggestie. Onderweg is één echte fout uit D2
+_gedicht: “Reset filters” zette op `/lectures` en `/books` de zojuist gewiste filters terug (§8 punt 26).
+_Geen nieuwe dependency, geen schemawijziging, geen backendwijziging (§7u)._
 
 The last phases: Fase 5.1 closed the three blockers from the Fase 5 audit (backup + restore, honest
 footer links, TLS/HSTS with a provider-agnostic runbook, §7g). Fase 5.2 hardened the deployment
@@ -35,14 +35,14 @@ uncompressed (631 kB → 157 kB over the wire, −2,3 s on a 3G profile) (§7j).
 | | |
 | --- | --- |
 | Branch | `master` |
-| Codebase state described here | `ae1c746` (Fase 6.0) + Fase 6.1 (§7o) + environmentregel (§7p) + D0 discovery foundation (§7q) + D1 landingsrails (§7r) + D2 bibliotheek-discovery (§7s) + **D3 scholar- en subjectpagina’s (§7t, commit `10fa06a`)** |
-| This document | bijgewerkt voor de environmentregel (§7p), D0 (§7q), D1 (§7r), D2 (§7s) en D3 (§7t); de eigen revisie is zichtbaar met `git log -1 -- docs/CONTEXT.md` |
-| Working tree | D3 begon ná de D2-push (master == HEAD == `63d7248`) en raakte alleen `src/` + de docs; de 8 mode-only bestanden (`ops/*.sh`, `scripts/precompress.mjs`) zijn sandboxartefacten (uitvoerbare bits) en zijn **niet** meegenomen in de commits. Na de D3-push hoort `origin/master` == `HEAD` te zijn en de worktree schoon op die 8 mode-only bestanden |
+| Codebase state described here | `ae1c746` (Fase 6.0) + Fase 6.1 (§7o) + environmentregel (§7p) + D0 discovery foundation (§7q) + D1 landingsrails (§7r) + D2 bibliotheek-discovery (§7s) + D3 scholar-/subjectpagina’s (§7t) + **D4 globale zoekervaring (§7u)** |
+| This document | bijgewerkt voor de environmentregel (§7p), D0 (§7q), D1 (§7r), D2 (§7s), D3 (§7t) en D4 (§7u); de eigen revisie is zichtbaar met `git log -1 -- docs/CONTEXT.md` |
+| Working tree | D4 begon ná de D3-push (master == HEAD == `805e54f`) en raakte `src/` + de docs; de 8 mode-only bestanden (`ops/*.sh`, `scripts/precompress.mjs`) zijn sandboxartefacten (uitvoerbare bits) en zijn **niet** meegenomen in de commits. Na de D4-push hoort `origin/master` == `HEAD` te zijn en de worktree schoon op die 8 mode-only bestanden |
 | Repository | `github.com/mrmiagy82/ilmNET_V7` |
 | Size | 88 files under `src/` + `server/src/` (*.ts/*.tsx/*.css, geteld met `find … -exec cat {} + | wc -l`), 19 259 regels — D3 voegde 2 bestanden toe, verwijderde er 1 en wijzigde 6 andere (+438 regels netto t.o.v. D2, met dezelfde methode gemeten). `public/brand/` 34 files incl. acht SVG’s (98 962 B); originele PNG/WebP-referenties blijven staan |
-| Build (git-ignored artefact) | D3: single-file `dist/index.html` **672 692 B** (sha256 `384589fe87ee67b9b332c760acd3ea34f0fcf504010cda44486b73e3f1084eaa`) / `dist/index.html.gz` **168 631 B** — +4 801 B t.o.v. D2 (scholarpagina, subjectrails, gedeelde referentiehook) — plus `dist/fonts/` (14 subsets), `dist/brand/` (8 SVG’s, 7 favicons) en `dist/manifest.webmanifest`. Een herbouw uit dezelfde bron gaf byte-identiek hetzelfde bestand |
-| Phase state | D0, D1, D2 én D3 geïmplementeerd; D1 en D2 zijn gepubliceerd, D3 is in deze fase gecommit en gepusht. Bewijs D3: `npx tsc --noEmit` schoon (root én `server/`), `npm run build` ok, eigen browserharnas **51/51** tegen de wegwerp-database met schaaldata, `server:test:all` 409/0, `test:e2e:production` 105/3 (dezelfde drie bekende gaten als vóór D3), `test:e2e:brand` 222/222, `test:e2e:cms` 39/0, `test:e2e:auth` 60/0. Stagingpromotie blijft open: er is geen staginghost |
-| Roadmap | discovery in stappen (`docs/ILMNET_DISCOVERY_EXPERIENCE.md` §8): D0, D1, D2 én **D3 gedaan** (§7q/§7r/§7s/§7t); **D4 zoeken** → D5 detailcontinuïteit → D6 series → D7 optioneel. Daarnaast: staginghost inrichten (environmentregel) en de host-side punten uit §8 |
+| Build (git-ignored artefact) | D4: single-file `dist/index.html` **683 021 B** (sha256 `727d59374d5d1c22afde96d3f5dc4608655e8f9c80c4289c80cb4035469ef637`) / `.gz` **170 953 B** — +10 329 B t.o.v. D3 (zoekpagina, header-ingang, gedeelde subjecttegel) — plus `dist/fonts/` (14 subsets), `dist/brand/` (8 SVG’s, 7 favicons) en `dist/manifest.webmanifest`. Een herbouw uit dezelfde bron gaf byte-identiek hetzelfde bestand |
+| Phase state | D0, D1, D2, D3 én D4 geïmplementeerd; D1–D3 zijn gepubliceerd, D4 is in deze fase gecommit en gepusht. Bewijs D4: `npx tsc --noEmit` schoon (root én `server/`), `npm run build` ok, eigen browserharnas **60/60** tegen de wegwerp-database met schaaldata, `server:test:all` 409/0, `test:e2e:production` 105/3 (dezelfde drie bekende gaten als vóór D4), `test:e2e:brand` 222/222, `test:e2e:cms` 39/0, `test:e2e:auth` 60/0. Stagingpromotie blijft open: er is geen staginghost |
+| Roadmap | discovery in stappen (`docs/ILMNET_DISCOVERY_EXPERIENCE.md` §8): D0–D4 **gedaan**; **D5 detailcontinuïteit** → D6 series → D7 optioneel. Daarnaast: staginghost inrichten (environmentregel) en de host-side punten uit §8 |
 | Brand | Fase 6.1: `public/brand/logo/*.svg` are true, path-only reconstructions of the supplied branding references, not original vector masters. Original font and tiny descriptor details cannot be authenticated; see `brand/SVG_RECONSTRUCTION.md`. The favicon/app icon set and official theme tokens from Fase 6.0 are retained |
 | Open blockers | (1) Geen staginghost: tot die er is kan geen enkele release als “klaar” worden afgerond en draagt elke entry in `docs/RELEASES.md` die afwijking. (2) De vijf eigenaarsbeslissingen Q1–Q5 uit het discoveryplan staan nog open — D1 heeft ze ontweken waar mogelijk (geen serierail zonder Q2/B1) en wacht er bij D2–D7 op. (3) De host-side punten uit §8 blijven ongewijzigd |
 
@@ -1901,6 +1901,132 @@ staginghost.
   geen testdata in de normale database achtergebleven, en er is geen seed- of productiecontent
   verwijderd om een test te laten slagen.
 
+## 7u. D4 — één globale zoekervaring (`/search`)
+
+D4 bouwt op D0 (gedeelde kaarten, `Rail`, `useContentQuery`), D1 (rails), D2 (`usePagedContentQuery`,
+`LibraryFilters`, `ListStates`) en D3 (`usePublicReference`, `ScholarTile`) voort, met **alleen
+bestaande infrastructuur**: de bestaande API’s, de bestaande kaarten, de bestaande designtokens —
+**geen backendwijziging**, geen nieuwe dependency, geen schemawijziging, geen authwijziging, geen
+TinyCMS, geen LocalStorage als database. De environmentregel (§7p) blijft ongewijzigd: dit is
+development-werk, er is nog geen staginghost.
+
+### Wat er gebouwd is
+
+**Eén ingang in de bestaande navigatie (audit A6).** De header had helemaal geen zoekingang; wie
+“Tahawiyyah” zocht moest eerst raden of het een lezing, een boek of een serie was. Er is nu één ingang
+naar `/search`: op desktop naast de sectielinks, op een telefoon als eerste rij van het bestaande
+menupaneel. Het is bewust een **link en geen tweede zoekveld**: een veld in de vaste header zou op elke
+pagina met het veld van de pagina zelf concurreren en kon zijn eigen resultaten niet tonen. Beide
+varianten dragen `aria-label="Search the library"`.
+
+**`/search` — één veld, één resultaatbeeld, gegroepeerd naar soort.**
+- **Items** — de bestaande `q`-zoekopdracht van `GET /api/contents` (titel, beschrijving, slug,
+  collectie, serie, taal, scholarnaam, subjectnaam), via `usePagedContentQuery` met 24 per pagina en
+  “Load more”. De kaarten komen uit D0 (`ContentCard`, die zelf boek/document tegenover media kiest);
+  series uit de geladen set komen in een rail (`groupByCollection`), met de herkomst in de ondertitel.
+- **Scholars en Subjects** — gematcht tegen de volledige gepubliceerde referentielijsten uit
+  `GET /api/scholars` en `GET /api/subjects` (die endpoints nemen geen zoekparameter; de lijst is
+  compleet, dus de match is dat ook). De tegels zijn de bestaande `ScholarTile` en `SubjectTile`.
+- **Filters die de API echt heeft**: Formaat (Lectures → `lecture,video,audio`; Books →
+  `book,document`; “Everything” → geen typefilter), Scholar en Subject. De URL gebruikt leesbare
+  waarden (`type=books`); een handgeschreven URL met de ruwe API-waarde (`type=document`) blijft werken.
+- **Deelbare URL**: `?q=`, `?scholar=`, `?subject=`, `?type=` — dezelfde conventie als de planken, met
+  `replace: true` tijdens het typen zodat één typestroom geen browsergeschiedenis wordt. Canonical blijft
+  `/search` (een zoekopdracht is geen eigen pagina), en **alleen** een bevestigde lege uitslag krijgt
+  `noindex` — de Fase 5.5-regel, hier toegepast.
+- **Staten**: vóór de eerste zoekopdracht een echt vertrekpunt met vier bestaande bestemmingen en géén
+  verzonnen “populaire zoekopdrachten”; tijdens laden de skeletrij; bij een fout de foutkaart met
+  “Try again” dat in plaats opnieuw ophaalt; bij een lege uitslag één eerlijke lege staat met een weg
+  terug. Valt alleen de referentielijst om, dan zegt die groep dat (“Could not load the scholars” met
+  een retry) in plaats van “0 scholars” — nooit een 0 die als antwoord leest.
+- **Geen verzonnen signalen**: geen populariteit, geen trending, geen relevantiescore, geen “bedoelde
+  je …”, geen percentage. De tellers zijn `pagination.total` (items) en het aantal echte matches
+  (“1 of 8 published scholars match”).
+
+**Onderweg gevonden en gedicht (D2-erfenis, §8 punt 26).** “Reset filters” op `/lectures` en `/books`
+zette de filters terug die het net had gewist: de debounce-timer van het zoekveld hield de oude URL vast
+en schreef die 340 ms later terug zonder `q`. De dependencylijst van dat effect noemt nu ook de
+URL-waarden. Zonder deze reparatie zou de nieuwe zoekpagina dezelfde fout hebben geërfd.
+
+### Hergebruik (wat er níet is bijgebouwd)
+
+| Al bestaand | Waar D4 het voor gebruikt |
+| --- | --- |
+| `usePagedContentQuery` (D2) | pagineren, totalen uit `pagination.total`, `loadMore`/`retry` |
+| `LibraryFilters` (D2) | zoekveld + chips + mobiele disclosure + actieve-filterregel |
+| `ListStates` (D2) | skeletrij, foutkaart met retry, “Load more”-regel |
+| `ContentCard`/`ScholarTile`/`SubjectTile` (D0/D3) | de resultaatkaarten; `SubjectTile` is in D4 uit `pages/Subjects.tsx` naar `components/cards.tsx` verhuisd zodat de hub en de zoekpagina dezelfde tegel gebruiken |
+| `usePublicReference` (D3) | de scholars/subjects-lijsten met `total`, `error`, `retry` |
+| `Rail`, `groupByCollection` (D0–D2) | de series-rail uit de geladen set |
+
+### Auditpunten die deze fase dicht
+
+| Punt | Wat er nu staat |
+| --- | --- |
+| A6 | één globale zoekingang in de bestaande navigatie (desktop + telefoonmenu) en één resultaatbeeld dat items, scholars en subjects groepeert — geen gegokt schap meer |
+| A7 (zoekkant) | de scholar- en subjectgroep matchen over de **volledige** gepubliceerde lijsten die de API in één request geeft, niet over een toevallig geladen subset |
+| A5 (zoekkant) | de itemteller is `pagination.total`, met “showing 24 of N” en echte paginering; geen `limit=100` |
+| B1/D9 | het zoekveld blijft zichtbaar, de chips zitten op een telefoon achter een echte disclosure met `aria-expanded`/`aria-controls`, chips met `aria-pressed` |
+| B4/B5/D11 | één foutpad met bezoekerstaal en een retry die in plaats opnieuw ophaalt; een fout in één groep laat de andere groepen staan |
+| D8 | de resultaatregel draagt `role="status"` + `aria-live="polite"` |
+| D6 (deels) | `SubjectTile` bestaat nu één keer in plaats van in de hub én (anders) op een zoekpagina |
+
+### Wat bewust niet is gedaan
+
+- Geen zoekveld in de vaste header (twee zoekvelden op één pagina), geen overlay-zoekvenster.
+- Geen zoeksuggesties, geen “recent gezocht”, geen populariteitssortering: er is geen echt signaal, en
+  LocalStorage als database is verboden.
+- Geen server-side wijziging: `q` blijft de bestaande `ILIKE`-zoekopdracht over negen kolommen; de
+  trigram-index uit §8 punt 3 blijft een open punt voor als de bibliotheek echt groeit.
+- Geen schemawijziging, geen nieuwe dependency, geen authwijziging, geen productieconfiguratie.
+
+### Bewijs (27 september 2026, development op een productie-geconfigureerde instance)
+
+- Instantie: `ENVIRONMENT=production NODE_ENV=production` op `127.0.0.1:3121`, **zonder** `.env`
+  (tijdelijk opzij gezet; zie de noot onderaan), met `FRONTEND_DIR` naar deze build en `DATABASE_URL`
+  naar de wegwerp-database **`ilmnet_d4_scratch`**. `/api/health` meldde de productieomgeving met de
+  bron `process`.
+- Schaaldata in die wegwerp-database (rijen, geen schemawijziging): 30 extra lectures + 6 boeken →
+  **51 contents waarvan 46 gepubliceerd**; de query `tahawiyyah` levert er **36**, waarvan 6 boeken en
+  2 documenten; `mahmoud` levert 33 items en precies één scholar; `fiqh` levert een subject.
+- Eigen browserharnas: **60/60**. Onder andere: de header-ingang is benoemd en opent `/search`; een lege
+  zoekpagina doet **0** contentcalls en toont geen enkel getal; `?q=tahawiyyah` toont 36 == de
+  `pagination.total` van de API met “showing 24 of 36”; het laden van de pagina opnieuw geeft dezelfde
+  uitkomst (deelbaar); de Formaat-chip “Books” geeft 6 boeken (alle kaarten `/books/`) met de teller op
+  6 == de API, en “Lectures” levert alleen lectures; een handgeschreven `type=document` in de URL werkt
+  nog (2 van 2); “Reset filters” brengt de URL terug naar `/search`, `/lectures` en `/books` **ook nadat
+  het debounce-venster voorbij is** (de D2-fout hierboven); `?q=mahmoud` toont de scholar
+  `/scholars/dr-aisha-mahmoud` met “1 of 8 published scholars match” en de subjectgroep zegt eerlijk dat
+  er geen subject matcht; “Load more” laadt pagina 2 en eindigt op 36 van 36; een onbekende query geeft
+  “Nothing matches …”, geen enkele kaart, `noindex` en een weg terug; met een geblokkeerde content-API
+  verschijnt de foutkaart met “Try again” dat in plaats opnieuw ophaalt en de query vasthoudt; met een
+  geblokkeerde scholar-API zegt die groep “Could not load the scholars” in plaats van “0”; 390×844 zonder
+  horizontale overflow (ook met het filterpaneel open) en de zoekingang in het telefoonmenu opent de
+  pagina.
+- Suites: `npx tsc --noEmit` schoon (root én `server/`), `npm run build` ok en reproduceerbaar,
+  `server: npm run test:all` **409 checks, 0 fail** (identiek aan de D3-baseline; de eerste run faalde
+  op één uploadcheck omdat `server/.env` voor de productievorm tijdelijk opzij stond — zie de noot),
+  `test:e2e:production` **105 pass / 3 fail** (exact dezelfde drie bekende gaten: geen echte
+  YouTube-video en geen echte Archive-audio in de seed, plus de pre-existing `TypeError … 'slug'`),
+  `test:e2e:brand` **222/222**, `test:e2e:cms` **39/0**, `test:e2e:auth` **60/0**.
+- `test:e2e:media` is ook nu niet op de seed te draaien (datavoorwaarde, §8 punt 25); dat is geen
+  D4-regressie en de zoekpagina komt er niet in voor.
+
+### Database- en testveiligheid tijdens deze fase
+
+- Muterende suites draaiden uitsluitend tegen de wegwerp-database `ilmnet_d4_scratch` (naast de normale
+  `ilmnet`, met dezelfde seed). De testbeheerder `e2e-admin` bestaat alleen in die wegwerp-database; het
+  wachtwoord staat buiten de repo in `/tmp` en is nergens vastgelegd.
+- De normale database is na alle runs gecontroleerd: **15 contents, 10 gepubliceerd, 8 scholars,
+  11 subjects, 1 importjob, 0 admin-accounts**, en een telling op testtitels, D4-slugs en e2e-beheerders
+  gaf **0**. Er is dus geen testdata in de normale database achtergebleven, en er is geen seed- of
+  productiecontent verwijderd om een test te laten slagen.
+- Noot bij de productievorm: `server/.env` (gitignored, alleen development) is tijdens de controles
+  tijdelijk opzij gezet zodat de instance zonder `.env`-bestand kon booten, zoals een deployment betaalt
+  (§7p). De uploadsuite controleert dat `.env` onaangetast blijft en faalde zolang het bestand weg was;
+  na het terugzetten was `test:all` 409/0. Er is niets in dat bestand gewijzigd en het is niet in de
+  repository terechtgekomen.
+
 ## 8. Known remaining issues (not blockers)
 
 From `docs/FASE3_9_CODEBASE_REVIEW.md` § Restrisico's plus the 3.9.1 report:
@@ -2041,13 +2167,23 @@ From `docs/FASE3_9_CODEBASE_REVIEW.md` § Restrisico's plus the 3.9.1 report:
         checks zijn de echte-afspeelcontroles, die een gefabriceerde identifier niet kan halen. De suite
         en de seed zijn in D2 daarom niet aangepast.
 
+
+26. **“Reset filters” zette op `/lectures` en `/books` de filters terug die het net had gewist.** Gevonden
+    tijdens D4, in de pagina’s die D2 bouwde. Het zoekveld houdt de tekst lokaal bij en schrijft hem na
+    340 ms naar de URL; het `useEffect` dat die timer zet had alleen `inputQ` als dependency. React Router
+    past `setSearchParams` als een transition toe, dus er is één render waarin het veld al leeg is maar
+    `searchParams` nog de oude query bevat — die render zette een nieuwe timer waarvan de closure de
+    **oude** URL vasthield, en 340 ms later schreef die hem terug zonder `q`. Meetbaar: op
+    `/lectures?q=fiqh&subject=fiqh` liet Reset `?subject=fiqh` staan; op `/books?q=fiqh` bleef het goed
+    omdat er dan geen tweede parameter was. Gedicht door de URL-waarden aan de dependencylijst toe te
+    voegen (één regel per pagina), en vastgelegd in het D4-harnas (§7u).
 ## 9. Next step
 
-**Immediate next step: Fase D4 (global search)** — `/search?q=` gegroepeerd per Content / Scholars /
-Subjects op de bestaande `q`-zoekopdracht en de bestaande referentielijsten, met een ingang in de
-header en dezelfde eerlijke staten als D2/D3 (`docs/ILMNET_DISCOVERY_EXPERIENCE.md` §8, D4). Daarna
-D5 detailcontinuïteit, D6 seriegedrag, D7 optioneel. De Git-levering van de branding- en
-discoveryfasen is gedaan: D0–D3 staan op `origin/master` (zie `docs/RELEASES.md`).
+**Immediate next step: Fase D5 (detailcontinuïteit)** — “More like this” (eerst subject, dan scholar,
+het huidige item uitgesloten), serie-next/previous **alleen** als er een echte volgorde is, en een
+slanker artworkblok als er geen echte cover is (audit C1/C3/C4), plus de resterende `limit=100`-plekken
+in `ContentDetail`/`SeriesDetail`. Daarna D6 seriegedrag, D7 optioneel. De Git-levering van de
+branding- en discoveryfasen loopt mee: D0–D4 staan op `origin/master` (zie `docs/RELEASES.md`).
 
 **De environmentregel is nu de poort voor alles wat hierna komt** (§7p, `docs/ENVIRONMENTS.md`). De
 volgorde is niet vrijblijvend:
