@@ -25,7 +25,7 @@ import { ContentCard } from '@/components/cards';
 const RAIL_LIMIT = 8;
 
 /** The landing rails' shared band (see `LandingRails.tsx`), so the page rhythm stays as it was. */
-const RAIL_BAND = 'relative px-5 py-14 sm:px-6 lg:py-16';
+const RAIL_BAND = 'relative px-5 pt-12 sm:px-6 lg:pt-14';
 
 /** The one visible way to wipe the device-local list. Named for screen readers, short on screen. */
 function ClearActivityButton({ onClear }: { onClear: () => void }) {

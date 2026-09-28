@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import PageHeader from '../components/PageHeader';
 import { usePageMeta } from '../lib/usePageMeta';
-import { EmptyState, StatRow } from '../components/ui';
+import { EmptyState, ResultCount, StatRow } from '../components/ui';
 // Discovery step D0/D2/D3: the tiles, the filter panel and the list states are shared components.
 import { ScholarTile, TileSkeleton } from '@/components/cards';
 import LibraryFilters from '@/components/LibraryFilters';
@@ -111,9 +111,11 @@ export default function Scholars() {
           ) : (
             <>
               {/* D8: the result line announces itself, so filtering moves no focus and still speaks. */}
-              <p className="text-ink-muted mt-8 text-[0.86rem] font-medium" role="status" aria-live="polite">
-                {hasActiveFilters ? `${filtered.length} of ${scholars.total} scholars in view` : `${scholars.total} scholars`}
-              </p>
+              <div className="mt-8">
+                <ResultCount>
+                  {hasActiveFilters ? `${filtered.length} of ${scholars.total} scholars in view` : `${scholars.total} scholars`}
+                </ResultCount>
+              </div>
               {filtered.length > 0 ? (
                 <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                   {filtered.map((s) => (

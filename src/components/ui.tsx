@@ -100,7 +100,7 @@ export function Tag({ children, tone = 'plain' }: { children: ReactNode; tone?: 
         ? 'bg-olive/15 text-olive-deep'
         : 'bg-sand text-ink-soft';
   return (
-    <span className={`rounded-full px-3 py-1.5 text-[0.76rem] font-semibold ${styles}`}>{children}</span>
+    <span className={`inline-flex items-center rounded-full px-3 py-1.5 text-[0.76rem] font-semibold ${styles}`}>{children}</span>
   );
 }
 
@@ -134,6 +134,67 @@ export function StatRow({ items }: { items: { value: string; label: string }[] }
           <p className="text-ink-muted mt-1 text-[0.78rem] font-medium tracking-[0.08em] uppercase">{it.label}</p>
         </div>
       ))}
+    </div>
+  );
+}
+
+/**
+ * One chip in a page header's meta slot (Visual UI Polish).
+ *
+ * Every detail page drew its own chips — `bg-sand`, `bg-cream neu-inset`, `bg-cream/90` — so the same
+ * kind of fact looked different from page to page. There are now three deliberate variants:
+ *
+ *   - `plain` — a quiet fact (language, year, provider): a sand pill, no shadow;
+ *   - `inset` — a measured fact pressed into the surface (a real count);
+ *   - `strong` — the leading fact of a header (the type of the thing you are looking at).
+ */
+export function MetaChip({
+  children,
+  variant = 'plain',
+}: {
+  children: ReactNode;
+  variant?: 'plain' | 'inset' | 'strong';
+}) {
+  const styles =
+    variant === 'strong'
+      ? 'bg-cream neu-raised-sm text-ink'
+      : variant === 'inset'
+        ? 'bg-cream neu-inset-sm text-ink-soft'
+        : 'bg-sand text-ink-soft';
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[0.74rem] font-medium ${styles}`}
+    >
+      {children}
+    </span>
+  );
+}
+
+/**
+ * The result line above every list (Visual UI Polish).
+ *
+ * `/lectures`, `/books`, `/scholars`, `/subjects` and `/search` had five copies of the same sentence
+ * with four different markup conventions (audit D8: only two of them announced themselves). The
+ * wording stays each page's own — it is a real sentence about a real count — but the styling and the
+ * live-region contract are now one definition.
+ */
+export function ResultCount({ children }: { children: ReactNode }) {
+  return (
+    <p className="text-ink-muted text-[0.86rem] font-medium" role="status" aria-live="polite">
+      {children}
+    </p>
+  );
+}
+
+/**
+ * A quiet full-width note inside a page (the honest footnotes: "this is the whole collection", "the
+ * source carries no numbering"). One surface, so a caveat never looks like an error and never looks
+ * like a call to action.
+ */
+export function PanelNote({ children, className = '' }: { children: ReactNode; className?: string }) {
+  return (
+    <div className={`bg-cream neu-inset rounded-[22px] px-6 py-5 text-center ${className}`}>
+      <p className="text-ink-muted text-[0.82rem] leading-relaxed">{children}</p>
     </div>
   );
 }

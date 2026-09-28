@@ -17,7 +17,7 @@ function pillTone(index: number): 'rose' | 'olive' | 'plain' {
 
 const toneClass: Record<'rose' | 'olive' | 'plain', string> = {
   rose: 'bg-rose text-cream shadow-[8px_10px_24px_rgba(204,58,99,0.3)]',
-  olive: 'bg-olive text-[#22251a] shadow-[8px_10px_24px_rgba(140,150,100,0.35)]',
+  olive: 'bg-olive text-night shadow-[8px_10px_24px_rgba(140,150,100,0.35)]',
   plain: 'bg-cream text-ink neu-raised-sm',
 };
 
@@ -61,13 +61,13 @@ export default function Subjects() {
   return (
       <section
         id="subjects"
-        className="bg-sand-deep relative px-5 py-24 sm:px-6 lg:py-36"
+        className="bg-sand-deep relative px-5 py-20 sm:px-6 lg:py-28"
       style={{ boxShadow: 'inset 0 22px 44px -28px rgba(150,123,80,0.5), inset 0 -22px 44px -28px rgba(150,123,80,0.5)' }}
     >
       <div className="mx-auto grid max-w-[1180px] gap-14 lg:grid-cols-[0.82fr_1.18fr] lg:items-start lg:gap-20">
         <div className="lg:sticky lg:top-32">
           <p className="text-ink-muted text-[0.72rem] font-semibold tracking-[0.22em] uppercase">Browse by subject</p>
-          <h2 className="text-display-xl text-ink mt-5 text-[clamp(2.1rem,5vw,3.4rem)]">
+          <h2 className="text-display-xl text-ink mt-5 text-[clamp(2rem,4.8vw,3.2rem)]">
             Start from what you want to understand.
           </h2>
           <p className="text-ink-soft mt-6 max-w-[42ch] text-[1.02rem] leading-[1.7]">

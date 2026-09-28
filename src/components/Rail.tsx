@@ -48,11 +48,16 @@ export type SectionHeadingProps = {
 
 export function SectionHeading({ label, title, subtitle, showAll, actions, className = '' }: SectionHeadingProps) {
   return (
-    <div className={`flex flex-wrap items-end justify-between gap-x-6 gap-y-3 ${className}`}>
-      <div>
+    <div className={`flex flex-wrap items-end justify-between gap-x-8 gap-y-3 ${className}`}>
+      <div className="min-w-0">
         {label && <SectionLabel>{label}</SectionLabel>}
-        <h2 className="font-display text-ink mt-2 text-[1.35rem] font-extrabold tracking-[-0.02em]">{title}</h2>
-        {subtitle && <p className="text-ink-muted mt-1 text-[0.82rem]">{subtitle}</p>}
+        {/* Visual UI Polish: the same heading ladder as the page titles, one step down. Before this the
+            section titles were 21.6 px while the rail that carried them was 330 px wide — the smallest
+            type on the largest surface. */}
+        <h2 className="font-display text-ink mt-2.5 text-[1.45rem] font-extrabold tracking-[-0.03em] text-balance sm:text-[1.62rem]">
+          {title}
+        </h2>
+        {subtitle && <p className="text-ink-muted mt-2 max-w-[62ch] text-[0.85rem]">{subtitle}</p>}
       </div>
       {(showAll || actions) && (
         <div className="flex shrink-0 items-center gap-3">
@@ -60,7 +65,7 @@ export function SectionHeading({ label, title, subtitle, showAll, actions, class
           {showAll && (
             <Link
               to={showAll.to}
-              className="text-rose shrink-0 text-[0.86rem] font-semibold transition-all hover:gap-2.5 inline-flex items-center gap-1.5"
+              className="text-rose focus-visible:outline-none shrink-0 text-[0.88rem] font-semibold transition-all hover:gap-2.5 inline-flex items-center gap-1.5"
             >
               {showAll.label ?? 'Show all'} <span aria-hidden="true">→</span>
             </Link>
@@ -182,7 +187,7 @@ export function Rail({
             onClick={() => page(direction)}
             disabled={disabled}
             aria-label={`${direction === -1 ? 'Scroll left' : 'Scroll right'}${name ? `: ${name}` : ''}`}
-            className="bg-cream text-ink neu-raised-sm grid h-9 w-9 place-items-center rounded-full transition-transform hover:-translate-y-0.5 disabled:opacity-40 disabled:hover:translate-y-0"
+            className="bg-cream text-ink neu-raised-sm lift-sm grid h-10 w-10 place-items-center rounded-full disabled:opacity-40 disabled:hover:translate-y-0"
           >
             <ChevronIcon direction={direction === -1 ? 'left' : 'right'} />
           </button>
@@ -200,7 +205,7 @@ export function Rail({
           role="region"
           aria-label={name}
           tabIndex={0}
-          className={`rail-scroll mt-4 flex gap-6 overflow-x-auto overscroll-x-contain scroll-smooth pb-2 focus-visible:outline-none ${
+          className={`rail-scroll mt-5 flex gap-5 overflow-x-auto overscroll-x-contain scroll-smooth pb-3 focus-visible:outline-none sm:gap-6 ${
             align === 'start' ? 'items-start' : ''
           } ${bleed ? '-mx-5 scroll-pl-5 px-5 sm:-mx-6 sm:scroll-pl-6 sm:px-6' : ''}`}
         >

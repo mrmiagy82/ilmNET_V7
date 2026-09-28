@@ -55,7 +55,7 @@ export default function LibraryFilters({
   const activeCount = groups.filter((g) => g.active !== 'all').length;
 
   return (
-    <div className="bg-sand/70 neu-inset sticky top-[88px] z-30 rounded-[34px] p-4 sm:p-6">
+    <div className="bg-sand/70 neu-inset sticky top-[84px] z-30 rounded-[30px] p-4 sm:p-5">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
         <div className="lg:flex-1">
           <SearchBar value={search} onChange={onSearch} placeholder={searchPlaceholder} label={searchLabel} />

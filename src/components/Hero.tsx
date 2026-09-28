@@ -109,18 +109,18 @@ export default function Hero() {
   const showCounts = counts && counts.lectures + counts.books + counts.scholars > 0;
 
   return (
-    <section id="top" className="relative overflow-hidden pt-32 pb-20 sm:pt-40 lg:pt-44 lg:pb-32">
+    <section id="top" className="relative overflow-hidden pt-28 pb-16 sm:pt-32 lg:pt-36 lg:pb-24">
       {/* Atmospheric aurora */}
       <div
-        className="pointer-events-none absolute inset-x-0 -top-24 h-[720px] opacity-[0.55]"
+        className="pointer-events-none absolute inset-x-0 -top-24 h-[680px] opacity-[0.5]"
         style={{
           maskImage: 'radial-gradient(120% 78% at 50% 22%, #000 18%, transparent 74%)',
           WebkitMaskImage: 'radial-gradient(120% 78% at 50% 22%, #000 18%, transparent 74%)',
         }}
       >
-        <Aurora colorStops={['#A2AB73', '#CC3A63', '#5227FF']} blend={0.57} amplitude={1.0} speed={1} />
+        <Aurora colorStops={['#A2AB73', '#CC3A63', '#F2E7D3']} blend={0.57} amplitude={1.0} speed={1} />
       </div>
-      <div className="from-cream/10 via-cream/55 to-cream pointer-events-none absolute inset-x-0 top-0 h-[720px] bg-gradient-to-b" />
+      <div className="from-cream/10 via-cream/55 to-cream pointer-events-none absolute inset-x-0 top-0 h-[680px] bg-gradient-to-b" />
 
       <div className="relative mx-auto grid max-w-[1180px] grid-cols-1 items-center gap-16 px-5 sm:px-6 lg:grid-cols-[1.04fr_0.96fr] lg:gap-14">
         {/* Copy */}
@@ -144,13 +144,13 @@ export default function Hero() {
           <div className="mt-9 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
             <Link
               to="/lectures"
-              className="bg-rose text-cream inline-flex items-center justify-center rounded-[20px] px-8 py-[1.15rem] text-[1rem] font-semibold shadow-[10px_14px_30px_rgba(204,58,99,0.28)] transition-all hover:-translate-y-0.5 hover:bg-[#b83156]"
+              className="bg-rose text-cream lift-sm inline-flex items-center justify-center rounded-[20px] px-8 py-[1.15rem] text-[1rem] font-semibold shadow-[10px_14px_30px_rgba(204,58,99,0.28)] hover:bg-rose-deep"
             >
               Explore the library
             </Link>
             <a
               href="#how"
-              className="bg-sand text-ink neu-raised-sm inline-flex items-center justify-center rounded-[20px] px-8 py-[0.95rem] text-[1rem] font-semibold transition-transform hover:-translate-y-0.5"
+              className="bg-sand text-ink neu-raised-sm lift-sm inline-flex items-center justify-center rounded-[20px] px-8 py-[0.95rem] text-[1rem] font-semibold"
             >
               How ilmNet works
             </a>
@@ -158,6 +158,7 @@ export default function Hero() {
 
           {showCounts && (
             <dl className="border-line/80 mt-12 flex max-w-[460px] gap-8 border-t pt-7 sm:gap-12">
+            {/* The three real library counters (Fase 5.4 contract): API numbers only, never placeholders. */}
               {[
                 [String(counts!.lectures), 'Lectures'],
                 [String(counts!.books), 'Books'],

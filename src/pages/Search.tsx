@@ -30,8 +30,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import PageHeader from '../components/PageHeader';
+import { SectionHeading } from '../components/Rail';
 import { usePageMeta } from '../lib/usePageMeta';
-import { EmptyState, StatRow } from '../components/ui';
+import { EmptyState, ResultCount, StatRow } from '../components/ui';
 import { ContentCard, ScholarTile, SeriesCard, CollectionCard, SubjectTile, isBookType } from '@/components/cards';
 import { Rail, RAIL_SLOT } from '@/components/Rail';
 import LibraryFilters from '@/components/LibraryFilters';
@@ -279,13 +280,15 @@ export default function Search() {
             <>
               {/* The same honest arithmetic as the library shelves: the API's total first, then how much
                   of it is really on screen. */}
-              <p className="text-ink-muted mt-8 text-[0.86rem] font-medium" role="status" aria-live="polite">
-                {items.total} {items.total === 1 ? 'item' : 'items'} match
+              <div className="mt-8">
+                <ResultCount>
+                  {items.total} {items.total === 1 ? 'item' : 'items'} match
                 {hasQuery ? ` “${urlQ.trim()}”` : ''}
                 {typeLabel ? ` · ${typeLabel}` : ''}
                 {items.hasMore ? ` · showing ${items.data.length} of ${items.total}` : ''}
-                {series.length > 0 ? ` · ${series.length} series in view` : ''}
-              </p>
+                  {series.length > 0 ? ` · ${series.length} series in view` : ''}
+                </ResultCount>
+              </div>
 
               {series.length > 0 && (
                 <Rail
@@ -302,7 +305,7 @@ export default function Search() {
                 </Rail>
               )}
 
-              <h2 className="font-display text-ink mt-12 text-[1.35rem] font-extrabold tracking-[-0.02em]">Items</h2>
+              <SectionHeading label="Library" title="Items" />
               {items.data.length > 0 ? (
                 <div className="mt-4 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                   {items.data.map((c) => (
@@ -330,7 +333,7 @@ export default function Search() {
               )}
 
               {/* ── Scholars ────────────────────────────────────────────────────────────────────── */}
-              <h2 className="font-display text-ink mt-14 text-[1.35rem] font-extrabold tracking-[-0.02em]">Scholars</h2>
+              <SectionHeading className="mt-14" label="People" title="Scholars" />
               {scholars.loading ? (
                 <p className="text-ink-muted mt-4 text-[0.86rem] font-medium">Loading scholars…</p>
               ) : scholars.error ? (
@@ -359,7 +362,7 @@ export default function Search() {
               )}
 
               {/* ── Subjects ────────────────────────────────────────────────────────────────────── */}
-              <h2 className="font-display text-ink mt-14 text-[1.35rem] font-extrabold tracking-[-0.02em]">Subjects</h2>
+              <SectionHeading className="mt-14" label="Browse" title="Subjects" />
               {subjects.loading ? (
                 <p className="text-ink-muted mt-4 text-[0.86rem] font-medium">Loading subjects…</p>
               ) : subjects.error ? (

@@ -123,6 +123,14 @@
 
 @import "tailwindcss";
 
+/* Tailwind's automatic source detection reads every non-ignored file in the project — including the
+ * prose in `docs/`, where earlier audits quote the exact utility strings they ask us to remove
+ * (`bg-[#b83156]`, `text-[#22251a]`, `bg-[#EDEEF2]`). Tailwind cannot tell a complaint from a call
+ * site, so it emitted those utilities into the production stylesheet: dead, off-brand CSS that no
+ * element uses. Excluding the docs keeps the bundle to what the app really renders; every class the
+ * interface uses still lives in `src/`. */
+@source not "../docs";
+
 @theme {
   /* Core palette */
   --color-cream: #fff7eb;
@@ -155,11 +163,22 @@
   html {
     scroll-behavior: smooth;
     -webkit-font-smoothing: antialiased;
+    /* Anchors (the hero's "How ilmNet works", in-page jumps) must clear the fixed header. */
+    scroll-padding-top: 6.5rem;
   }
   body {
     background-color: var(--color-cream);
     color: var(--color-ink);
     font-family: var(--font-sans);
+    /* Visual UI Polish: the page surface is no longer a flat fill. Two very soft brand washes give
+       every page the same spatial depth the hero already had — pure CSS gradients in the existing
+       palette (no image, no request, nothing animated), fixed so the light stays where the header is
+       while the library scrolls underneath. */
+    background-image:
+      radial-gradient(115% 62% at 8% -6%, rgba(204, 58, 99, 0.055), transparent 62%),
+      radial-gradient(105% 58% at 100% -2%, rgba(162, 171, 115, 0.09), transparent 58%);
+    background-repeat: no-repeat;
+    background-attachment: fixed;
   }
   ::selection {
     background: #cc3a63;
@@ -235,6 +254,25 @@
   font-weight: 800;
   letter-spacing: -0.035em;
   line-height: 0.94;
+  text-wrap: balance;
+}
+
+/* Visual UI Polish — one motion vocabulary instead of the per-component values that had drifted apart.
+   `lift` is what a card does when you reach for it; `lift-sm` is the same gesture, half the distance,
+   for buttons and links. Both are transform-only (no layout shift, no repaint storm) and both are
+   neutralised by the `prefers-reduced-motion` rule above, which zeroes every transition duration. */
+@utility lift {
+  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  &:hover {
+    transform: translateY(-6px);
+  }
+}
+
+@utility lift-sm {
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.3s ease, color 0.3s ease;
+  &:hover {
+    transform: translateY(-2px);
+  }
 }
 
 @keyframes drift {

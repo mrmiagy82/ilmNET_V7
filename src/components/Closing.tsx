@@ -21,11 +21,11 @@ const steps = [
 
 export function HowItWorks() {
   return (
-    <section id="how" className="px-5 pb-24 sm:px-6 lg:pb-36">
+    <section id="how" className="px-5 pb-20 sm:px-6 lg:pb-28">
       <div className="mx-auto max-w-[1180px]">
-        <div className="bg-sand neu-raised overflow-hidden rounded-[44px] px-6 py-12 sm:px-12 sm:py-16 lg:px-16 lg:py-20">
+        <div className="bg-sand neu-raised overflow-hidden rounded-[40px] px-6 py-12 sm:px-12 sm:py-16 lg:px-16 lg:py-20">
           <p className="text-ink-muted text-[0.72rem] font-semibold tracking-[0.22em] uppercase">The path</p>
-          <h2 className="text-display-xl text-ink mt-5 max-w-[18ch] text-[clamp(2rem,4.6vw,3.1rem)]">
+          <h2 className="text-display-xl text-ink mt-5 max-w-[18ch] text-[clamp(1.95rem,4.4vw,3rem)]">
             Designed for steady learning, not endless scrolling.
           </h2>
 
@@ -55,8 +55,8 @@ export function HowItWorks() {
 
 export function FinalCTA() {
   return (
-    <section className="px-5 pb-24 sm:px-6 lg:pb-32">
-      <div className="bg-night relative mx-auto max-w-[1180px] overflow-hidden rounded-[48px] px-6 py-20 text-center sm:px-12 lg:py-28">
+    <section className="px-5 pb-20 sm:px-6 lg:pb-28">
+      <div className="bg-night relative mx-auto max-w-[1180px] overflow-hidden rounded-[40px] px-6 py-16 text-center sm:px-12 lg:py-24">
         <div
           className="pointer-events-none absolute inset-x-0 bottom-0 h-[420px] opacity-70"
           style={{
@@ -65,7 +65,7 @@ export function FinalCTA() {
             transform: 'rotate(180deg)',
           }}
         >
-          <Aurora colorStops={['#A2AB73', '#CC3A63', '#5227FF']} blend={0.57} amplitude={1.0} speed={1} />
+          <Aurora colorStops={['#A2AB73', '#CC3A63', '#F2E7D3']} blend={0.57} amplitude={1.0} speed={1} />
         </div>
 
         <div className="relative mx-auto max-w-[760px]">
@@ -83,13 +83,13 @@ export function FinalCTA() {
           <div className="mx-auto mt-10 flex w-full max-w-[520px] flex-col gap-3 sm:flex-row">
             <Link
               to="/lectures"
-              className="bg-rose text-cream inline-flex flex-1 items-center justify-center rounded-[20px] px-8 py-[1.05rem] text-[0.98rem] font-semibold transition-colors hover:bg-[#b83156]"
+              className="bg-rose text-cream lift-sm inline-flex flex-1 items-center justify-center rounded-[20px] px-8 py-[1.05rem] text-[0.98rem] font-semibold hover:bg-rose-deep"
             >
               Start exploring
             </Link>
             <Link
               to="/subjects"
-              className="bg-cream text-ink inline-flex flex-1 items-center justify-center rounded-[20px] px-8 py-[1.05rem] text-[0.98rem] font-semibold transition-transform hover:-translate-y-0.5"
+              className="bg-cream text-ink lift-sm inline-flex flex-1 items-center justify-center rounded-[20px] px-8 py-[1.05rem] text-[0.98rem] font-semibold"
             >
               Browse subjects
             </Link>

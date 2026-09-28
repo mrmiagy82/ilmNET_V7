@@ -109,7 +109,7 @@ export default function AdminLogin() {
                 type="submit"
                 data-testid="admin-login-submit"
                 disabled={busy || !username.trim() || !password}
-                className="bg-rose text-cream rounded-[18px] px-6 py-3 text-[0.95rem] font-semibold shadow-[8px_10px_22px_rgba(204,58,99,0.26)] transition-colors hover:bg-[#b83156] disabled:opacity-50"
+                className="bg-rose text-cream rounded-[18px] px-6 py-3 text-[0.95rem] font-semibold shadow-[8px_10px_22px_rgba(204,58,99,0.26)] transition-colors hover:bg-rose-deep disabled:opacity-50"
               >
                 {busy ? 'Checking…' : 'Sign in'}
               </button>

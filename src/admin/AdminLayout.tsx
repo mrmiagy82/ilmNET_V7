@@ -115,7 +115,7 @@ export default function AdminLayout() {
 
           <Link
             to="/admin/new"
-            className="bg-rose text-cream mb-2 flex items-center justify-center gap-2 rounded-[18px] px-4 py-3 text-[0.92rem] font-semibold shadow-[8px_10px_22px_rgba(204,58,99,0.26)] hover:bg-[#b83156] transition-colors"
+            className="bg-rose text-cream mb-2 flex items-center justify-center gap-2 rounded-[18px] px-4 py-3 text-[0.92rem] font-semibold shadow-[8px_10px_22px_rgba(204,58,99,0.26)] hover:bg-rose-deep transition-colors"
           >
             <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M12 5v14M5 12h14" /></svg>
             Add content
@@ -178,7 +178,7 @@ export default function AdminLayout() {
               <Link to="/admin/archive-import" className="bg-olive text-cream grid h-10 w-10 place-items-center rounded-[14px] shadow-[6px_8px_16px_rgba(140,150,100,0.28)]">
                 <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 19V6a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v13" /><path d="M14 19V6a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1Z" /></svg>
               </Link>
-              <Link to="/admin/new" className="bg-rose text-cream grid h-10 w-10 place-items-center rounded-[14px] shadow-[6px_8px_16px_rgba(204,58,99,0.24)]">
+              <Link to="/admin/new" className="bg-rose text-cream hover:bg-rose-deep grid h-10 w-10 place-items-center rounded-[14px] shadow-[6px_8px_16px_rgba(204,58,99,0.24)]">
                 <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M12 5v14M5 12h14" /></svg>
               </Link>
               <button
@@ -198,7 +198,7 @@ export default function AdminLayout() {
           {open && (
             <div className="bg-sand px-4 py-4 lg:hidden">
               <NavItems onClick={() => setOpen(false)} />
-              <Link to="/admin/new" className="bg-rose text-cream mt-3 flex items-center justify-center gap-2 rounded-[16px] px-4 py-3 text-[0.92rem] font-semibold">
+              <Link to="/admin/new" className="bg-rose text-cream hover:bg-rose-deep mt-3 flex items-center justify-center gap-2 rounded-[16px] px-4 py-3 text-[0.92rem] font-semibold">
                 <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M12 5v14M5 12h14" /></svg>
                 Add content — guided flow
               </Link>

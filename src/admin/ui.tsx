@@ -42,9 +42,9 @@ export function PrimaryButton({
 }) {
   const cls =
     tone === 'rose'
-      ? 'bg-rose text-cream shadow-[8px_10px_22px_rgba(204,58,99,0.26)] hover:bg-[#b83156]'
+      ? 'bg-rose text-cream shadow-[8px_10px_22px_rgba(204,58,99,0.26)] hover:bg-rose-deep'
       : tone === 'olive'
-        ? 'bg-olive text-[#22251a] shadow-[8px_10px_22px_rgba(140,150,100,0.32)] hover:brightness-95'
+        ? 'bg-olive text-night shadow-[8px_10px_22px_rgba(140,150,100,0.32)] hover:brightness-95'
         : 'bg-sand text-ink neu-raised-sm hover:text-rose';
   const shared = `inline-flex items-center justify-center rounded-[18px] px-6 py-3 text-[0.94rem] font-semibold transition-all ${cls} ${disabled ? 'opacity-50 pointer-events-none' : ''}`;
   if (to) {
@@ -173,7 +173,7 @@ export function ChipToggle({
             onClick={() => onToggle(o.value)}
             className={`rounded-full px-4 py-2 text-[0.84rem] font-semibold transition-all ${
               on
-                ? 'bg-rose text-cream shadow-[6px_8px_16px_rgba(204,58,99,0.26)]'
+                ? 'bg-rose text-cream shadow-[6px_8px_16px_rgba(204,58,99,0.26)] hover:bg-rose-deep'
                 : 'bg-cream text-ink neu-raised-sm hover:-translate-y-0.5'
             }`}
           >
@@ -203,7 +203,7 @@ export function SourceCard({
       type="button"
       onClick={onClick}
       className={`text-left rounded-[20px] p-4 sm:p-5 transition-all ${
-        active ? 'bg-rose text-cream shadow-[8px_12px_24px_rgba(204,58,99,0.28)]' : 'bg-cream neu-raised-sm hover:-translate-y-0.5 text-ink'
+        active ? 'bg-rose text-cream shadow-[8px_12px_24px_rgba(204,58,99,0.28)] hover:bg-rose-deep' : 'bg-cream neu-raised-sm lift-sm text-ink'
       }`}
     >
       <span className={`grid h-9 w-9 place-items-center rounded-[12px] ${active ? 'bg-white/20 text-cream' : 'bg-sand text-ink-soft'}`}>{icon}</span>

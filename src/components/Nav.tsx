@@ -40,8 +40,8 @@ export default function Nav() {
   return (
     <header className="fixed inset-x-0 top-0 z-50 px-4 pt-4 sm:px-6 sm:pt-6">
       <nav
-        className={`mx-auto flex max-w-[1180px] items-center justify-between rounded-[26px] px-4 py-3 transition-all duration-500 sm:px-5 ${
-          scrolled ? 'bg-cream/85 neu-raised-sm backdrop-blur-xl' : 'bg-transparent'
+        className={`mx-auto flex max-w-[1180px] items-center justify-between rounded-[24px] px-4 py-3 transition-all duration-500 sm:px-5 ${
+          scrolled ? 'bg-cream/90 neu-raised-sm backdrop-blur-xl' : 'bg-transparent'
         }`}
       >
         <Link to="/" className="flex items-center" aria-label="IlmNet home">
@@ -58,7 +58,7 @@ export default function Nav() {
                 key={l.to}
                 to={l.to}
                 className={`rounded-full px-4 py-2 text-[0.94rem] font-medium transition-colors ${
-                  active ? 'bg-sand text-rose' : 'text-ink-soft hover:bg-sand/70 hover:text-ink'
+                  active ? 'bg-sand text-rose neu-inset-sm' : 'text-ink-soft hover:bg-sand/70 hover:text-ink'
                 }`}
               >
                 {l.label}
@@ -72,7 +72,7 @@ export default function Nav() {
             to="/search"
             aria-label="Search the library"
             className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-[0.94rem] font-medium transition-colors ${
-              pathname.startsWith('/search') ? 'bg-sand text-rose' : 'text-ink-soft hover:bg-sand/70 hover:text-ink'
+              pathname.startsWith('/search') ? 'bg-sand text-rose neu-inset-sm' : 'text-ink-soft hover:bg-sand/70 hover:text-ink'
             }`}
           >
             <SearchGlyph className="h-[1.05rem] w-[1.05rem]" />
@@ -83,10 +83,10 @@ export default function Nav() {
         <div className="flex items-center gap-2">
           <Link
             to={isHome ? '/lectures' : '/'}
-            className={`rounded-full px-5 py-2.5 text-[0.92rem] font-semibold transition-colors ${
+            className={`lift-sm rounded-full px-5 py-2.5 text-[0.92rem] font-semibold ${
               isHome
                 ? 'bg-sand text-ink neu-raised-sm hover:text-rose'
-                : 'bg-rose text-cream shadow-[8px_10px_22px_rgba(204,58,99,0.26)]'
+                : 'bg-rose text-cream shadow-[8px_10px_22px_rgba(204,58,99,0.26)] hover:bg-rose-deep'
             }`}
           >
             {isHome ? 'Browse library' : 'Home'}
@@ -109,7 +109,7 @@ export default function Nav() {
       </nav>
 
       {open && (
-        <div id="mobile-menu-panel" className="bg-cream neu-raised mx-auto mt-3 max-w-[1180px] rounded-[26px] p-3 md:hidden">
+        <div id="mobile-menu-panel" className="bg-cream neu-raised mx-auto mt-3 max-w-[1180px] rounded-[24px] p-3 md:hidden">
           {/* D4 (audit A6): the same entry point on a phone, one tap away and readable at 390 px. */}
           <Link
             to="/search"
@@ -134,7 +134,7 @@ export default function Nav() {
           ))}
           <Link
             to="/"
-            className="bg-rose text-cream mt-2 block rounded-[18px] px-4 py-3.5 text-center font-semibold"
+            className="bg-rose text-cream mt-2 block rounded-[18px] px-4 py-3.5 text-center font-semibold transition-colors hover:bg-rose-deep"
           >
             Home
           </Link>

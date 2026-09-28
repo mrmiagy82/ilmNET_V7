@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import PageHeader from '../components/PageHeader';
-import { Tag } from '../components/ui';
+import { MetaChip } from '../components/ui';
 import { getPublishedContent, type BackendContent } from '@/lib/api';
 import AudioPlayer from '@/components/AudioPlayer';
 import { getDownloadUrl, getAudioStreamUrl } from '@/lib/series';
@@ -308,12 +308,12 @@ export default function ContentDetail({ expectedType }: { expectedType?: 'lectur
           <div className="flex flex-col gap-3">
             <div className="flex flex-wrap gap-2">
               {subjects.map((sub) => (
-                <Tag key={sub.id} tone={sub.accent as any}>{sub.name}</Tag>
+                <MetaChip key={sub.id} variant="strong">{sub.name}</MetaChip>
               ))}
-              {c.language && <span className="bg-sand text-ink-soft rounded-full px-3 py-1.5 text-[0.72rem] font-medium">{c.language}</span>}
-              {c.durationMin && <span className="bg-cream neu-inset rounded-full px-3 py-1.5 text-[0.72rem] font-medium">{c.durationMin} min</span>}
-              {c.pages && <span className="bg-cream neu-inset rounded-full px-3 py-1.5 text-[0.72rem] font-medium">{c.pages} pages</span>}
-              {c.year && <span className="bg-cream neu-inset rounded-full px-3 py-1.5 text-[0.72rem] font-medium">{c.year}</span>}
+              {c.language && <MetaChip>{c.language}</MetaChip>}
+              {c.durationMin && <MetaChip variant="inset">{c.durationMin} min</MetaChip>}
+              {c.pages && <MetaChip variant="inset">{c.pages} pages</MetaChip>}
+              {c.year && <MetaChip variant="inset">{c.year}</MetaChip>}
             </div>
             {scholars.length > 0 && (
               <p className="text-ink-soft text-[0.88rem]">
@@ -334,7 +334,7 @@ export default function ContentDetail({ expectedType }: { expectedType?: 'lectur
           <Embed c={c} />
 
           <div className="bg-cream neu-raised rounded-[28px] p-6 sm:p-8">
-            <h2 className="font-display text-ink text-[1.4rem] font-extrabold">About</h2>
+            <h2 className="font-display text-ink text-[1.45rem] font-extrabold tracking-[-0.03em] sm:text-[1.62rem]">About</h2>
             <p className="text-ink-soft mt-4 whitespace-pre-wrap text-[1rem] leading-[1.7]">{c.description ?? 'No description provided.'}</p>
 
             <div className="mt-8 grid gap-6 sm:grid-cols-2">

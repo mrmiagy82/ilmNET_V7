@@ -40,7 +40,7 @@ export function PlayGlyph({ className = '' }: { className?: string }) {
 /** The library card frame: one shelf rhythm shared by every large card. */
 function CardShell({ to, children }: { to: string; children: ReactNode }) {
   return (
-    <Link to={to} className="bg-cream neu-raised group flex flex-col rounded-[30px] p-6 transition-transform duration-500 hover:-translate-y-1.5">
+    <Link to={to} className="bg-cream neu-raised lift group flex h-full flex-col rounded-[30px] p-6">
       {children}
     </Link>
   );
@@ -77,8 +77,18 @@ export function LectureCard({ c }: { c: BackendContent }) {
         <span className="bg-cream/90 text-ink neu-raised-sm absolute right-3 top-3 rounded-full px-3 py-1.5 text-[0.7rem] font-semibold">
           {format}
         </span>
-        {c.provider === 'youtube' && <span className="bg-rose/90 text-cream absolute left-3 top-3 rounded-full px-2.5 py-1 text-[0.7rem] font-bold">YouTube</span>}
-        {c.provider === 'archive' && <span className="bg-olive/90 text-white absolute left-3 top-3 rounded-full px-2.5 py-1 text-[0.7rem] font-bold">Archive</span>}
+        {c.provider === 'youtube' && (
+          <span className="bg-cream/92 neu-raised-sm text-ink absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[0.7rem] font-semibold">
+            <span className="bg-rose h-1.5 w-1.5 rounded-full" aria-hidden="true" />
+            YouTube
+          </span>
+        )}
+        {c.provider === 'archive' && (
+          <span className="bg-cream/92 neu-raised-sm text-ink absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[0.7rem] font-semibold">
+            <span className="bg-olive h-1.5 w-1.5 rounded-full" aria-hidden="true" />
+            Archive
+          </span>
+        )}
       </MediaThumb>
 
       <div className="flex flex-1 flex-col px-1 pt-5">
@@ -93,7 +103,7 @@ export function LectureCard({ c }: { c: BackendContent }) {
         <span className="text-rose mt-2 text-[0.9rem] font-semibold line-clamp-1">
           {scholarName}
         </span>
-        <p className="text-ink-muted mt-3 text-[0.84rem] line-clamp-2">
+        <p className="text-ink-soft mt-3 text-[0.86rem] leading-relaxed line-clamp-2">
           {c.series ? `${c.series} · ` : ''}{c.episodes ? `${c.episodes} episodes` : c.description ? (c.description.slice(0, 80) + (c.description.length > 80 ? '…' : '')) : ''}
         </p>
 
@@ -134,7 +144,8 @@ export function SeriesCard({ s }: { s: SeriesGroup }) {
           {/* Type only: the number of items *loaded in this view* is not the size of the collection. */}
           <span className="text-ink text-[0.7rem] font-bold tracking-[0.08em] uppercase">{isPlaylist ? 'Playlist' : s.type === 'collection' ? 'Collection' : 'Series'}</span>
         </div>
-        <span className="bg-cream/90 text-ink neu-raised-sm absolute right-3 top-3 rounded-full px-3 py-1.5 text-[0.7rem] font-semibold">
+        <span className="bg-cream/92 neu-raised-sm text-ink absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[0.7rem] font-semibold">
+          <span className={`h-1.5 w-1.5 rounded-full ${isPlaylist ? 'bg-rose' : 'bg-olive'}`} aria-hidden="true" />
           {s.provider === 'youtube' ? 'YouTube' : s.provider === 'archive' ? 'Archive' : s.provider}
         </span>
         <div className="bg-cream neu-raised-sm text-ink absolute bottom-3 left-3 right-3 flex items-center justify-between rounded-[14px] px-4 py-3">
@@ -151,7 +162,7 @@ export function SeriesCard({ s }: { s: SeriesGroup }) {
           {s.title}
         </h3>
         {subtitle && <span className="text-rose mt-2 text-[0.9rem] font-semibold line-clamp-1">{subtitle}</span>}
-        <p className="text-ink-muted mt-3 text-[0.84rem] line-clamp-2">
+        <p className="text-ink-soft mt-3 text-[0.86rem] leading-relaxed line-clamp-2">
           {s.description ?? 'Open the collection to see everything it contains.'}
         </p>
         <div className="border-line/70 mt-5 flex items-center justify-between border-t pt-4 text-[0.8rem]">
@@ -235,11 +246,11 @@ export function CollectionCard({ s }: { s: SeriesGroup }) {
       >
         <div className="bg-cream/90 neu-raised-sm absolute left-3 top-3 flex items-center gap-2 rounded-full px-3 py-1.5">
           <span className="bg-olive h-2 w-2 rounded-full" />
-          <span className="text-ink text-[0.7rem] font-bold tracking-[0.08em] uppercase">Collection · {s.count}</span>
+          <span className="text-ink text-[0.7rem] font-bold tracking-[0.08em] uppercase">Collection</span>
         </div>
         <span className="bg-olive/90 text-white absolute right-3 top-3 rounded-full px-2.5 py-1 text-[0.7rem] font-bold">Archive</span>
         <div className="bg-cream neu-raised-sm text-ink absolute bottom-3 left-3 right-3 flex items-center justify-between rounded-[14px] px-4 py-3">
-          <span className="text-[0.78rem] font-semibold">{s.count} books</span>
+          <span className="text-[0.78rem] font-semibold">{s.count} in this view</span>
           <span className="text-rose text-[0.78rem] font-bold">Open collection →</span>
         </div>
       </MediaThumb>
@@ -248,7 +259,7 @@ export function CollectionCard({ s }: { s: SeriesGroup }) {
         <h3 className="font-display text-ink mt-3 text-[1.18rem] leading-snug font-extrabold tracking-[-0.02em] line-clamp-2">
           {s.title}
         </h3>
-        <p className="text-ink-soft mt-3 text-[0.88rem] line-clamp-3">{s.description ?? `${s.count} books — open to see all.`}</p>
+        <p className="text-ink-soft mt-3 text-[0.88rem] line-clamp-3">{s.description ?? 'Open the collection to see everything it contains.'}</p>
         <div className="border-line/70 mt-5 flex items-center justify-between border-t pt-4 text-[0.8rem]">
           <span className="text-ink-soft font-medium">{s.scholars[0]?.name ?? 'Collection'}</span>
           <span className="text-ink-muted">{s.provider}</span>
@@ -263,7 +274,7 @@ export function CompactSeriesCard({ s }: { s: SeriesGroup }) {
   const media = s.items[0] ? resolveCardMedia(s.items[0]) : { src: null, kind: 'placeholder-generic' as const };
   const thumb = media.src;
   return (
-    <Link to={`/series/${encodeURIComponent(s.id)}`} className="bg-cream neu-raised group flex flex-col rounded-[30px] p-6 transition-transform hover:-translate-y-1.5">
+    <Link to={`/series/${encodeURIComponent(s.id)}`} className="bg-cream neu-raised lift group flex h-full flex-col rounded-[30px] p-6">
       <MediaThumb
         src={thumb}
         kind={media.kind}
@@ -271,13 +282,13 @@ export function CompactSeriesCard({ s }: { s: SeriesGroup }) {
         className="bg-sand neu-inset aspect-[16/10] rounded-[22px]"
         fallback={<div className="absolute inset-0 bg-gradient-to-br from-olive/15 to-rose/15" />}
       >
-        <span className="bg-cream/90 text-ink absolute left-3 top-3 rounded-full px-3 py-1.5 text-[0.7rem] font-bold">Series · {s.count}</span>
+        <span className="bg-cream/92 text-ink absolute left-3 top-3 rounded-full px-3 py-1.5 text-[0.7rem] font-bold">Series</span>
         <span className="bg-cream neu-raised-sm absolute bottom-3 left-3 right-3 flex items-center justify-between rounded-[12px] px-3 py-2 text-[0.76rem] font-semibold">
-          <span>{s.count} parts</span><span className="text-rose">Open →</span>
+          <span>{s.count} in this view</span><span className="text-rose">Open →</span>
         </span>
       </MediaThumb>
       <h3 className="font-display text-ink mt-4 line-clamp-2 text-[1.1rem] font-extrabold">{s.title}</h3>
-      <p className="text-ink-muted mt-2 line-clamp-2 text-[0.82rem]">{s.description ?? `${s.count} items`}</p>
+      <p className="text-ink-soft mt-2 line-clamp-2 text-[0.84rem] leading-relaxed">{s.description ?? 'Open the series to see everything it contains.'}</p>
     </Link>
   );
 }
@@ -288,7 +299,7 @@ export function CompactContentCard({ c }: { c: BackendContent }) {
   const media = resolveCardMedia(c);
   const thumb = media.src;
   return (
-    <Link to={`/${isBook ? 'books' : 'lectures'}/${c.slug}`} className="bg-cream neu-raised group flex flex-col rounded-[30px] p-6 hover:-translate-y-1.5 transition-transform">
+    <Link to={`/${isBook ? 'books' : 'lectures'}/${c.slug}`} className="bg-cream neu-raised lift group flex h-full flex-col rounded-[30px] p-6">
       <MediaThumb
         src={thumb}
         kind={media.kind}
@@ -299,7 +310,7 @@ export function CompactContentCard({ c }: { c: BackendContent }) {
         <span className="bg-cream/90 absolute right-3 top-3 rounded-full px-2.5 py-1 text-[0.7rem] font-semibold">{isBook ? 'Book' : c.type === 'audio' ? 'Audio' : 'Video'}</span>
       </MediaThumb>
       <h3 className="font-display text-ink mt-4 line-clamp-2 text-[1.05rem] font-bold">{c.title}</h3>
-      <p className="text-ink-muted mt-2 line-clamp-2 text-[0.82rem]">{c.description?.slice(0, 80) ?? ''}</p>
+      <p className="text-ink-soft mt-2 line-clamp-2 text-[0.84rem] leading-relaxed">{c.description?.slice(0, 80) ?? ''}</p>
     </Link>
   );
 }
@@ -349,7 +360,7 @@ export function ScholarTile({
   const href = to ?? `/lectures?scholar=${encodeURIComponent(s.slug)}`;
   const hasCounts = typeof lectureCount === 'number' && typeof bookCount === 'number';
   return (
-    <article className="bg-cream neu-raised group flex h-full flex-col rounded-[30px] p-7 transition-transform duration-500 hover:-translate-y-1.5">
+    <article className="bg-cream neu-raised lift group flex h-full flex-col rounded-[30px] p-7">
       <div className="flex items-center gap-4">
         <div className={`font-display grid h-16 w-16 shrink-0 place-items-center rounded-full text-[1.3rem] font-extrabold neu-inset-sm ${accent === 'rose' ? 'bg-rose/10 text-rose' : 'bg-sand text-olive-deep'}`}>
           {s.initials ?? s.name.slice(0, 2).toUpperCase()}
@@ -397,9 +408,9 @@ export function ScholarTile({
  */
 export function SubjectTile({ s }: { s: BackendSubject }) {
   const badge =
-    s.accent === 'rose' ? 'bg-rose text-cream' : s.accent === 'olive' ? 'bg-olive text-[#22251a]' : 'bg-sand text-ink-soft';
+    s.accent === 'rose' ? 'bg-rose text-cream' : s.accent === 'olive' ? 'bg-olive text-night' : 'bg-sand text-ink-soft';
   return (
-    <article className="bg-cream neu-raised group flex h-full flex-col rounded-[32px] p-7 transition-transform duration-500 hover:-translate-y-1.5">
+    <article className="bg-cream neu-raised lift group flex h-full flex-col rounded-[30px] p-7">
       <div className="flex items-start justify-between gap-4">
         <div className={`font-display grid h-14 w-14 shrink-0 place-items-center rounded-[18px] text-[1.25rem] font-extrabold neu-raised-sm ${badge}`}>
           {s.name.charAt(0)}
@@ -435,7 +446,7 @@ export function ScholarMiniCard({ scholar }: { scholar: MiniScholar }) {
   return (
     <Link
       to={`/scholars/${encodeURIComponent(scholar.slug)}`}
-      className="bg-cream neu-raised group flex h-full items-center gap-4 rounded-[26px] p-5 transition-transform duration-500 hover:-translate-y-1.5"
+      className="bg-cream neu-raised lift group flex h-full items-center gap-4 rounded-[26px] p-5"
     >
       <div
         className={`font-display grid h-12 w-12 shrink-0 place-items-center rounded-full text-[1rem] font-extrabold neu-inset-sm ${

@@ -16,8 +16,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import PageHeader from '../components/PageHeader';
+import { SectionHeading } from '../components/Rail';
 import { usePageMeta } from '../lib/usePageMeta';
-import { EmptyState, Tag } from '../components/ui';
+import { EmptyState, MetaChip, ResultCount } from '../components/ui';
 import {
   BookCard,
   CollectionCard,
@@ -157,13 +158,11 @@ export default function SubjectDetail() {
         intro={subject.description ?? `All lectures and books for ${subject.name}.`}
         meta={
           <div className="flex flex-wrap gap-2">
-            <Tag tone={subject.accent as any}>{subject.group}</Tag>
-            <span className="bg-sand text-ink-soft rounded-full px-3 py-1.5 text-[0.7rem] font-medium">
+            <MetaChip variant="strong">{subject.group}</MetaChip>
+            <MetaChip variant="inset">
               {contents.loading || contents.error ? '—' : `${contents.total} items`}
-            </span>
-            <span className="bg-cream neu-inset rounded-full px-3 py-1.5 text-[0.7rem] font-medium">
-              {contents.loading || contents.error ? '—' : `${series.length} series in view`}
-            </span>
+            </MetaChip>
+            <MetaChip>{contents.loading || contents.error ? '—' : `${series.length} series in view`}</MetaChip>
           </div>
         }
       />
@@ -179,10 +178,12 @@ export default function SubjectDetail() {
             <ListErrorCard title={`Could not load ${subject.name}`} onRetry={contents.retry} retrying={contents.loading} />
           ) : (
             <>
-              <p className="text-ink-muted mt-8 text-[0.86rem] font-medium" role="status" aria-live="polite">
-                {contents.total} {contents.total === 1 ? 'item' : 'items'} in {subject.name}
-                {contents.hasMore ? ` · showing ${contents.data.length} of ${contents.total}` : ''}
-              </p>
+              <div className="mt-8">
+                <ResultCount>
+                  {contents.total} {contents.total === 1 ? 'item' : 'items'} in {subject.name}
+                  {contents.hasMore ? ` · showing ${contents.data.length} of ${contents.total}` : ''}
+                </ResultCount>
+              </div>
 
               {showNewestRail && (
                 <Rail
@@ -216,10 +217,13 @@ export default function SubjectDetail() {
               )}
 
               {seriesLectures.length > 0 && (
-                <div className="mt-12">
-                  <h2 className="font-display text-ink text-[1.35rem] font-extrabold tracking-[-0.02em]">Series — {subject.name}</h2>
-                  <p className="text-ink-muted mt-1 text-[0.82rem]">Relevant series first — open a series to see all its episodes.</p>
-                  <div className="mt-4 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="mt-14">
+                  <SectionHeading
+                    label="Series"
+                    title={`Series — ${subject.name}`}
+                    subtitle="Relevant series first — open a series to see all its episodes."
+                  />
+                  <div className="mt-5 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                     {seriesLectures.map((s) => (
                       <SeriesCard key={s.id} s={s} />
                     ))}
@@ -228,9 +232,9 @@ export default function SubjectDetail() {
               )}
 
               {seriesBooks.length > 0 && (
-                <div className="mt-12">
-                  <h2 className="font-display text-ink text-[1.35rem] font-extrabold tracking-[-0.02em]">Collections — {subject.name}</h2>
-                  <div className="mt-4 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="mt-14">
+                  <SectionHeading label="Books" title={`Collections — ${subject.name}`} />
+                  <div className="mt-5 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                     {seriesBooks.map((s) => (
                       <CollectionCard key={s.id} s={s} />
                     ))}
@@ -239,9 +243,9 @@ export default function SubjectDetail() {
               )}
 
               {lectures.length > 0 && (
-                <div className="mt-12">
-                  <h2 className="font-display text-ink text-[1.35rem] font-extrabold tracking-[-0.02em]">Single lectures — {subject.name}</h2>
-                  <div className="mt-4 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="mt-14">
+                  <SectionHeading label="Listen" title={`Single lectures — ${subject.name}`} />
+                  <div className="mt-5 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                     {lectures.map((c) => (
                       <LectureCard key={c.id} c={c} />
                     ))}
@@ -250,9 +254,9 @@ export default function SubjectDetail() {
               )}
 
               {books.length > 0 && (
-                <div className="mt-12">
-                  <h2 className="font-display text-ink text-[1.35rem] font-extrabold tracking-[-0.02em]">Single books — {subject.name}</h2>
-                  <div className="mt-4 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="mt-14">
+                  <SectionHeading label="Read" title={`Single books — ${subject.name}`} />
+                  <div className="mt-5 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                     {books.map((c) => (
                       <BookCard key={c.id} c={c} />
                     ))}
@@ -284,15 +288,24 @@ export default function SubjectDetail() {
             </>
           )}
 
-          <div className="mt-12 flex flex-wrap gap-3">
-            <Link to="/subjects" className="bg-sand text-ink rounded-full px-6 py-3 text-[0.9rem] font-semibold">
+          <div className="border-line/70 mt-16 flex flex-wrap items-center gap-3 border-t pt-10">
+            <Link
+              to={`/lectures?subject=${encodeURIComponent(subject.slug)}`}
+              className="bg-rose text-cream lift-sm inline-flex items-center gap-2 rounded-full px-6 py-3 text-[0.9rem] font-semibold shadow-[10px_14px_30px_rgba(204,58,99,0.24)]"
+            >
+              {subject.name} in the lecture shelf <span aria-hidden="true">→</span>
+            </Link>
+            <Link
+              to={`/books?subject=${encodeURIComponent(subject.slug)}`}
+              className="bg-cream neu-raised-sm text-ink lift-sm inline-flex items-center gap-2 rounded-full px-6 py-3 text-[0.9rem] font-semibold"
+            >
+              {subject.name} in the book shelf <span aria-hidden="true">→</span>
+            </Link>
+            <Link
+              to="/subjects"
+              className="text-ink-soft hover:text-rose inline-flex items-center gap-2 rounded-full px-4 py-3 text-[0.9rem] font-semibold transition-colors"
+            >
               All subjects
-            </Link>
-            <Link to={`/lectures?subject=${encodeURIComponent(subject.slug)}`} className="bg-cream neu-raised-sm text-ink rounded-full px-6 py-3 text-[0.9rem] font-semibold">
-              This subject in the lecture shelf →
-            </Link>
-            <Link to={`/books?subject=${encodeURIComponent(subject.slug)}`} className="bg-cream neu-raised-sm text-ink rounded-full px-6 py-3 text-[0.9rem] font-semibold">
-              in the book shelf →
             </Link>
           </div>
         </div>

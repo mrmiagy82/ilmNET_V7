@@ -39,11 +39,18 @@ export default function NotFound() {
           <div className="bg-cream neu-raised rounded-[24px] p-8 text-center">
             <p className="text-ink-muted break-all font-mono text-[0.8rem]">{pathname}</p>
             <div className="mt-6 flex flex-wrap justify-center gap-3">
-              <Link to="/" className="bg-rose text-cream rounded-full px-6 py-3 text-[0.9rem] font-semibold">
+              <Link
+                to="/"
+                className="bg-rose text-cream lift-sm rounded-full px-6 py-3 text-[0.9rem] font-semibold shadow-[10px_14px_30px_rgba(204,58,99,0.24)]"
+              >
                 Home
               </Link>
               {links.map((l) => (
-                <Link key={l.to} to={l.to} className="bg-sand text-ink hover:text-rose rounded-full px-6 py-3 text-[0.9rem] font-semibold">
+                <Link
+                  key={l.to}
+                  to={l.to}
+                  className="bg-cream neu-raised-sm text-ink lift-sm hover:text-rose rounded-full px-6 py-3 text-[0.9rem] font-semibold"
+                >
                   {l.label}
                 </Link>
               ))}

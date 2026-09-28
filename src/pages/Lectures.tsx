@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import PageHeader from '../components/PageHeader';
+import { SectionHeading } from '../components/Rail';
 import { usePageMeta } from '../lib/usePageMeta';
-import { EmptyState, StatRow } from '../components/ui';
+import { EmptyState, ResultCount, StatRow } from '../components/ui';
 import { groupByCollection } from '@/lib/series';
 // Discovery steps D0/D2: cards, query logic, paging, filter panel and list states all live in one
 // shared place instead of in each page (audit D6 measured the drift this removes).
@@ -166,9 +167,11 @@ export default function Lectures() {
               {/* Fase 5.5: screen readers hear the result of a filter without moving focus.
                   D2: the first number is the API's own total, the second is what is really on screen —
                   the line no longer reports the loaded page as if it were the whole library (audit A5). */}
-              <p className="text-ink-muted mt-8 text-[0.86rem] font-medium" role="status" aria-live="polite">
-                {total} lectures found{hasMore ? ` · showing ${contents.length} of ${total}` : ''} · {series.length} series, {standalone.length} singles in view
-              </p>
+              <div className="mt-8">
+                <ResultCount>
+                  {total} lectures found{hasMore ? ` · showing ${contents.length} of ${total}` : ''} · {series.length} series, {standalone.length} singles in view
+                </ResultCount>
+              </div>
 
               {showNewestRail && (
                 <Rail
@@ -205,8 +208,8 @@ export default function Lectures() {
 
               {standalone.length > 0 && (
                 <>
-                  <h2 className="font-display text-ink mt-12 text-[1.35rem] font-extrabold tracking-[-0.02em]">{series.length ? 'Single lectures' : 'Lectures'}</h2>
-                  <div className="mt-4 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                  <SectionHeading className="mt-14" label="Library" title={series.length ? 'Single lectures' : 'Lectures'} />
+                  <div className="mt-5 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                     {standalone.map((c) => (
                       <LectureCard key={c.id} c={c} />
                     ))}

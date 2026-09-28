@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import PageHeader from '../components/PageHeader';
 import { usePageMeta } from '../lib/usePageMeta';
-import { EmptyState, StatRow } from '../components/ui';
+import { EmptyState, ResultCount, StatRow } from '../components/ui';
 // D4: the subject tile lives in the shared card module now, so the hub and the search results use one card.
 import { SubjectTile, TileSkeleton } from '@/components/cards';
 import LibraryFilters from '@/components/LibraryFilters';
@@ -104,9 +104,11 @@ export default function Subjects() {
           ) : (
             <>
               {/* D8: the result line announces itself. */}
-              <p className="text-ink-muted mt-8 text-[0.86rem] font-medium" role="status" aria-live="polite">
-                {hasActiveFilters ? `${filtered.length} of ${subjects.total} subjects in view` : `${subjects.total} subjects`}
-              </p>
+              <div className="mt-8">
+                <ResultCount>
+                  {hasActiveFilters ? `${filtered.length} of ${subjects.total} subjects in view` : `${subjects.total} subjects`}
+                </ResultCount>
+              </div>
               {filtered.length > 0 ? (
                 <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                   {filtered.map((s) => (

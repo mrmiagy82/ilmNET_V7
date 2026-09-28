@@ -2327,6 +2327,93 @@ promotie naar productie volgens `docs/ENVIRONMENTS.md` en `docs/RELEASES.md`. In
 (echte volgorde/nummering in de import) de voorwaarde voor afleveringsvolgorde en next/previous; D7 is
 optioneel.
 
+## 7x. Visuele polish — één systeem over alle pagina's
+
+**Wat deze fase is:** het toepassen van `docs/DESIGN (3).md` (structuur: ritme, typografische ladder,
+radii, hiërarchie, consistentie) op de bestaande interface, met **behoud** van de IlmNet-merkidentiteit,
+de tokens en de neumorphic cream/olive/rose-taal uit AGENTS.md §2, en met behoud van de volledige
+D1–D6-discoveryarchitectuur. Geen nieuwe functionaliteit, geen nieuwe afhankelijkheid, geen backend-,
+database-, auth- of contentmodelwijziging, geen verzonnen inhoud of statistiek, geen religieuze
+decoratie, en geen Spotify-merk of -stijl. De prestatie- en toegankelijkheidsafspraken blijven staan:
+`prefers-reduced-motion` neutraliseert elke nieuwe beweging, de mobiele layout is op 390 × 844 getest en
+de bestaande toetsenbord- en schermlezercontracten zijn niet aangeraakt.
+
+### Wat er is gebouwd
+
+- **Eén bewegingstaal.** `src/index.css` krijgt `@utility lift` (kaarten: −6 px, 0,45 s) en
+  `@utility lift-sm` (knoppen/links: −2 px, 0,3 s) — de enige geoorloofde hoverbeweging in de hele app.
+  Alle losse `hover:-translate-y-*`-varianten op kaarten en knoppen zijn daarmee vervangen; de bestaande
+  `prefers-reduced-motion`-regel zet ze samen met de rest stil.
+- **Eén paginakop.** `PageHeader.tsx` is herschreven: één verticaal ritme (`pt-28 sm:pt-32 lg:pt-36`),
+  de meta in een eigen kolom met een verticale hairline op grote schermen, een merkdot bij het label,
+  een `animate-rise`-opkomst en een gradient-hairline onderaan. Daarmee verdween ook de
+  `title="Loading…"`-kop van de detailpagina's.
+- **Eén kaart- en chipvocabulaire.** `ui.tsx` exporteert nu `MetaChip` (varianten `plain`/`inset`/`strong`),
+  `ResultCount` (de resultaatregel, met de bestaande `role="status"` + `aria-live="polite"`) en
+  `PanelNote`; `cards.tsx` zet alle kaartschillen op `lift` + `h-full`, verstilt de providerbadges tot een
+  cream pil met merkdot, en laat serie-/collectiekaarten hun eigen scope benoemen ("N in this view",
+  "Open the series to see everything it contains.") zonder een collectiegrootte te claimen. Kopregels
+  kwamen in dezelfde ladder (`SectionHeading` in `Rail.tsx`) op `/lectures`, `/books`, `/scholars`,
+  `/subjects`, `/search`, `/subjects/:slug` en `/scholars/:slug`.
+- **Merkkleur in plaats van restkleur.** De Aurora gebruikte op drie plekken nog een violet/groen
+  verloop (`#5227FF`, `#7cff67`) en twee oppervlakken een oude hovertint (`#b83156`, `#22251a`); alle
+  call sites en de componentdefault staan nu op de eigen stops `['#A2AB73','#CC3A63','#F2E7D3']` en op de
+  tokens `rose-deep`/`night`. `Layout.tsx` laat de bodywassingen zien (de wrapper droeg nog een eigen
+  `bg-cream` die ze afdekte), en `html { scroll-padding-top: 6.5rem }` houdt ankers onder de vaste header.
+- **De collectiepagina is nu tweekoloms.** `SeriesDetail.tsx` toont links de echte items in de
+  bibliotheekorde en rechts een sticky feitenpaneel ("About this collection": soort, aantal, bron,
+  subjecten, wie erin voorkomt) dat uitsluitend put uit `pagination.total` en de geladen records. De
+  eerlijkheidsregel ("… the library's own order … no episode numbering") blijft de eerste
+  `p[role="status"]` van de pagina, zodat het D6-bewijs blijft kloppen.
+- **Overige oppervlakken in hetzelfde systeem:** `Nav` (pillen, `neu-inset-sm` op de actieve link,
+  rustiger scrolled staat), `SiteFooter` (één container, kleine uppercase kolomkoppen, dezelfde links),
+  `Library`/`Subjects`/`Closing`/`Hero`/`LandingRails`/`ContinueRail` (strakker bandritme, gedeelde
+  radii, dezelfde knoptaal), `LibraryFilters`, `ListStates`, `NotFound` en de adminknoppen
+  (`hover:bg-rose-deep` in plaats van een onveranderlijke primaire knop).
+
+### Een echte vondst onderweg
+
+De productiebundel bleef twee oude, off-brand utilities meesturen (`bg-[#b83156]`, `text-[#22251a]`,
+plus `#EDEEF2` en de oude violettint) terwijl `grep` over `src/` niets vond. Oorzaak: Tailwinds
+automatische bronherkenning leest **elk niet-genegeerd bestand in het project**, inclusief de proza in
+`docs/` — waar eerdere audits precies die klassen als citaat noemen. Tailwind kan een klacht niet van
+een call site onderscheiden en nam ze op in de stylesheet. `src/index.css` sluit de documentatie nu uit
+(`@source not "../docs";`); daarna bevat `dist/index.html` geen van die vier kleuren meer en is de
+bundel ~1 kB kleiner. Dit is geen mode- of tokenwijziging: de tokens zelf blijven zoals ze zijn.
+
+### Bewijs (28 september 2026, development + stagingvorm op wegwerp-databases)
+
+`npx tsc --noEmit` schoon (root én `server/`) · `npm run build` ok, `dist/index.html` 695 120 B
+(sha256 `7d8ac2792bfcbf112c3124d1e10f0821263df98a5110baa622117fa9a589a728`), `.gz` 174 643 B · eigen
+browsercontrole **`polish-verify.mjs` 114/114** tegen de stagingvorm van deze build op `127.0.0.1:3121`
+(wegwerp-database `ilmnet_polish_scratch`, 83 contents): 12 routes op 1440 px én 390 × 844 zonder
+horizontale overloop, paginatitels binnen de kolom, het mobiele menu open/dicht met `aria-expanded`,
+alle 106 interne links op elke pagina resolven, de D1–D6-eerlijkheidscontracten (ware aantallen,
+"in this view", geen `collectionIdentifier`, geen "Episode x of y", geen positiebadjes, het
+feitenpaneel), de visuele afspraken (vectorlogo in de header, geen kapotte eigen afbeeldingen, geen
+off-brand kleur in de DOM, alle `h2`'s in het display-font, kaarten in één rij even hoog), en de
+toegankelijkheid (skip-link met zichtbare eerste Tab en focus naar `#main-content`, elke knop met een
+naam, 24 chips met `aria-pressed`, zichtbare focusring, reduced-motion zet de animaties op 0,00001 s
+terwijl de pagina volledig blijft) · regressie op de D6-contracten: **`d6-verify.mjs` 50/50** en
+**`d5-verify.mjs` 81/81** opnieuw tegen deze build (met herbouwde `d6-fixture-*`- en `d5-fixture-*`-data
+in de review-database) · `test:e2e:production` **133/2**, `test:e2e:brand` **222/222**,
+`test:e2e:cms` **39/0**, `test:e2e:auth` **60/0**, `test:e2e:media` **21/6** — alle acht rode checks zijn
+afspeelcontroles die internet vereisen (§8.11/§8.25), geen van de visuele controles · `server:
+npm run test:all` tegen de wegwerp-database `ilmnet_polish_unit` (audit suite groen, uploads 30/0,
+production 163/0, env-hardening 13/0, environment 38/0, ops 21/0, auth 69/0, YouTube-duur/embed voor
+drie playlistitems) · screenshots vóór/na in `/home/user/polish-shots/{before,after}` (buiten de repo).
+
+**Bewust niet gedaan:** geen nieuw component naast een bestaand component, geen tweede lettertype- of
+radiusstelsel, geen enkele wijziging in `/api`, `server/`, het schema, de auth of de content, geen
+nieuwe afhankelijkheid, geen dark mode, geen animatie die iets belooft (geen skeleton dat inhoud
+simuleert), geen populariteits- of voortgangsindicatie, en geen aanpassing van de bestaande
+laad-/fout-/lege teksten.
+
+**Open observatie (geen onderdeel van deze fase):** de report-only CSP van de productievorm heeft
+`frame-src https://*.archive.org`, wat het apex-domein `https://archive.org` (de embed-origin van
+Archive.org) niet dekt. De browser logt daardoor één report-only melding; er wordt niets geblokkeerd.
+Het is een bestaande serverconfiguratie en valt buiten deze frontendfase (geen backendwijzigingen).
+
 ## 8. Known remaining issues (not blockers)
 
 From `docs/FASE3_9_CODEBASE_REVIEW.md` § Restrisico's plus the 3.9.1 report:
@@ -2515,10 +2602,10 @@ From `docs/FASE3_9_CODEBASE_REVIEW.md` § Restrisico's plus the 3.9.1 report:
 
 ## 9. Next step
 
-**Immediate next step: de visuele polishfase** — het toepassen van `docs/DESIGN (3).md` op de bestaande
-pagina’s, zonder functionaliteit te veranderen. D6 heeft dat bewust niet gedaan: het serie- en
-collectiewerk is functioneel en feitelijk afgerond met de bestaande tokens (§7w), dus de polish kan nu
-op een stilstaande basis werken. Inhoudelijk blijft **B5** (volgorde/nummering in schema + importeur +
+**Immediate next step: de visuele polish afronden en leveren.** De fase is geïmplementeerd en in
+development bewezen (§7x): typechecks, build, `polish-verify.mjs` 114/114, D5- en D6-regressie opnieuw
+groen, alle bestaande suites op hun bekende niveau. Wat rest is de levering — commit `Visual UI Polish`,
+push naar `origin/master` met een verse PAT, en daarna de worktree schoon houden. Inhoudelijk blijft **B5** (volgorde/nummering in schema + importeur +
 backfill, inclusief het eigenaarsbesluit dat daarbij hoort) de voorwaarde voor afleveringsvolgorde,
 next/previous en “start from the beginning”; D7 (schaal en curatie) blijft optioneel. Alle
 `limit=100`-plekken uit `docs/LIBRARY_UX_AUDIT.md` §5 zijn nu gedicht (D2, D5, D6 — §8 punt 2). De

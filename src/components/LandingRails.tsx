@@ -31,7 +31,7 @@ const SKELETONS = 4;
 
 /** Page rhythm for a rail band: the house gutter, the house width (inside `Rail`), and less air than a
  *  full marketing section so several rails read as one browse surface. */
-const RAIL_BAND = 'relative px-5 py-14 sm:px-6 lg:py-16';
+const RAIL_BAND = 'relative px-5 py-12 sm:px-6 lg:py-14';
 
 /** "N items" for a rail subtitle — the API's own total, or nothing while it is unknown. */
 function itemCount(total: number): string {

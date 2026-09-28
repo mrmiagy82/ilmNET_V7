@@ -11,7 +11,10 @@ export default function Layout() {
   }, [pathname]);
 
   return (
-    <div className="bg-cream text-ink min-h-screen overflow-x-hidden font-sans">
+    /* The surface colour lives on `body` (with the soft brand washes behind it, `index.css`), so this
+       wrapper deliberately carries no background of its own — a cream fill here would paint the depth
+       away again. */
+    <div className="text-ink min-h-screen overflow-x-hidden font-sans">
       {/* Fase 5.5: keyboard users can jump past the navigation. Hidden until it has focus, so the
           design is unchanged for everyone else. */}
       <a

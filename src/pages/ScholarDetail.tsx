@@ -20,7 +20,7 @@ import PageHeader from '../components/PageHeader';
 import { usePageMeta } from '../lib/usePageMeta';
 import { EmptyState, StatRow } from '../components/ui';
 import { LectureCard, BookCard, SeriesCard, CollectionCard, TileSkeleton } from '@/components/cards';
-import { Rail, RAIL_SLOT } from '@/components/Rail';
+import { Rail, RAIL_SLOT, SectionHeading } from '@/components/Rail';
 import { CardGridSkeleton, ListErrorCard, LoadMore } from '@/components/ListStates';
 import { usePagedContentQuery, LIBRARY_PAGE_SIZE } from '@/lib/usePagedContentQuery';
 import { groupByCollection } from '@/lib/series';
@@ -173,8 +173,8 @@ export default function ScholarDetail() {
 
             {standalone.length > 0 && (
               <>
-                <h2 className="font-display text-ink mt-12 text-[1.35rem] font-extrabold tracking-[-0.02em]">{series.length ? 'Single items' : 'Work'}</h2>
-                <div className="mt-4 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                <SectionHeading className="mt-14" label="Library" title={series.length ? 'Single items' : 'Work'} />
+                <div className="mt-5 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                   {standalone.map((c) => (c.type === 'book' || c.type === 'document' ? <BookCard key={c.id} c={c} /> : <LectureCard key={c.id} c={c} />))}
                 </div>
               </>
@@ -202,16 +202,25 @@ export default function ScholarDetail() {
           </>
         )}
 
-        <div className="mt-12 flex flex-wrap gap-3">
-          <Link to="/scholars" className="bg-sand text-ink rounded-full px-6 py-3 text-[0.9rem] font-semibold">
-            All scholars
-          </Link>
+        <div className="border-line/70 mt-16 flex flex-wrap items-center gap-3 border-t pt-10">
           {/* The shelf with this filter already existed (D2) — a real destination, not a new page. */}
-          <Link to={`/lectures?scholar=${encodeURIComponent(scholar.slug)}`} className="bg-cream neu-raised-sm text-ink rounded-full px-6 py-3 text-[0.9rem] font-semibold">
-            This scholar in the lecture shelf →
+          <Link
+            to={`/lectures?scholar=${encodeURIComponent(scholar.slug)}`}
+            className="bg-rose text-cream lift-sm inline-flex items-center gap-2 rounded-full px-6 py-3 text-[0.9rem] font-semibold shadow-[10px_14px_30px_rgba(204,58,99,0.24)]"
+          >
+            {scholar.name} in the lecture shelf <span aria-hidden="true">→</span>
           </Link>
-          <Link to={`/books?scholar=${encodeURIComponent(scholar.slug)}`} className="bg-cream neu-raised-sm text-ink rounded-full px-6 py-3 text-[0.9rem] font-semibold">
-            in the book shelf →
+          <Link
+            to={`/books?scholar=${encodeURIComponent(scholar.slug)}`}
+            className="bg-cream neu-raised-sm text-ink lift-sm inline-flex items-center gap-2 rounded-full px-6 py-3 text-[0.9rem] font-semibold"
+          >
+            {scholar.name} in the book shelf <span aria-hidden="true">→</span>
+          </Link>
+          <Link
+            to="/scholars"
+            className="text-ink-soft hover:text-rose inline-flex items-center gap-2 rounded-full px-4 py-3 text-[0.9rem] font-semibold transition-colors"
+          >
+            All scholars
           </Link>
         </div>
       </div>

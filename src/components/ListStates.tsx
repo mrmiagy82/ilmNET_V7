@@ -48,7 +48,7 @@ export function ListErrorCard({
         type="button"
         onClick={onRetry}
         disabled={retrying}
-        className="bg-rose text-cream mt-6 rounded-full px-6 py-3 text-[0.9rem] font-semibold disabled:opacity-60"
+        className="bg-rose text-cream lift-sm mt-6 rounded-full px-6 py-3 text-[0.9rem] font-semibold shadow-[10px_14px_30px_rgba(204,58,99,0.24)] hover:bg-rose-deep disabled:opacity-60"
       >
         {retrying ? 'Trying again\u2026' : 'Try again'}
       </button>
@@ -80,7 +80,7 @@ export function LoadMore({
   const remaining = Math.max(total - shown, 0);
   const plural = remaining === 1 ? noun : `${noun}s`;
   return (
-    <div className="mt-10 flex flex-col items-center gap-3">
+    <div className="mt-12 flex flex-col items-center gap-3">
       <p className="text-ink-muted text-[0.84rem] font-medium">
         Showing {shown} of {total}
       </p>
@@ -89,7 +89,7 @@ export function LoadMore({
         onClick={onClick}
         disabled={loading}
         aria-label={`Load more ${plural}`}
-        className="bg-cream text-ink neu-raised-sm hover:-translate-y-0.5 rounded-full px-7 py-3.5 text-[0.92rem] font-semibold transition-transform disabled:opacity-60"
+        className="bg-cream text-ink neu-raised-sm lift-sm rounded-full px-7 py-3.5 text-[0.92rem] font-semibold disabled:opacity-60"
       >
         {loading ? 'Loading\u2026' : `Load ${Math.min(remaining, 24)} more`}
       </button>
