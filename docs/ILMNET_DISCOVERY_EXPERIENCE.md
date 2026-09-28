@@ -342,7 +342,8 @@ host-side scaling step.
 ## 8. Implementation order for the actual build
 
 Each step is independently shippable and independently verifiable. No step needs a new dependency, a
-schema change or a redesign; steps D0–D5 are frontend-only.
+schema change or a redesign; steps D0–D6 are frontend-only. D0–D6 are implemented (D6 on 28 September
+2026); D7 is the optional scale/curation step.
 
 **D0 — Foundations (no visible change).**
 Extract the duplicated card components into shared, typed components; add `Rail`, `SectionHeading`
@@ -400,6 +401,27 @@ Series page ordering/numbering per the Q5 answer, "start from the beginning", po
 optionally B5 for real numbering and B1 for the series index.
 *Verify:* the badge order matches the order actually rendered; the completeness claim (audit C2) is
 removed or true.
+*Status (implemented in D6, 28 September 2026):* **Q5 is answered by the implementation, not by fiat.**
+There is still no position column anywhere in the data, so this step did the honest half and left the
+rest to B5:
+
+- the group no longer re-sorts its items A–Z; it renders **the API's own order** (most recently updated
+  first by default) and the positional “01, 02, 03” badges are gone — the badge now carries the *kind*
+  (Video/Audio/Book), so nothing suggests a sequence that does not exist;
+- the series page is paged (`LIBRARY_PAGE_SIZE` + the existing “Load more”) and every number comes from
+  `pagination.total`; the completeness sentence only appears when the loaded set really is the whole
+  collection, and the page says in words that the source carries no episode numbering;
+- the raw `collectionIdentifier` is gone from both the series page and the detail page (audit C2) — in
+  its place a readable “Open this collection →” link; `SeriesCard` says “N in this view” instead of
+  “N episodes”;
+- the last capped read (`src/admin/store.tsx`) now walks the existing pagination to `pagination.total`,
+  verified on a 171-record database;
+- **not built, on purpose:** “start from the beginning”, next/previous and numbering. All three need a
+  real order in the data (B5: schema + importer + backfill) and an owner decision; D6 stopped in front of
+  that line instead of inventing an order. B1 (series index) is untouched.
+
+*How to verify now:* `node tests/e2e/series.spec.mjs` (grouping and order, 42 checks) and the phase's
+browser harness; details in `docs/CONTEXT.md` §7w.
 
 **D7 — Scale and curation (optional, decided after D1–D6).**
 B2 (exact counters), B3 (editorial featured rail), then B6 when the library grows. B4 only if a real

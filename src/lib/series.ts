@@ -1,9 +1,23 @@
+/**
+ * Series / collection grouping (Fase 3.5, corrected in D6).
+ *
+ * A "series" in ilmNet is a **collectionIdentifier on content records** — nothing more. The database has
+ * no episode number, no position and no import order, so this module does not invent one: it groups and
+ * it keeps the order the API returned.
+ *
+ * D6 correction (audit A3): the items inside a group used to be re-sorted alphabetically
+ * (`items.sort(title)`). That produced the wrong impression of a sequence — the series page then drew
+ * positional "01, 02, 03" badges over an A–Z list, so a course looked ordered when it was not. The
+ * grouping now preserves the API's own order (most recently updated first by default) and claims
+ * nothing about position; real ordering needs the import to store a position (plan item B5, D7/D6+).
+ */
 import type { BackendContent } from '@/lib/api';
 
 export type SeriesGroup = {
   id: string; // collectionIdentifier
   title: string; // collectionTitle or first item's series or id
   provider: string;
+  /** How many items of this collection are in **the set that was grouped** — see `SeriesCard`. */
   count: number;
   items: BackendContent[];
   thumbnailUrl: string | null;
@@ -36,9 +50,7 @@ export function groupByCollection(contents: BackendContent[]): {
 
   for (const [cid, items] of map.entries()) {
     if (items.length >= 2) {
-      // It's a series/collection — keep as grouped
-      // Sort items by title or createdAt for consistent order
-      items.sort((a, b) => a.title.localeCompare(b.title));
+      // No re-sort: the API's order is the only order that actually exists for these records (D6/A3).
       const first = items[0]!;
       const title = first.collectionTitle?.trim() || first.series?.trim() || cid.replace(/[-_]/g, ' ').replace(/--/g, ' — ');
       // Determine type label
@@ -80,7 +92,8 @@ export function groupByCollection(contents: BackendContent[]): {
     }
   }
 
-  // Sort series by title
+  // A list of *collections* sorted by name is a stated property of the view, not a claim about the
+  // order of anything inside them, so this sort stays (it is what the rails have always shown).
   series.sort((a, b) => a.title.localeCompare(b.title));
   // Sort standalone by updatedAt desc (newest first) — keep original order if possible
   stillStandalone.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());

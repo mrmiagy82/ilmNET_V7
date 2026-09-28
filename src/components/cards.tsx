@@ -106,7 +106,15 @@ export function LectureCard({ c }: { c: BackendContent }) {
   );
 }
 
-/** A series / playlist group as shown on the lectures shelf. */
+/**
+ * A series / playlist group as shown on the lectures shelf.
+ *
+ * D6 (audit A4/A5): a card groups whatever the *current view* has loaded, so `s.count` is "items of this
+ * collection in this view" — never the size of the collection. The card used to say "3 episodes" and
+ * "3 parts" for a collection that might hold thirty (the API has no per-collection count; only the
+ * collection page itself, which pages the real total). The label now names its scope, the type badge
+ * carries no number, and the "episodes" wording is gone because a collection can also hold books.
+ */
 export function SeriesCard({ s }: { s: SeriesGroup }) {
   const thumb = s.items[0] ? resolveThumbnail(s.items[0]).src : s.thumbnailUrl;
   const subtitle = s.scholars[0]?.name ?? s.items[0]?.scholars[0]?.scholar.name ?? '';
@@ -123,13 +131,14 @@ export function SeriesCard({ s }: { s: SeriesGroup }) {
       >
         <div className="bg-cream/90 neu-raised-sm absolute left-3 top-3 flex items-center gap-2 rounded-full px-3 py-1.5">
           <span className={`h-2 w-2 rounded-full ${isPlaylist ? 'bg-rose' : 'bg-olive'}`} />
-          <span className="text-ink text-[0.7rem] font-bold tracking-[0.08em] uppercase">{isPlaylist ? 'Playlist' : s.type === 'collection' ? 'Collection' : 'Series'} · {s.count}</span>
+          {/* Type only: the number of items *loaded in this view* is not the size of the collection. */}
+          <span className="text-ink text-[0.7rem] font-bold tracking-[0.08em] uppercase">{isPlaylist ? 'Playlist' : s.type === 'collection' ? 'Collection' : 'Series'}</span>
         </div>
         <span className="bg-cream/90 text-ink neu-raised-sm absolute right-3 top-3 rounded-full px-3 py-1.5 text-[0.7rem] font-semibold">
           {s.provider === 'youtube' ? 'YouTube' : s.provider === 'archive' ? 'Archive' : s.provider}
         </span>
         <div className="bg-cream neu-raised-sm text-ink absolute bottom-3 left-3 right-3 flex items-center justify-between rounded-[14px] px-4 py-3">
-          <span className="text-[0.78rem] font-semibold">{s.count} episodes</span>
+          <span className="text-[0.78rem] font-semibold">{s.count} in this view</span>
           <span className="text-rose text-[0.78rem] font-bold">Open series →</span>
         </div>
       </MediaThumb>
@@ -143,10 +152,10 @@ export function SeriesCard({ s }: { s: SeriesGroup }) {
         </h3>
         {subtitle && <span className="text-rose mt-2 text-[0.9rem] font-semibold line-clamp-1">{subtitle}</span>}
         <p className="text-ink-muted mt-3 text-[0.84rem] line-clamp-2">
-          {s.description ?? `${s.count} items — open to see all episodes.`}
+          {s.description ?? 'Open the collection to see everything it contains.'}
         </p>
         <div className="border-line/70 mt-5 flex items-center justify-between border-t pt-4 text-[0.8rem]">
-          <span className="text-ink-soft font-medium">{s.scholars.length ? `${s.scholars.length} scholars` : `${s.count} parts`}</span>
+          <span className="text-ink-soft font-medium">{s.scholars.length ? `${s.scholars.length} ${s.scholars.length === 1 ? 'scholar' : 'scholars'}` : ''}</span>
           <span className="text-ink-muted">{s.provider === 'youtube' ? 'YouTube' : 'Archive'}</span>
         </div>
       </div>

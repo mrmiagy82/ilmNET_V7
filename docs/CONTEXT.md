@@ -2196,18 +2196,152 @@ visuele polishfase. D5 heeft daar bewust ruimte voor gelaten: het serieblok toon
 werkelijk zegt, dus D6 kan volgorde, afleveringsnummering en next/previous toevoegen op het moment dat
 de gegevens dat dragen — zonder D5 te herbouwen.
 
+## 7w. D6 — serie- en collectievoltooiing
+
+D6 sluit de serie- en collectiepunten uit `docs/LIBRARY_UX_AUDIT.md` en `docs/ILMNET_DISCOVERY_EXPERIENCE.md`
+§8 af, op dezelfde infrastructuur als D0–D5: bestaande endpoints, bestaande kaarten en rails, bestaande
+designtokens. **Frontend-only**: geen backend-, schema-, auth- of productieconfiguratiewijziging, geen
+nieuwe dependency, geen nieuw endpoint. De grote visuele herindeling blijft de aparte polishfase; D6
+raakt geen kleur, radius of typografie. De environmentregel (§7p) is ongewijzigd: development-werk op
+wegwerp-databases, nog geen staginghost.
+
+### Wat er gebouwd is
+
+**`src/lib/series.ts` — de groepering zelf.** `groupByCollection` sorteerde de items *binnen* een groep
+op titel (`items.sort(title)`), terwijl de seriepagina daar posities “01, 02, 03” overheen tekende: een
+ongeordende collectie zag er zo als een genummerde cursus uit (audit A3). Die sortering is weg — de
+groep houdt nu **de orde die de API teruggaf** (standaard `updatedAt desc`, dus meest recent bijgewerkt
+eerst) en doet geen enkele uitspraak over positie. Alleen de *lijst met series* blijft op titel gesorteerd;
+dat is een eigenschap van die lijstweergave, geen claim over de inhoud. Verder: titelterugval
+`collectionTitle` → `series` → leesbare identifier, singles blijven standalone (geen serie van één), en
+de lege/één-teken-identifiers groeperen niet. De module blijft ook `getDownloadUrl`/`getAudioStreamUrl`
+exporteren (ongewijzigd gedrag, nu wel getest).
+
+**`src/pages/SeriesDetail.tsx` — herschreven op de bestaande paginering.** De pagina las `limit: 100`
+en zette daar “All N items shown” boven: een volledigheidsclaim over een afgekapte lijst (audit A5/C2).
+Nu draait hij op `usePagedContentQuery({ collection })` met `LIBRARY_PAGE_SIZE` (24) en de bestaande
+“Load more”-knop uit D2, en **elk getal komt uit `pagination.total`**:
+
+- statusregel met beide echte getallen plus de eerlijke orde-uitleg: “Showing N of M episodes — listed in
+  the library's own order (most recently updated first). The source of this collection carries no
+  episode numbering.”; de volledigheidszin verschijnt alleen als N = M;
+- het positienummer in de badge is vervangen door het **soort** (Video/Audio/Book), zodat niets een
+  volgorde suggereert;
+- het blok met de **ruwe `collectionIdentifier`** is weg (audit C2): er staat een echte link
+  (“Open this collection →”) naar de collectiepagina;
+- drie losse toestanden in plaats van één: eerste pagina faalt (“Could not load this series” + retry),
+  collectie leeg (eerlijke lege toestand), en “Load more” faalt (de rest blijft staan);
+- onbekende collectie → “Series not found” + `noindex`.
+
+**`src/components/cards.tsx` — `SeriesCard`.** De kaart zei “N episodes” over een aantal dat alleen het
+aantal *in de geladen set* is; nu staat er “N in this view”, het nummer is uit de typebadge, en scholars
+krijgen enkelvoud/meervoud.
+
+**`src/pages/ContentDetail.tsx` — collectieblok zonder databasesleutel.** De detailpagina printte de
+ruwe identifier; die is vervangen door dezelfde leesbare link naar `/series/<id>`, en “View series:” valt
+terug op “this collection” als de collectietitel ontbreekt.
+
+**`src/admin/store.tsx` — de laatste `limit: 100`.** De beheerlijsten zoeken en filteren in de browser en
+hebben dus álle records nodig; één request met `limit: 100` verborg stil record 101 en verder (de lijst
+toonde 100 van 162 zonder dat te zeggen). `listAllAdminContents()` loopt nu de bestaande paginering af:
+pagina’s van 100 tot `pagination.total` bereikt is, met `ADMIN_MAX_PAGES = 50` als **noodrem** (geen
+paginagrootte) — en als die ooit raakt, meldt de store eerlijk dat de lijst onvolledig is in plaats van
+volledigheid te suggereren. De Overview/Lectures-tellers gebruikten al `pagination.total`.
+
+### Auditpunten die deze fase dicht
+
+C2 (ruwe identifier op serie- én detailpagina), A3 (A–Z-orde onder positiebadges), A5-rand op de
+seriepagina (`limit:100` + onterechte volledigheid), de laatste `limit:100`-plek in de codebase
+(`src/admin/store.tsx`), en de scope-eerlijkheid van aantallen op seriekaart en collectierail.
+
+### Wat bewust niet is gedaan
+
+- **Geen afleveringsnummering, geen next/previous, geen “start from the beginning”, geen leesvoortgang.**
+  Er is nog steeds nergens een volgordekolom in de data; dat vraagt planitem B5 (schema + importeur +
+  backfill) en dus een expliciete eigenaarsbeslissing. De seriepagina zegt nu in woorden dat de bron geen
+  nummering heeft, in plaats van er een te tekenen.
+- Geen serie-index (B1), geen “featured” (B3), geen populariteit/trending (B4) — ongewijzigd standpunt
+  zonder echte statistiek.
+- Geen backend-, schema-, auth- of dependencywijziging; geen nieuwe componenten of tokens; geen grote
+  visuele herindeling (die fase komt hierna).
+
+### Bewijs (28 september 2026, development + stagingvorm op wegwerp-databases)
+
+- **Nieuwe unit-suite `tests/e2e/series.spec.mjs` 42/42.** Laadt de echte `src/lib/series.ts` met de
+  TypeScript-compiler (geen browser, geen server, geen database) en pint de contracten: groeperen vanaf
+  twee items, singles standalone, lege/één-teken-identifiers negeren, **de API-orde blijft staan** (met
+  de “Les 3, Les 1, Les 2”-fixture die de auditfout zou reproduceren), alleen de serieslijst op titel,
+  titelterugval, unie van subjecten/scholars zonder duplicaten, soort (playlist/collection/series), en de
+  downloadregels (YouTube en Google Books leveren géén download; pdf/external alleen een echt bestand;
+  archive alleen bij een bekende bestandsnaam). Draait met `node tests/e2e/series.spec.mjs`.
+  *Valstrik die de suite zelf blootlegde:* `ts.transpileModule` moet met `target: ES2022` — de
+  ES5-standaard herschrijft `for…of` over een `Map` naar een `.length`-walk die nooit loopt, waardoor de
+  module in de test ineens niets groepeert. Dat is een harnasval, geen productfout (de build target een
+  moderne browser), en staat als opmerking in de suite.
+- **D5 blijft groen:** `tests/e2e/local-activity.spec.mjs` **53/53**.
+- **Eigen browserharnas 50/50** (Playwright, stagingvorm van deze build op `127.0.0.1:3121` tegen
+  `ilmnet_d6_scratch` met fixtures): een collectie van 30 toont pagina 1 = 24, “Load 6 more” → 30,
+  waarna de knop verdwijnt en de volledigheidsregel verschijnt; geen positiebadges, geen “Episode x of
+  y”, geen ruwe identifier; boekenserie met 2 gepubliceerd + 1 concept → “2 books” en het concept
+  onzichtbaar; één-item-collectie → “1 episode”; kaart “3 in this view”; rail “Grouped from the N items
+  loaded in this view”; onbekende collectie → “Series not found” + `noindex`; API-fout → “Could not load
+  this series” + retry zonder foutdetails; de detailpagina linkt naar de collectie in plaats van de
+  sleutel te printen; 12 routes renderen; 390 px zonder horizontale overloop. Log: `/home/user/d6-verify-final.log`.
+- **Orde- en pagineringsbewijs:** de DOM-orde volgt de API-orde en niet A–Z (de fixturetitels werden
+  30→01 omgedraaid terwijl de eerste rij “D6 fixture lecture 30” bleef), en paging met 30 records met
+  identieke tijdstempels is stabiel (24 + 6, geen dubbelen, twee runs identiek).
+- **Pagineringsbewijs beheerderskant, 10/10:** aparte wegwerp-database `ilmnet_d6_pages` met **171
+  contents (162 lezingen, 9 boeken)** en een echte beheerderssessie: Overview toont 165 gepubliceerd /
+  6 concept uit `pagination.total`, de lezingenlijst laadt **162 van 162** (vóór deze fix 100), het
+  laatste record (rang 171) én het 120e record zijn vindbaar, en het netwerk toont twee
+  `limit=100`-lijstverzoeken waarvan één `page=2`.
+- **D5-regressie 81/81:** het D5-harnas draait tegen deze build op `127.0.0.1:3131` met `ilmnet_d5_regress`
+  (seed + D5-fixtures) — de apparaat-lokale module, de Continue-rail en het echte audioherstel werken
+  onveranderd.
+- `npx tsc --noEmit` schoon (root én `server/`); `npm run build` ok → `dist/index.html` **690 613 B**
+  (sha256 `903b6fae91d19d9f…`), `.gz` **173 652 B**.
+- `server: npm run test:all` **409 checks / 0 fail**, tegen de wegwerp-database `ilmnet_d6_e2e`.
+- Browsersuites tegen de stagingvorm op `127.0.0.1:3151` (`ilmnet_d6_suites`): `test:e2e:production`
+  **133/2**, `test:e2e:brand` **222/222**, `test:e2e:cms` **39/0**, `test:e2e:auth` **60/0**,
+  `test:e2e:media` **21/6**. Alle acht rode checks zijn afspeelcontroles die internet nodig hebben
+  (YouTube `player state -1` met 0 `videoplayback`-requests; de archive.org-stream laadt niet,
+  `readyState 0`) — zie §8 punten 11 en 25/29; geen enkele rode check raakt serie-, collectie- of
+  pagineringsgedrag.
+
+### Database- en testveiligheid tijdens deze fase
+
+- Alles wat muteert draaide tegen wegwerp-databases: `ilmnet_d6_scratch` (94 contents / 86 gepubliceerd;
+  browserharnas + preview), `ilmnet_d6_e2e` (server-suites), `ilmnet_d6_pages` (pagineringcheck
+  beheerder), `ilmnet_d6_suites` (browsersuites) en `ilmnet_d5_regress` (D5-regressie). De
+  development-database bleef ongemoeid: na alle runs weer **15 contents / 10 gepubliceerd**, inclusief de
+  gepinde seed-lezing met `externalIdentifier=dQw4w9WgXcQ`.
+- `server/.env` stond tijdens de productievormige boots opzij (`/tmp/d6-server-env.park`) en is daarna
+  teruggezet; een `.env` in de map laat een productievormige boot terecht weigeren (environmentregel).
+- `server/uploads/` bevat na alle suites alleen `.gitkeep`: het testresidu van de uploadsuites is
+  opgeruimd (`docs/CONTEXT.md` §5 blijft de regel).
+
+### Volgende stap
+
+De **visuele polishfase** (met `docs/DESIGN (3).md` als referentie), daarna de staginghost en de eerste
+promotie naar productie volgens `docs/ENVIRONMENTS.md` en `docs/RELEASES.md`. Inhoudelijk blijft B5
+(echte volgorde/nummering in de import) de voorwaarde voor afleveringsvolgorde en next/previous; D7 is
+optioneel.
+
 ## 8. Known remaining issues (not blockers)
 
 From `docs/FASE3_9_CODEBASE_REVIEW.md` § Restrisico's plus the 3.9.1 report:
 
 1. **Single-file bundle** — the CMS ships inside the same `index.html` as the public site; code
    splitting is impossible while `vite-plugin-singlefile` is active.
-2. **100-item lists** — public lists and the admin store fetch up to 100 items per request; growth
-   needs server-side pagination / infinite scroll (`pagination.total` already exists, and the admin
-   now reports the real total next to the loaded page). Fase 5.4 measured the per-item cost and cut it
-   by 35 % (§7j) but deliberately left the cap itself alone. D2 closed the two library shelves and
-   D3 (§7t) closed `Scholars`, `Subjects`, `SubjectDetail` and the landing's `components/Subjects.tsx`;
-   what remains is `SeriesDetail` (D6), `ContentDetail` (D5) and the admin store.
+2. **100-item lists** — the silent `limit: 100` is gone from every shipping path: D2 paged the two
+   library shelves and closed `Scholars`, `Subjects`, `SubjectDetail` and the landing’s
+   `components/Subjects.tsx`, D3/D4 closed the rest, D5 replaced the capped series block on
+   `ContentDetail` with one `collection=` query and a real `pagination.total`, D6 paged `SeriesDetail`
+   (`LIBRARY_PAGE_SIZE` 24 + “Load more”, §7w) and made the admin store walk its pages until
+   `pagination.total` is reached (verified on 171 records: 162 of 162 lectures). What is left is a
+   *growth* item, not a cap: counting against a very large library still loads pages into the browser,
+   so real server-side scrolling/curation is the follow-up when the library grows (Fase 5.4 measured
+   the per-item cost and cut it by 35 %, §7j).
 3. **Search** is `ILIKE %q%` across several columns; thousands of records need a trigram/full-text
    index.
 4. **No rate limiting** on the public API (a reverse-proxy concern).
@@ -2365,15 +2499,30 @@ From `docs/FASE3_9_CODEBASE_REVIEW.md` § Restrisico's plus the 3.9.1 report:
     dev-database daarna gerepareerd moet worden. De rij is in D5 teruggezet uit een identiek geseede
     wegwerpkloon (incl. `content_scholars`/`content_subjects`), waarna de dev-database weer 15/10 was.
     De suite zelf is niet aangepast (buiten de D5-scope).
+
+29. **`tests/e2e/production.spec.mjs` stopt met een `TypeError … 'slug'` op een database die zijn
+    datavoorwaarden niet haalt.** De suite kiest aan het begin `video = contents.find(c => c.type ===
+    'video' && c.provider === 'youtube')` en `audio = … collectionIdentifier === 'RenewingOurIntentions'`;
+    de seed bevat geen van beide (de seed-lezing is type `lecture`, niet `video`). De `if (video)`-takken
+    melden dat netjes als twee gemiste checks, maar de brandinglus verderop gebruikt `video.slug`
+    onvoorwaardelijk — dus de suite eindigde in D5 (en opnieuw in D6) met een `TypeError` in plaats van
+    een uitslag. In D6 is dat opgelost op de plek waar het hoort: de wegwerp-database kreeg twee
+    realistische mediafixtures (een gepubliceerde YouTube-`video` met een echt video-id en een
+    gepubliceerde archive-`audio` met een `item--file`-identifier in `RenewingOurIntentions`), waarna de
+    suite doorloopt en **133/2** haalt — de twee rode checks zijn de live-afspeelcontroles van §8.11.
+    Zelfde patroon als punt 25: **een suite hoort te falen op zijn eigen data-eis, niet halverwege af te
+    breken**, en de fixtures horen in de testdatabase, niet in de seed.
+
 ## 9. Next step
 
-**Immediate next step: Fase D6 (seriegedrag en collecties)** — echte seriecontinuïteit op de bestaande
-collectievelden: de ruwe `collectionIdentifier` op de seriepagina (audit C2), de resterende
-`limit=100`-plekken (`SeriesDetail.tsx:72`, `src/admin/store.tsx:147`) en, als de data het draagt, een
-echte volgorde of afleveringsnummering. D5 heeft dat bewust niet verzonnen (§7v). Daarna D7 optioneel,
-en pas daarna de afzonderlijke visuele polishfase (waarvoor `docs/DESIGN (3).md` als referentie in de
-repository staat). De Git-levering van de branding- en discoveryfasen loopt mee: D0–D5 staan op
-`origin/master` (zie `docs/RELEASES.md`).
+**Immediate next step: de visuele polishfase** — het toepassen van `docs/DESIGN (3).md` op de bestaande
+pagina’s, zonder functionaliteit te veranderen. D6 heeft dat bewust niet gedaan: het serie- en
+collectiewerk is functioneel en feitelijk afgerond met de bestaande tokens (§7w), dus de polish kan nu
+op een stilstaande basis werken. Inhoudelijk blijft **B5** (volgorde/nummering in schema + importeur +
+backfill, inclusief het eigenaarsbesluit dat daarbij hoort) de voorwaarde voor afleveringsvolgorde,
+next/previous en “start from the beginning”; D7 (schaal en curatie) blijft optioneel. Alle
+`limit=100`-plekken uit `docs/LIBRARY_UX_AUDIT.md` §5 zijn nu gedicht (D2, D5, D6 — §8 punt 2). De
+Git-levering loopt mee: D0–D6 staan op `origin/master` (zie `docs/RELEASES.md`).
 
 **De environmentregel is nu de poort voor alles wat hierna komt** (§7p, `docs/ENVIRONMENTS.md`). De
 volgorde is niet vrijblijvend:
@@ -2389,9 +2538,9 @@ volgorde is niet vrijblijvend:
    staging → volledige stagingcontroles → dezelfde release naar productie → productiesmoke, met een
    volledige entry in `docs/RELEASES.md`.
 4. **Inhoudelijk werk daarna**: het discoveryplan D0–D7 uit `docs/ILMNET_DISCOVERY_EXPERIENCE.md` is
-   nu deels code (D0, D1, D2 en D3 zijn geïmplementeerd; D4–D7 staan open), en de open punten uit
-   `docs/LIBRARY_UX_AUDIT.md` §5 lopen mee per fase (D5/D6 voor de resterende `limit=100`-plekken en
-   de seriepunten).
+   grotendeels code (D0–D6 zijn geïmplementeerd; D7 is optioneel en wacht op een groeiende bibliotheek),
+   en de open punten uit `docs/LIBRARY_UX_AUDIT.md` §5 zijn daarmee gesloten — de `limit=100`-plekken en
+   de seriepunten hoorden bij D5/D6.
 
 The account/session model from Fase 4.5 (§7f), the provider investigation (§7e) and the cleanup/login
 phases (§7c–§7d) remain as documented; this branding phase changes none of them.

@@ -322,7 +322,7 @@ export default function ContentDetail({ expectedType }: { expectedType?: 'lectur
             )}
             {c.collectionIdentifier && (
               <Link to={`/series/${encodeURIComponent(c.collectionIdentifier)}`} className="text-rose inline-flex items-center gap-1 text-[0.82rem] font-semibold hover:gap-1.5 transition-all">
-                View series: {c.collectionTitle || c.collectionIdentifier} →
+                View series: {c.collectionTitle || 'this collection'} →
               </Link>
             )}
           </div>
@@ -371,7 +371,14 @@ export default function ContentDetail({ expectedType }: { expectedType?: 'lectur
               <div className="bg-cream neu-inset rounded-[16px] px-4 py-3">
                 <p className="text-ink-muted text-[0.68rem] font-semibold tracking-[0.12em] uppercase">Collection</p>
                 <p className="text-ink mt-1 text-[0.88rem] font-semibold">{c.collectionTitle ?? '—'}</p>
-                {c.collectionIdentifier && <p className="text-ink-muted mt-1 text-[0.7rem] font-mono">{c.collectionIdentifier}</p>}
+                {/* D6 (audit C2): the raw collectionIdentifier is a database key, not visitor information. The
+                    same block used to print it in monospace; it now links to the collection page instead —
+                    the identifier stays in the URL, where it addresses the collection. */}
+                {c.collectionIdentifier && (
+                  <Link to={`/series/${encodeURIComponent(c.collectionIdentifier)}`} className="text-rose mt-1 inline-block text-[0.72rem] font-semibold hover:opacity-80">
+                    Open this collection →
+                  </Link>
+                )}
               </div>
             </div>
 

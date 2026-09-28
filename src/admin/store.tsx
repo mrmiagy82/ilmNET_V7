@@ -107,6 +107,28 @@ function totalOf(res: Settled<{ pagination: { total: number } }>): number | null
 }
 
 /**
+ * The admin lists search and filter in the browser, so they need every record — not the first page
+ * (D6: a single `limit: 100` request silently hid record 101 and up). The loader walks the existing
+ * pagination until `pagination.total` is reached. `ADMIN_MAX_PAGES` is a runaway guard, not a page
+ * size: if it is ever hit, `complete` is false and the store says so instead of pretending the list
+ * is whole.
+ */
+const ADMIN_PAGE_SIZE = 100;
+const ADMIN_MAX_PAGES = 50;
+
+async function listAllAdminContents(): Promise<{ items: api.BackendContent[]; total: number; complete: boolean }> {
+  const first = await api.listAdminContents({ limit: ADMIN_PAGE_SIZE, page: 1 });
+  const items = [...first.data];
+  const total = first.pagination?.total ?? items.length;
+  const pageCount = Math.min(Math.max(1, Math.ceil(total / ADMIN_PAGE_SIZE)), ADMIN_MAX_PAGES);
+  for (let page = 2; page <= pageCount; page++) {
+    const next = await api.listAdminContents({ limit: ADMIN_PAGE_SIZE, page });
+    items.push(...next.data);
+  }
+  return { items, total, complete: items.length >= total };
+}
+
+/**
  * Status transitions. Publishing goes through the publish endpoint (it validates scholar + subject
  * and stamps publishedAt). Restoring an archived record returns it to draft — archived content never
  * becomes public again on its own.
@@ -144,7 +166,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     const [schRes, subRes, contRes, pubRes, draftRes, archRes, lecRes, bookRes, allLecRes, allBookRes] = await Promise.all([
       settle(api.listAdminScholars()),
       settle(api.listAdminSubjects()),
-      settle(api.listAdminContents({ limit: 100 })),
+      settle(listAllAdminContents()),
       // one record per query: pagination.total is the real database count, not a page size
       settle(api.listAdminContents({ limit: 1, status: 'published' })),
       settle(api.listAdminContents({ limit: 1, status: 'draft' })),
@@ -171,7 +193,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     if (schRes.ok && subRes.ok && contRes.ok) {
       setScholars(schRes.value.data.map(toAdminScholar));
       setSubjects(subRes.value.data.map(toAdminSubject));
-      const all = contRes.value.data as api.BackendContent[];
+      const all = contRes.value.items as api.BackendContent[];
       const lecTypes = new Set(['lecture', 'audio', 'video']);
       const bookTypes = new Set(['book', 'document']);
       const l: AdminLecture[] = [];
@@ -188,6 +210,12 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       // sort by updatedAt desc (backend already)
       setLectures(l);
       setBooks(b);
+      if (!contRes.value.complete) {
+        // Only possible when the safety ceiling is reached — say it, do not imply a complete list.
+        flash(
+          `The admin lists show ${all.length} of ${contRes.value.total} records — the loader stopped at its safety ceiling.`,
+        );
+      }
       setBackendState('online');
     } else {
       const status = [schRes, subRes, contRes].find((r) => !r.ok && r.status !== undefined) as { status?: number } | undefined;
