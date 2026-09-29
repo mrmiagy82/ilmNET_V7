@@ -5,7 +5,16 @@ Update it after every finished phase, commit, sanity check or significant discov
 Rules: only facts that are verifiable from the repository, Git history or existing docs — and
 **never** secrets, tokens or credentials.
 
-_Last updated: D5 (27 september 2026): detailpagina’s hebben nu echte continuïteit — een
+_Last updated: Visual Maturity 1 (29 september 2026) — de homepage en de kaarten hebben een rijker
+_visueel idioom binnen dezelfde merkidentiteit: vier banden met elk een eigen compositie (grote
+_lead-kaart, gerezen luisterplank, vlakke sand-leesplank met losse covers, vlakke schalentegels), een
+_lead-kaart en een shelf-kaart als nieuwe composities op bestaande componenten, en een expliciete
+_betekenis voor neumorfisme (gerezen = interactief, vlak = rustig) waardoor de zachte schaduw van alle
+_badges, chips en pillen is verdwenen. Geen nieuwe kleur, geen nieuw lettertype, geen dependency, geen
+_backend-, schema- of contentwijziging; hero/Aurora, typografie, D1–D6 en responsive gedrag ongewijzigd
+_(§7aa)._
+
+_Oudere samenvatting (D5): detailpagina’s hebben nu echte continuïteit — een
 _apparaat-lokale “Continue where you left off.”-rail (één geïsoleerde module, niets verlaat de browser),
 _een eerlijke “More like this”-rail (subject, dan scholar; het huidige item altijd uitgesloten), een
 _echte audio-afspeelpositie die alleen voor het juiste audio-item wordt hersteld, een serieblok dat een
@@ -2553,6 +2562,101 @@ met het commando en de controle erbij.
    browsersuites en de API-suites tegen de staging-URL; uitkomst vastleggen in `docs/RELEASES.md`.
 
 Zodra die host er is, is dit een uitvoering van de bewezen procedure — geen ontwerpwerk meer.
+
+## 7aa. Visual Maturity 1 — een rijker visueel idioom binnen hetzelfde merk
+
+**Wat deze fase is:** de homepage en de kaarten visueel gevarieerder maken zonder de merkidentiteit,
+de typografie, de hero/Aurora, de componentarchitectuur, de D1–D6-discovery of het responsive gedrag
+aan te raken. Geen nieuwe kleur, geen nieuw lettertype, geen nieuwe dependency, geen backend-, database-
+of contentwijziging, geen mockdata. De aanleiding was meetbaar: vier opeenvolgende banden gebruikten
+dezelfde cream ondergrond met dezelfde gerezen neumorphic kaart erin, en de zachte schaduw stond op
+álle badges, chips en pillen tegelijk — een schaduw die overal staat, betekent niets meer.
+
+### De kernbeslissing: neumorfisme krijgt één betekenis
+
+`src/index.css` heeft er vier utilities bij, alle vier opgebouwd uit bestaande tokens (geen nieuwe
+kleur, alleen bestaande waarden en alpha's daarvan):
+
+| utility | rol |
+| --- | --- |
+| `flat-edge` | een rustig oppervlak: hairline rand + omgevingsschaduw, géén witte highlight, géén inset — de tegenhanger van `neu-raised` |
+| `cover-edge` | een echte cover als object: rand + gerichte schaduw, zodat het artwork de diepte draagt en niet het kader |
+| `band-sand` | een volle band op de bestaande sandtint, met de zachte randen die eerder een inline style waren (subjectenband) |
+| `hairline-brand` | het enige decoratieve merklijntje (rose → olief → uit), één keer per primaire sectie |
+
+Daarmee is de regel nu: **`neu-raised`/`neu-inset` = iets waar je iets mee kunt doen** (de kaart die
+opent, de knop, het invoerveld), **`flat-edge` = een rustig vlak**, en de schaduw verdwijnt van alles
+wat alleen maar een label is. In `cards.tsx` is dat één component: `MediaChip` — elk badge, type- en
+providerlabel bovenop een echte afbeelding is nu een vlak cream label met een rand in plaats van een
+gerezen pil (op een foto kan een witte highlight niet bestaan). Wat overblijft als gerezen element
+binnen een mediaframe is de play-affordance: precies het ding waar je op kunt drukken.
+
+### De banden: vier secties, vier composities (en dezelfde eerlijkheid)
+
+`LandingRails.tsx` is herschreven qua compositie; data, requests, `shouldHide`, aantallen en teksten
+zijn ongewijzigd.
+
+1. **New in the library — de primaire band.** Het nieuwste record is nu een **lead-kaart**: één groot
+   item met het echte artwork op het grootste formaat dat de pagina buiten de hero heeft, met daaronder
+   de rest op kaartformaat. Een bezoeker krijgt een antwoord op "waar begin ik" in plaats van twaalf
+   gelijkwaardige kaarten. Een boek houdt daarbij zijn eigen portretverhouding (`object-contain` op een
+   sandplaat), een lezing vult het frame. Kicker met roze merkdot, kop in `split`-compositie (titel
+   links, uitleg rechts) en daaronder het enige merklijntje van de pagina.
+2. **Newest lectures — de luisterplank.** Cream band, gerezen mediakaarten met het inset-frame en de
+   play-affordance: hier hoort het neumorphe idioom, en deze band is de enige met een *pil* als
+   "All lectures" in plaats van een tekstlink.
+3. **Newest books — de leesplank.** Een **sand band** (`band-sand`), vlakke kaarten (`ShelfBookCard`):
+   de echte cover is het enige object met diepte (`cover-edge`), titel en auteur staan op de band zelf,
+   geen kaartschil, geen chips op het artwork. Kop gecentreerd boven de rij.
+4. **Scholars — de tertiaire band.** Cream met **vlakke tegels** (`ScholarTile variant="flat"`):
+   sandplaat, hairline rand, vlak monogram. De lichtste van de drie, want de mensen achter de
+   bibliotheek horen niet te concurreren met de bibliotheek zelf.
+
+De geometrie wisselt mee (boekvorm → mediaframe → cover → rond monogram), wat de discoveryplan-notitie
+"geometry rhythm as a navigation aid" (§2.3) nu ook echt op de pagina brengt — zonder scheidingslijnen.
+
+### Binnen de kaarten en de rest van de pagina
+
+- **`SectionHeading`** kent drie echte composities (`stacked` = ongewijzigd voor alle bestaande
+  aanroepers, `split`, `centered`), een optionele `rule`, een `tone` voor de kicker en een
+  `showAllVariant` (tekstlink of pil). **`Rail`** geeft die door en kan één **lead**-slot in de scroller
+  zetten: zelfde scroll-, snap-, toetsenbord- en paginggedrag, geen tweede component.
+- **Merkverdeling in plaats van één restkleur:** de drie kaarten van "One library. Three ways to seek."
+  hebben nu elk hun eigen accent in de kicker (01 roze, 02 olief, 03 inkt) en een getinte glyph in
+  plaats van een gerezen badge; de drie stappen in "The path" trekken dezelfde reeks door in hun
+  nummers. De twee subjectpillen (roze, olief) en de bestaande accenten van tags bleven zoals ze waren.
+- **Ongewijzigd met opzet:** `Hero.tsx`, `Aurora.tsx`, de tokens in `@theme`, alle lettertypen, alle
+  bestaande `lift`/`lift-sm`-bewegingen, de D5-continuïteitsmodule, `MoreLikeThis`, de admin, en elke
+  pagina buiten de landing (die kregen alleen het vlakkere kaartvocabulaire via de gedeelde
+  componenten: `CompactSeriesCard`, `CompactContentCard`, `ScholarTile`).
+
+### Bewijs (29 september 2026, development + stagingvorm op wegwerp-databases)
+
+`npx tsc --noEmit` schoon (root én `server/`) · `npm run build` ok, `dist/index.html` 686,19 kB →
+gzip 172,03 kB (was 170,55 kB gzip; +1,4 kB door de nieuwe composities) · **`polish-verify.mjs`
+114/114** tegen de stagingvorm op `127.0.0.1:3121` (12 routes op 1440 px én 390 × 844, geen overloop,
+alle interne links, de D1–D6-eerlijkheidscontracten, de visuele afspraken en de toegankelijkheid
+inclusief reduced-motion) · **`d6-verify.mjs` 50/50** en **`d5-verify.mjs` 81/81** opnieuw tegen deze
+build · browser **`cms.spec.mjs` 39/0** en **`admin-auth.spec.mjs` 60/0** tegen dezelfde server ·
+`server: npm run test:all` tegen de wegwerp-database `ilmnet_polish_e2e` (NODE_ENV=development,
+`ENVIRONMENT` onbemand zodat de suites hun eigen doelomgeving zetten): audit ✅, uploads 30/0,
+production readiness **163/0**, env-hardening 13/0, environment rule 38/0, ops 21/0, YouTube ✅,
+auth 69/0 — 409 groene checks, 0 rood · screenshots van vóór/na per band in
+`/home/user/polish-shots/vm1/` (buiten de repo).
+
+**Onderweg gevonden en gedicht (buiten de repo):** de D5-harness faalde op drie checks. Een A/B tegen de
+vórige build met dezelfde database gaf exact dezelfde drie fouten, dus de oorzaak was de
+fixturedataset, niet de code: (a) de audiofixture had geen bestandsniveau-bron en dus geen echte stream
+(`externalIdentifier` + `sourceUrl` naar `…/details/<id>/<file>` gezet, zoals de app het verwacht);
+(b) de tweede Tazkiyah-fixture stond in hetzelfde subject als de fallback-fixture, waardoor de
+subject-tak de scholar-fallback verbergt; (c) er was geen lezing zonder buren, terwijl de lege-railregel
+juist zo'n record toetst. Alle drie zijn in de harnessdata (`/home/user/polish/d5-fixtures.sql`,
+buiten de repo) gecorrigeerd; daarna 81/0.
+
+**Bewust niet gedaan:** geen nieuwe kleur, geen nieuw lettertype of radiusstelsel, geen dark mode, geen
+extra dependency, geen wijziging in `server/`, `/api`, het schema, de auth of de content, geen
+verzonnen stat, geen populariteits- of voortgangsindicatie, geen aanpassing van laad-/fout-/lege
+teksten, en de hero/Aurora zijn niet aangeraakt.
 
 ## 8. Known remaining issues (not blockers)
 

@@ -46,6 +46,28 @@ function CardShell({ to, children }: { to: string; children: ReactNode }) {
   );
 }
 
+/**
+ * The flat chip that sits **on top of real imagery** (Visual Maturity 1).
+ *
+ * Every badge, type label and provider pill used to be `bg-cream neu-raised-sm`: a soft white highlight
+ * over a photograph, where a highlight cannot exist. Six such pills per card also flattened the depth
+ * language — if everything is raised, nothing is. They are now flat cream labels with a hairline rim,
+ * so the artwork keeps the depth and the single raised element inside a media frame is the play
+ * affordance: the thing you can actually press.
+ *
+ * The rim (not a shadow) is what keeps the label legible on a light cover; `backdrop-blur` is a
+ * two-line-safe softening, not a glassmorphism effect.
+ */
+export function MediaChip({ children, className = '' }: { children: ReactNode; className?: string }) {
+  return (
+    <span
+      className={`bg-cream/95 text-ink border-line/80 inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[0.7rem] font-semibold backdrop-blur-[2px] ${className}`}
+    >
+      {children}
+    </span>
+  );
+}
+
 /** A lecture, talk or single audio/video item. */
 export function LectureCard({ c }: { c: BackendContent }) {
   const subj = c.subjects[0]?.subject;
@@ -74,20 +96,18 @@ export function LectureCard({ c }: { c: BackendContent }) {
             <PlayGlyph className="h-7 w-7" />
           </span>
         </div>
-        <span className="bg-cream/90 text-ink neu-raised-sm absolute right-3 top-3 rounded-full px-3 py-1.5 text-[0.7rem] font-semibold">
-          {format}
-        </span>
+        <MediaChip className="absolute right-3 top-3">{format}</MediaChip>
         {c.provider === 'youtube' && (
-          <span className="bg-cream/92 neu-raised-sm text-ink absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[0.7rem] font-semibold">
+          <MediaChip className="absolute left-3 top-3">
             <span className="bg-rose h-1.5 w-1.5 rounded-full" aria-hidden="true" />
             YouTube
-          </span>
+          </MediaChip>
         )}
         {c.provider === 'archive' && (
-          <span className="bg-cream/92 neu-raised-sm text-ink absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[0.7rem] font-semibold">
+          <MediaChip className="absolute left-3 top-3">
             <span className="bg-olive h-1.5 w-1.5 rounded-full" aria-hidden="true" />
             Archive
-          </span>
+          </MediaChip>
         )}
       </MediaThumb>
 
@@ -139,15 +159,16 @@ export function SeriesCard({ s }: { s: SeriesGroup }) {
         className="bg-sand neu-inset aspect-[16/10] rounded-[22px]"
         fallback={<div className="absolute inset-0 bg-gradient-to-br from-olive/20 to-rose/20" />}
       >
-        <div className="bg-cream/90 neu-raised-sm absolute left-3 top-3 flex items-center gap-2 rounded-full px-3 py-1.5">
+        <MediaChip className="absolute left-3 top-3">
           <span className={`h-2 w-2 rounded-full ${isPlaylist ? 'bg-rose' : 'bg-olive'}`} />
           {/* Type only: the number of items *loaded in this view* is not the size of the collection. */}
-          <span className="text-ink text-[0.7rem] font-bold tracking-[0.08em] uppercase">{isPlaylist ? 'Playlist' : s.type === 'collection' ? 'Collection' : 'Series'}</span>
-        </div>
-        <span className="bg-cream/92 neu-raised-sm text-ink absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[0.7rem] font-semibold">
+          <span className="text-[0.7rem] font-bold tracking-[0.08em] uppercase">{isPlaylist ? 'Playlist' : s.type === 'collection' ? 'Collection' : 'Series'}</span>
+        </MediaChip>
+        <MediaChip className="absolute right-3 top-3">
           <span className={`h-1.5 w-1.5 rounded-full ${isPlaylist ? 'bg-rose' : 'bg-olive'}`} aria-hidden="true" />
           {s.provider === 'youtube' ? 'YouTube' : s.provider === 'archive' ? 'Archive' : s.provider}
-        </span>
+        </MediaChip>
+        {/* The one raised element in the frame: it is the affordance that opens the series. */}
         <div className="bg-cream neu-raised-sm text-ink absolute bottom-3 left-3 right-3 flex items-center justify-between rounded-[14px] px-4 py-3">
           <span className="text-[0.78rem] font-semibold">{s.count} in this view</span>
           <span className="text-rose text-[0.78rem] font-bold">Open series →</span>
@@ -174,13 +195,16 @@ export function SeriesCard({ s }: { s: SeriesGroup }) {
   );
 }
 
-/** The generated spine shown when a book has no usable cover (never a fake cover image). */
-export function BookCover({ c }: { c: BackendContent }) {
-  const media = resolveCover(c);
+/**
+ * The generated spine shown when a book has no usable cover (never a fake cover image).
+ *
+ * Visual Maturity 1 split the spine out of `BookCover` so the flat shelf card can show the same object;
+ * the markup is unchanged.
+ */
+export function BookSpine({ c }: { c: BackendContent }) {
   const subj = c.subjects[0]?.subject;
   const cover = subj?.accent === 'rose' ? 'from-rose/85 to-rose-deep' : subj?.accent === 'olive' ? 'from-olive to-olive-deep' : 'from-ink/80 to-ink';
-  // generated spine, always behind the image so a broken upload still shows something useful
-  const spine = (
+  return (
     <div className="absolute inset-0 grid place-items-center">
       <div className={`relative h-[150px] w-[112px] overflow-hidden rounded-[8px] bg-gradient-to-br ${cover} shadow-[10px_14px_26px_rgba(60,45,30,0.28)]`}>
         <div className="absolute inset-y-0 left-0 w-2.5 bg-black/20" />
@@ -195,13 +219,17 @@ export function BookCover({ c }: { c: BackendContent }) {
       </div>
     </div>
   );
+}
+
+export function BookCover({ c }: { c: BackendContent }) {
+  const media = resolveCover(c);
   return (
     <MediaThumb
       src={media.src}
       kind={media.kind}
       testId="book-cover"
       className="bg-sand neu-inset aspect-[3/4] rounded-[22px]"
-      fallback={spine}
+      fallback={<BookSpine c={c} />}
     />
   );
 }
@@ -244,11 +272,11 @@ export function CollectionCard({ s }: { s: SeriesGroup }) {
         className="bg-sand neu-inset aspect-[3/4] rounded-[22px]"
         fallback={<div className="bg-gradient-to-br from-olive/20 to-rose/20 absolute inset-0" />}
       >
-        <div className="bg-cream/90 neu-raised-sm absolute left-3 top-3 flex items-center gap-2 rounded-full px-3 py-1.5">
+        <MediaChip className="absolute left-3 top-3">
           <span className="bg-olive h-2 w-2 rounded-full" />
-          <span className="text-ink text-[0.7rem] font-bold tracking-[0.08em] uppercase">Collection</span>
-        </div>
-        <span className="bg-olive/90 text-white absolute right-3 top-3 rounded-full px-2.5 py-1 text-[0.7rem] font-bold">Archive</span>
+          <span className="text-[0.7rem] font-bold tracking-[0.08em] uppercase">Collection</span>
+        </MediaChip>
+        <MediaChip className="bg-olive/90 text-cream border-olive absolute right-3 top-3">Archive</MediaChip>
         <div className="bg-cream neu-raised-sm text-ink absolute bottom-3 left-3 right-3 flex items-center justify-between rounded-[14px] px-4 py-3">
           <span className="text-[0.78rem] font-semibold">{s.count} in this view</span>
           <span className="text-rose text-[0.78rem] font-bold">Open collection →</span>
@@ -282,7 +310,7 @@ export function CompactSeriesCard({ s }: { s: SeriesGroup }) {
         className="bg-sand neu-inset aspect-[16/10] rounded-[22px]"
         fallback={<div className="absolute inset-0 bg-gradient-to-br from-olive/15 to-rose/15" />}
       >
-        <span className="bg-cream/92 text-ink absolute left-3 top-3 rounded-full px-3 py-1.5 text-[0.7rem] font-bold">Series</span>
+        <MediaChip className="absolute left-3 top-3 font-bold">Series</MediaChip>
         <span className="bg-cream neu-raised-sm absolute bottom-3 left-3 right-3 flex items-center justify-between rounded-[12px] px-3 py-2 text-[0.76rem] font-semibold">
           <span>{s.count} in this view</span><span className="text-rose">Open →</span>
         </span>
@@ -307,7 +335,7 @@ export function CompactContentCard({ c }: { c: BackendContent }) {
         className={`bg-sand neu-inset rounded-[22px] ${isBook ? 'aspect-[3/4]' : 'aspect-[16/10]'}`}
         fallback={<div className="absolute inset-0 bg-gradient-to-br from-sand to-cream" />}
       >
-        <span className="bg-cream/90 absolute right-3 top-3 rounded-full px-2.5 py-1 text-[0.7rem] font-semibold">{isBook ? 'Book' : c.type === 'audio' ? 'Audio' : 'Video'}</span>
+        <MediaChip className="absolute right-3 top-3">{isBook ? 'Book' : c.type === 'audio' ? 'Audio' : 'Video'}</MediaChip>
       </MediaThumb>
       <h3 className="font-display text-ink mt-4 line-clamp-2 text-[1.05rem] font-bold">{c.title}</h3>
       <p className="text-ink-soft mt-2 line-clamp-2 text-[0.84rem] leading-relaxed">{c.description?.slice(0, 80) ?? ''}</p>
@@ -331,6 +359,130 @@ export function ContentCard({ c }: { c: BackendContent }) {
 }
 
 /**
+ * The lead card of the landing's "New in the library" band (Visual Maturity 1).
+ *
+ * Same record, same fields, same destination as `ContentCard` — only the composition differs, and that
+ * is the whole point: twelve equal cards in a row answer "what is here?", but nothing on the page told
+ * a visitor where to start. The first item of the mixed shelf is now presented once, large, with the
+ * real thumbnail or cover at the largest size the page has outside the hero.
+ *
+ * Honesty is unchanged: it renders exactly the fields the API returned (never an invented episode
+ * number, duration, page count or play state), it is the same `<Link>` the small card is, and a book is
+ * still a book — its cover is shown contained on a sand plate instead of being cropped to fill a frame.
+ */
+export function LeadCard({ c }: { c: BackendContent }) {
+  const isBook = isBookType(c.type);
+  const subj = c.subjects[0]?.subject;
+  const person = c.scholars[0]?.scholar?.name ?? '';
+  const media = isBook ? resolveCover(c) : resolveThumbnail(c);
+  const kindLabel = isBook ? (c.type === 'document' ? 'Document' : 'Book') : c.type === 'audio' ? 'Audio' : 'Video';
+
+  return (
+    <Link
+      to={`/${isBook ? 'books' : 'lectures'}/${c.slug}`}
+      className={`bg-cream neu-raised lift group grid h-full overflow-hidden rounded-[30px] ${
+        // A book keeps a portrait frame (its cover is 3:4 and the text deserves the wider column); a
+        // lecture/audio entry gets the media-weighted split the page uses for moving pictures.
+        isBook ? 'sm:grid-cols-[0.66fr_1fr]' : 'sm:grid-cols-[1.02fr_1fr]'
+      }`}
+    >
+      {/* Real artwork, larger than anywhere else on the page. A book keeps its own proportions. */}
+      <MediaThumb
+        src={media.src}
+        kind={media.kind}
+        testId="lead-card-thumb"
+        className="bg-sand-deep/40 relative aspect-[16/10] sm:aspect-auto sm:h-full"
+        imgClassName={isBook ? 'object-contain p-6 sm:p-8' : 'object-cover'}
+        fallback={isBook ? <BookSpine c={c} /> : <div className="absolute inset-0 bg-gradient-to-br from-olive/20 to-rose/20" />}
+      >
+        {!isBook && (
+          <div className="absolute inset-0 grid place-items-center">
+            <span className="bg-cream neu-raised-sm text-rose group-hover:scale-[1.06] grid h-16 w-16 place-items-center rounded-full transition-transform">
+              <PlayGlyph className="h-7 w-7" />
+            </span>
+          </div>
+        )}
+        <MediaChip className="absolute left-3 top-3">
+          <span className={`h-1.5 w-1.5 rounded-full ${c.provider === 'youtube' ? 'bg-rose' : 'bg-olive'}`} aria-hidden="true" />
+          {kindLabel}
+        </MediaChip>
+      </MediaThumb>
+
+      <div className="flex min-w-0 flex-col p-6 sm:p-8">
+        <div className="flex flex-wrap items-center gap-2">
+          {subj && <Tag tone={toneOf(subj.accent)}>{subj.name}</Tag>}
+          {c.language && <Tag>{c.language}</Tag>}
+        </div>
+        <h3 className="font-display text-ink mt-4 text-[1.5rem] leading-[1.08] font-extrabold tracking-[-0.035em] line-clamp-3 sm:text-[1.95rem]">
+          {c.title}
+        </h3>
+        {person && <span className="text-rose mt-3 text-[0.95rem] font-semibold line-clamp-1">{person}</span>}
+        {c.description && (
+          <p className="text-ink-soft mt-3 text-[0.92rem] leading-relaxed line-clamp-3">{c.description}</p>
+        )}
+        <div className="border-line/70 mt-auto flex items-center justify-between gap-4 border-t pt-4 text-[0.82rem]">
+          <span className="text-ink-soft font-medium">
+            {isBook
+              ? c.pages
+                ? `${c.pages} pages`
+                : kindLabel
+              : c.durationMin
+                ? `${formatDuration(c.durationMin)} / ep`
+                : c.year
+                  ? `${c.year}`
+                  : kindLabel}
+          </span>
+          <span className="text-rose inline-flex items-center gap-1.5 font-semibold">
+            Open {isBook ? 'book' : 'lecture'} <span aria-hidden="true">→</span>
+          </span>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+/**
+ * The flat cover card of the landing's reading shelf (Visual Maturity 1).
+ *
+ * The deliberate counterpart of the raised media card: here the *cover* is the only object with depth
+ * (`cover-edge`) and the title, author and meta sit on the sand band itself. No card shell, no inset
+ * frame around the artwork, no chip on top of it — a book on a shelf, not a thumbnail in a box. It is
+ * the same `<Link>`, the same real cover (custom upload → provider cover → generated spine) and the same
+ * honest fields as `BookCard`; on the shelf a book simply gets more artwork and less furniture.
+ */
+export function ShelfBookCard({ c }: { c: BackendContent }) {
+  const subj = c.subjects[0]?.subject;
+  const author = c.scholars[0]?.scholar?.name ?? '';
+  const media = resolveCover(c);
+  return (
+    <Link to={`/books/${c.slug}`} className="lift group flex h-full flex-col">
+      <MediaThumb
+        src={media.src}
+        kind={media.kind}
+        testId="shelf-cover"
+        className="bg-sand-deep/45 cover-edge aspect-[3/4] rounded-[14px]"
+        fallback={<BookSpine c={c} />}
+      />
+      <div className="flex flex-1 flex-col pt-4">
+        <h3 className="font-display text-ink text-[1.02rem] leading-snug font-extrabold tracking-[-0.02em] line-clamp-2">
+          {c.title}
+        </h3>
+        {author && <span className="text-ink-soft mt-1.5 text-[0.85rem] line-clamp-1">{author}</span>}
+        <div className="text-ink-muted mt-auto flex items-center gap-2 pt-3 text-[0.78rem] font-medium">
+          {subj && <span className="text-olive-deep line-clamp-1">{subj.name}</span>}
+          {(c.pages || c.year) && (
+            <>
+              <span aria-hidden="true">·</span>
+              <span>{c.pages ? `${c.pages} pages` : c.year}</span>
+            </>
+          )}
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+/**
  * A scholar tile.
  *
  * The counts are caller-supplied and must come from real data (audit A3/A4): the `/scholars` page
@@ -348,21 +500,40 @@ export function ScholarTile({
   bookCount,
   to,
   linkLabel = 'View work',
+  variant = 'raised',
 }: {
   s: BackendScholar;
   lectureCount?: number;
   bookCount?: number;
   to?: string;
   linkLabel?: string;
+  /**
+   * `raised` (default) is the tile every existing caller uses. `flat` (Visual Maturity 1) drops the
+   * neumorphic shell for a sand plate with a hairline rim and a flat monogram — used on the landing,
+   * where the scholars band is the page's *tertiary* surface and should not compete with the two
+   * content shelves above it. Same markup, same fields, no shadow.
+   */
+  variant?: 'raised' | 'flat';
 }) {
   const specialtyName = s.specialty?.name ?? '';
   const accent = s.accent ?? 'olive';
   const href = to ?? `/lectures?scholar=${encodeURIComponent(s.slug)}`;
   const hasCounts = typeof lectureCount === 'number' && typeof bookCount === 'number';
+  const flat = variant === 'flat';
   return (
-    <article className="bg-cream neu-raised lift group flex h-full flex-col rounded-[30px] p-7">
+    <article
+      className={
+        flat
+          ? 'bg-sand/70 flat-edge lift group flex h-full flex-col rounded-[26px] p-6'
+          : 'bg-cream neu-raised lift group flex h-full flex-col rounded-[30px] p-7'
+      }
+    >
       <div className="flex items-center gap-4">
-        <div className={`font-display grid h-16 w-16 shrink-0 place-items-center rounded-full text-[1.3rem] font-extrabold neu-inset-sm ${accent === 'rose' ? 'bg-rose/10 text-rose' : 'bg-sand text-olive-deep'}`}>
+        <div
+          className={`font-display grid h-16 w-16 shrink-0 place-items-center rounded-full text-[1.3rem] font-extrabold ${
+            flat ? 'bg-cream ring-line ring-1' : 'neu-inset-sm'
+          } ${accent === 'rose' ? 'bg-rose/10 text-rose' : 'bg-sand text-olive-deep'}`}
+        >
           {s.initials ?? s.name.slice(0, 2).toUpperCase()}
         </div>
         <div>

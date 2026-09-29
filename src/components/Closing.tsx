@@ -4,16 +4,19 @@ import Aurora from './Aurora';
 const steps = [
   {
     n: '01',
+    accent: 'text-olive-deep',
     title: 'Choose a subject',
     body: 'Pick a discipline or a scholar. ilmNet shows you where a beginner should start.',
   },
   {
     n: '02',
+    accent: 'text-rose',
     title: 'Follow the sequence',
     body: 'Lectures and readings are ordered into series, so each lesson builds on the last.',
   },
   {
     n: '03',
+    accent: 'text-ink',
     title: 'Pick up any thread',
     body: 'Every lecture, book and series has its own stable link, so you can return straight to the item you were on.',
   },
@@ -37,7 +40,11 @@ export function HowItWorks() {
                   i > 0 ? 'md:border-line md:border-l' : ''
                 }`}
               >
-                <span className="bg-cream neu-inset-sm text-olive-deep font-display inline-grid h-11 w-11 place-items-center rounded-full text-[0.85rem] font-extrabold">
+                {/* Visual Maturity 1: the three steps were one olive. The numbers now walk the same
+                    rose → olive → ink distribution the library cards use, so the closing panel is not a
+                    fourth monochrome surface. The pressed-in shell stays: inside this raised panel the
+                    numbers are the one thing pressed into it. */}
+                <span className={`bg-cream neu-inset-sm ${s.accent} font-display inline-grid h-11 w-11 place-items-center rounded-full text-[0.85rem] font-extrabold`}>
                   {s.n}
                 </span>
                 <h3 className="font-display text-ink mt-6 text-[1.32rem] font-extrabold tracking-[-0.03em]">

@@ -104,9 +104,22 @@ export function Tag({ children, tone = 'plain' }: { children: ReactNode; tone?: 
   );
 }
 
-export function SectionLabel({ children }: { children: ReactNode }) {
+/**
+ * The small uppercase kicker above a title.
+ *
+ * Visual Maturity 1: it takes an optional `tone`, which adds a brand dot next to the words. Four
+ * sections in a row all opened with the identical grey kicker, so the page had no way to say "this is
+ * the listening shelf" versus "this is the reading shelf" with anything but the heading text. The dot
+ * is decorative (screen readers already get the label text) and only ever uses the two brand colours
+ * that the section is really about.
+ */
+export function SectionLabel({ children, tone }: { children: ReactNode; tone?: Tone }) {
+  const dot = tone === 'rose' ? 'bg-rose' : tone === 'olive' ? 'bg-olive' : null;
   return (
-    <p className="text-ink-muted text-[0.72rem] font-semibold tracking-[0.22em] uppercase">{children}</p>
+    <p className="text-ink-muted inline-flex items-center gap-2 text-[0.72rem] font-semibold tracking-[0.22em] uppercase">
+      {dot && <span className={`h-1.5 w-1.5 rounded-full ${dot}`} aria-hidden="true" />}
+      {children}
+    </p>
   );
 }
 

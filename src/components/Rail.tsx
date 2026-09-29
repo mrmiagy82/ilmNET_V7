@@ -30,48 +30,127 @@
  */
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { SectionLabel } from '@/components/ui';
+import { SectionLabel, type Tone } from '@/components/ui';
 import { CardSkeleton } from '@/components/cards';
 
 /** Heading rhythm of the existing library pages (`/lectures`, `/books`) plus an optional show-all. */
 export type SectionHeadingProps = {
   /** small uppercase kicker above the title */
   label?: ReactNode;
+  /** brand dot in the kicker (Landing only: it names the shelf, it is not a status) */
+  tone?: Tone;
   title: ReactNode;
   subtitle?: ReactNode;
   /** where "Show all" goes; omitted → no link is rendered */
   showAll?: { to: string; label?: string };
+  /**
+   * Visual Maturity 1 — how the heading is composed. Three real compositions instead of one, so the
+   * landing's bands stop opening the same way:
+   *   - `stacked` (default): title with the subtitle underneath, show-all to the right — every
+   *     existing caller keeps exactly this;
+   *   - `split`: the title on the left, the subtitle in its own column on the right (the composition
+   *     the landing's explainer already used), for the band that leads the page;
+   *   - `centered`: a centered title above the shelf, for the one band that is a row of objects.
+   */
+  layout?: 'stacked' | 'split' | 'centered';
+  /** the brand hairline under the heading (primary bands only) */
+  rule?: boolean;
+  /** `link` (default) is the existing text link; `button` is the same link as a pressed pill */
+  showAllVariant?: 'link' | 'button';
   /** extra controls next to the show-all link (the rail's paging buttons) */
   actions?: ReactNode;
   className?: string;
 };
 
-export function SectionHeading({ label, title, subtitle, showAll, actions, className = '' }: SectionHeadingProps) {
-  return (
-    <div className={`flex flex-wrap items-end justify-between gap-x-8 gap-y-3 ${className}`}>
-      <div className="min-w-0">
-        {label && <SectionLabel>{label}</SectionLabel>}
-        {/* Visual UI Polish: the same heading ladder as the page titles, one step down. Before this the
-            section titles were 21.6 px while the rail that carried them was 330 px wide — the smallest
-            type on the largest surface. */}
-        <h2 className="font-display text-ink mt-2.5 text-[1.45rem] font-extrabold tracking-[-0.03em] text-balance sm:text-[1.62rem]">
-          {title}
-        </h2>
-        {subtitle && <p className="text-ink-muted mt-2 max-w-[62ch] text-[0.85rem]">{subtitle}</p>}
-      </div>
-      {(showAll || actions) && (
-        <div className="flex shrink-0 items-center gap-3">
-          {actions}
-          {showAll && (
-            <Link
-              to={showAll.to}
-              className="text-rose focus-visible:outline-none shrink-0 text-[0.88rem] font-semibold transition-all hover:gap-2.5 inline-flex items-center gap-1.5"
-            >
-              {showAll.label ?? 'Show all'} <span aria-hidden="true">→</span>
-            </Link>
-          )}
+export function SectionHeading({
+  label,
+  tone,
+  title,
+  subtitle,
+  showAll,
+  layout = 'stacked',
+  rule = false,
+  showAllVariant = 'link',
+  actions,
+  className = '',
+}: SectionHeadingProps) {
+  const showAllLink = showAll && (
+    <Link
+      to={showAll.to}
+      className={
+        showAllVariant === 'button'
+          ? 'bg-cream text-ink flat-edge lift-sm focus-visible:outline-none inline-flex shrink-0 items-center gap-2 rounded-full px-5 py-2.5 text-[0.85rem] font-semibold hover:text-rose'
+          : 'text-rose focus-visible:outline-none shrink-0 text-[0.88rem] font-semibold transition-all hover:gap-2.5 inline-flex items-center gap-1.5'
+      }
+    >
+      {showAll.label ?? 'Show all'} <span aria-hidden="true">→</span>
+    </Link>
+  );
+  // Visual UI Polish: the same heading ladder as the page titles, one step down. Before this the
+  // section titles were 21.6 px while the rail that carried them was 330 px wide — the smallest
+  // type on the largest surface.
+  const titleClass =
+    'font-display text-ink text-[1.45rem] font-extrabold tracking-[-0.03em] text-balance sm:text-[1.62rem]';
+  const ruleClass = 'hairline-brand mt-5 w-full max-w-[520px]';
+
+  if (layout === 'centered') {
+    return (
+      <div className={className}>
+        <div className="text-center">
+          {label && <SectionLabel tone={tone}>{label}</SectionLabel>}
+          <h2 className={`${titleClass} mt-2.5`}>{title}</h2>
+          {subtitle && <p className="text-ink-muted mx-auto mt-2 max-w-[62ch] text-[0.85rem]">{subtitle}</p>}
         </div>
-      )}
+        {rule && <div className={`${ruleClass} mx-auto`} aria-hidden="true" />}
+        {(showAll || actions) && (
+          <div className="mt-5 flex items-center justify-center gap-3">
+            {actions}
+            {showAllLink}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (layout === 'split') {
+    return (
+      <div className={className}>
+        <div className="grid gap-x-10 gap-y-3 lg:grid-cols-[1.15fr_1fr] lg:items-end">
+          <div className="min-w-0">
+            {label && <SectionLabel tone={tone}>{label}</SectionLabel>}
+            <h2 className={`${titleClass} mt-2.5`}>{title}</h2>
+          </div>
+          <div className="min-w-0 lg:pb-1">
+            {subtitle && <p className="text-ink-muted max-w-[46ch] text-[0.9rem] leading-relaxed lg:ml-auto lg:text-right">{subtitle}</p>}
+          </div>
+        </div>
+        {rule && <div className={ruleClass} aria-hidden="true" />}
+        {(showAll || actions) && (
+          <div className="mt-5 flex items-center gap-3">
+            {actions}
+            {showAllLink}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className={className}>
+      <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-3">
+        <div className="min-w-0">
+          {label && <SectionLabel tone={tone}>{label}</SectionLabel>}
+          <h2 className={`${titleClass} mt-2.5`}>{title}</h2>
+          {subtitle && <p className="text-ink-muted mt-2 max-w-[62ch] text-[0.85rem]">{subtitle}</p>}
+        </div>
+        {(showAll || actions) && (
+          <div className="flex shrink-0 items-center gap-3">
+            {actions}
+            {showAllLink}
+          </div>
+        )}
+      </div>
+      {rule && <div className={ruleClass} aria-hidden="true" />}
     </div>
   );
 }
@@ -87,8 +166,16 @@ function ChevronIcon({ direction }: { direction: 'left' | 'right' }) {
 export type RailProps = {
   title: ReactNode;
   label?: ReactNode;
+  /** brand dot in the kicker (Landing only) */
+  tone?: Tone;
   subtitle?: ReactNode;
   showAll?: { to: string; label?: string };
+  /** heading composition — see `SectionHeadingProps` */
+  layout?: 'stacked' | 'split' | 'centered';
+  /** brand hairline under the heading (primary bands only) */
+  rule?: boolean;
+  /** `button` turns the show-all link into a pill (the landing's primary shelf) */
+  showAllVariant?: 'link' | 'button';
   /** number of real children the caller has. 0 + not loading → the whole rail disappears. */
   items?: number;
   loading?: boolean;
@@ -101,6 +188,15 @@ export type RailProps = {
   alwaysVisible?: boolean;
   /** accessible name of the scrollable region; defaults to the title when it is a string */
   ariaLabel?: string;
+  /**
+   * Visual Maturity 1 — one large entry rendered as the first slot *inside* the scroller: same data,
+   * same snap/paging/keyboard behaviour, but the band now has a primary item instead of twelve equal
+   * ones. It sits in the scroller (not beside it) so the rail stays the one scrolling surface; the
+   * paging buttons and the ResizeObserver already measure every child, so they pick the lead up.
+   */
+  lead?: ReactNode;
+  /** width of the lead slot; the default is a two-card-wide entry on desktop, one slot on mobile */
+  leadClassName?: string;
   /** scroll all the way to the page gutter so the next card peeks in (assumes `px-5` / `sm:px-6`) */
   bleed?: boolean;
   /** `start` keeps each card at its own height; `stretch` (default) gives them one row height */
@@ -121,12 +217,18 @@ export const RAIL_SLOT = {
 } as const;
 
 const DEFAULT_ITEM = RAIL_SLOT.scholar;
+/** The lead slot of a band (see `lead` above) — the only rail width that is not a `RAIL_SLOT`. */
+export const RAIL_LEAD = 'w-[300px] shrink-0 snap-start sm:w-[560px] lg:w-[640px]';
 
 export function Rail({
   title,
   label,
+  tone,
   subtitle,
   showAll,
+  layout,
+  rule,
+  showAllVariant,
   items,
   loading = false,
   skeletonCount = 4,
@@ -135,11 +237,13 @@ export function Rail({
   alwaysVisible = false,
   ariaLabel,
   bleed = false,
+  lead,
+  leadClassName = RAIL_LEAD,
   align = 'stretch',
   className = '',
   children,
 }: RailProps) {
-  const count = items ?? (Array.isArray(children) ? children.length : children ? 1 : 0);
+  const count = items ?? (Array.isArray(children) ? children.length : children ? 1 : 0) + (lead ? 1 : 0);
   const showSkeletons = loading && count === 0;
   const scroller = useRef<HTMLDivElement>(null);
   const [scroll, setScroll] = useState({ canScroll: false, left: false, right: false });
@@ -199,7 +303,17 @@ export function Rail({
   return (
     <section className={className}>
       <div className="mx-auto max-w-[1180px]">
-        <SectionHeading label={label} title={title} subtitle={subtitle} showAll={showAll} actions={buttons} />
+        <SectionHeading
+          label={label}
+          tone={tone}
+          title={title}
+          subtitle={subtitle}
+          showAll={showAll}
+          showAllVariant={showAllVariant}
+          layout={layout}
+          rule={rule}
+          actions={buttons}
+        />
         <div
           ref={scroller}
           role="region"
@@ -215,11 +329,14 @@ export function Rail({
                   {skeleton ?? <CardSkeleton />}
                 </div>
               ))
-            : (Array.isArray(children) ? children : [children]).map((child, i) => (
-                <div key={i} className={itemClassName}>
-                  {child}
-                </div>
-              ))}
+            : [
+                ...(lead ? [<div key="lead" className={leadClassName}>{lead}</div>] : []),
+                ...(Array.isArray(children) ? children : [children]).map((child, i) => (
+                  <div key={i} className={itemClassName}>
+                    {child}
+                  </div>
+                )),
+              ]}
         </div>
       </div>
     </section>
