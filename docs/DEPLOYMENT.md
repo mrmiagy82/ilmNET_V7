@@ -909,3 +909,100 @@ Deze lijst is bewust expliciet — er is niets van "gedaan alsof":
 6. logrotatie/journald-limieten instellen volgens §9d.
 
 Elk punt heeft hierboven een commando of een tabelrij; geen enkel punt is "vanzelf" goed.
+
+---
+
+## 10. Staging — een permanente, productie-gelijke omgeving
+
+**Regel en matrix:** `docs/ENVIRONMENTS.md`. Kort: staging is `NODE_ENV=production` met
+`ENVIRONMENT=staging`, dus dezelfde guards, dezelfde build en dezelfde deploymentvorm als productie —
+alleen de waarden, de crawlposture (niet indexeerbaar) en de database verschillen. Er is géén
+`NODE_ENV=staging`.
+
+**Waarom dit een eigen host is:** de previewomgeving is tijdelijk (proces, database en `node_modules`
+zijn weg na elke sessie) en elke sessie krijgt een nieuw adres met een toegangstoken dat een browser
+niet kan meesturen. Een vaste URL die blijft werken vraagt een host die blijft bestaan.
+
+### 10a. Inrichting van de host (eenmalig)
+
+```bash
+# 1. gebruiker + mappen
+sudo useradd --system --home /srv/ilmnet-staging --shell /usr/sbin/nologin ilmnet
+sudo install -d -m 0755 -o ilmnet -g ilmnet /srv/ilmnet-staging
+sudo install -d -m 0750 -o ilmnet -g ilmnet /var/lib/ilmnet-staging/uploads
+sudo install -d -m 0750 /etc/ilmnet
+
+# 2. eigen database (nooit een kopie van productiegegevens)
+sudo -u postgres psql -c "CREATE ROLE ilmnet LOGIN PASSWORD '<sterk-wachtwoord>';"
+sudo -u postgres createdb -O ilmnet ilmnet_staging
+
+# 3. code + artefact: de release die uit development komt (docs/ENVIRONMENTS.md §5)
+sudo -u ilmnet git clone <repo> /srv/ilmnet-staging          # of rsync de release
+cd /srv/ilmnet-staging && npm ci && (cd server && npm ci)
+npm run build && (cd server && npx prisma generate && npm run build)
+cd server && npx prisma migrate deploy && npm run seed:reference   # referentiedata, idempotent
+
+# 4. configuratie + service (de bestanden staan in de repo, niet met de hand)
+sudo install -m 0600 /srv/ilmnet-staging/ops/systemd/staging.env.example /etc/ilmnet/staging.env
+sudo editor /etc/ilmnet/staging.env        # ENVIRONMENT=staging, NODE_ENV=production, DATABASE_URL,
+                                           # UPLOADS_DIR, PUBLIC_ORIGIN, CORS_ORIGIN, TRUST_PROXY,
+                                           # ADMIN_TOKEN (openssl rand -hex 32), GIT_COMMIT
+sudo install -m 0644 /srv/ilmnet-staging/ops/systemd/ilmnet-staging.service /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl enable --now ilmnet-staging
+sudo journalctl -u ilmnet-staging -n 30    # moet tonen: Environment: staging · NODE_ENV=production (process)
+
+# 5. eigen beheerdersaccount (nooit een productieaccount, nooit een gedeeld wachtwoord)
+cd /srv/ilmnet-staging/server && npm run admin:create -- --username staging-admin --password '<uniek>'
+
+# 6. TLS bij de reverse proxy (§5b/§5c) — de sessiecookie is Secure, dus staging heeft https nodig
+```
+
+**Vorm B (Docker).** Dezelfde `server/docker-compose.yml`, met `ENVIRONMENT=staging` in de omgeving van
+de host (of in het `.env`-bestand naast de compose). Zonder die variabele leidt de server de identiteit
+af als `production` — de deploy-check hieronder zou dan terecht falen.
+
+### 10b. De poort: stagingcontroles na elke deploy
+
+```bash
+BASE_URL=https://staging.ilmnet.example \
+  ops/deploy-check.sh --expect-commit "$(git -C /srv/ilmnet-staging rev-parse --short HEAD)" \
+                      --expect-environment staging
+#   asserted bovenop de gewone checks: robots.txt Disallow: / én x-robots-tag: noindex én een lege
+#   sitemap — een staginghost die indexeerbaar is, is een fout en geen detail.
+
+BASE_URL=https://staging.ilmnet.example BACKUP_DIR=/var/backups/ilmnet-staging \
+  UPLOADS_DIR=/var/lib/ilmnet-staging/uploads ops/healthcheck.sh
+
+SITE_URL=https://staging.ilmnet.example API_URL=https://staging.ilmnet.example \
+ADMIN_USERNAME=staging-admin ADMIN_PASSWORD='<…>' ADMIN_TOKEN='<…>' \
+  npm run test:e2e:production && npm run test:e2e:cms && npm run test:e2e:auth && npm run test:e2e:brand
+
+cd server && NODE_ENV=production ENVIRONMENT=staging ADMIN_TOKEN='<…>' \
+  DATABASE_URL='postgresql://…/ilmnet_staging?schema=public' \
+  npm run test:production && npm run test:ops && npm run test:env
+```
+
+De muterende suites (`test:e2e`, `test:e2e:cms`) horen op een wegwerp-database of op de
+stagingdatabase — nooit op productie. Elke suite print zijn eigen omgevingsbanner, dus het bewijs zegt
+zelf waar het tegen liep. Leg de uitkomst vast in `docs/RELEASES.md` (§6 daar).
+
+### 10c. Wat staging deelt met productie en wat niet
+
+| | staging | productie |
+| --- | --- | --- |
+| Guards, build, deploymentvorm, artifact | identiek | identiek |
+| Crawlposture | `Disallow: /`, `x-robots-tag: noindex`, lege sitemap | `Allow: /`, sitemap met gepubliceerde URL's |
+| Database, uploadsvolume, beheerders | eigen | eigen |
+| Gegevens | referentiedata + import via het CMS (of een *gesaneerde* kopie) — nooit productiegeheimen | echte bezoekersgegevens |
+| Promotie | dezelfde commit + hetzelfde `dist/` gaan daarna naar productie | volgt op een groene stagingronde |
+
+Staging is nooit de plek om te ontwikkelen: een fout die daar gevonden wordt, gaat terug naar
+development en de releasecyclus begint opnieuw bij de build (`docs/ENVIRONMENTS.md` §7).
+
+### 10d. Timers en alarmering voor staging (optioneel maar aanbevolen)
+
+De units onder `ops/systemd/` zijn niet productie-specifiek. Installeer voor staging dezelfde
+backup- en watchdogtimers met een eigen env-bestand (`BACKUP_DIR=/var/backups/ilmnet-staging`,
+`BACKUP_PREFIX=ilmnet-staging`, `UPLOADS_DIR=/var/lib/ilmnet-staging/uploads`,
+`ALERT_SERVICE_NAME=ilmnet-staging@<host>`) en draai één keer `ops/restore-drill.sh` — een back-up die
+nooit is teruggezet, is een aanname (docs/ENVIRONMENTS.md §8 punt 6).

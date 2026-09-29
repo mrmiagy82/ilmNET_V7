@@ -1,0 +1,52 @@
+# ilmNet — staging service (permanente, productie-gelijke omgeving).
+#
+# Staging is *geen* aparte modus: het draait NODE_ENV=production met ENVIRONMENT=staging, zodat alle
+# productieguards (tokensterkte, CORS-allowlist, bootguards, beheerderscheck) automatisch meelopen en
+# alleen de identiteit + de crawlposture verschillen (docs/ENVIRONMENTS.md §2/§4).
+#
+#   sudo install -d -m 0750 /etc/ilmnet /srv/ilmnet-staging
+#   sudo install -m 0644 ops/systemd/ilmnet-staging.service /etc/systemd/system/
+#   sudo install -m 0600 ops/systemd/staging.env.example /etc/ilmnet/staging.env
+#   sudo editor /etc/ilmnet/staging.env          # vul de echte waarden in (nooit in de repo)
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now ilmnet-staging
+#   sudo journalctl -u ilmnet-staging -n 30      # moet "Environment: staging · NODE_ENV=production (process)" tonen
+#
+# De identiteit en de configuratie komen uit EnvironmentFile, niet uit deze unit en niet uit een .env
+# in de appmap: een .env die NODE_ENV/ENVIRONMENT/ADMIN_TOKEN/CORS_ORIGIN zou leveren laat de boot
+# weigeren (regel R3, docs/ENVIRONMENTS.md §3). Zet hier dus geen Environment= met die sleutels neer —
+# één bron van waarheid per deployment.
+[Unit]
+Description=ilmNet staging (Fastify API + gebouwde frontend)
+Documentation=file:/srv/ilmnet-staging/docs/DEPLOYMENT.md
+After=network-online.target
+Wants=network-online.target
+# Een stagingdienst die uitgevallen is, is geen incident voor de wachtdienst van productie: hij hoort
+# wel zichtbaar te zijn. Koppel hier eventueel dezelfde alert-template aan als de andere units:
+# OnFailure=ilmnet-alert@%n.service
+
+[Service]
+Type=simple
+User=ilmnet
+Group=ilmnet
+WorkingDirectory=/srv/ilmnet-staging/server
+EnvironmentFile=/etc/ilmnet/staging.env
+# Migreren en dan starten — dezelfde volgorde als de container en als productie (docs/DEPLOYMENT.md §2).
+# `env` zodat npx via de systeem-PATH gevonden wordt; node op zijn vaste pad, net als in de
+# productie-unit. Draait jouw node niet in /usr/bin, pas dan alleen dat pad aan.
+ExecStartPre=/usr/bin/env npx prisma migrate deploy
+ExecStart=/usr/bin/node dist/server.js
+Restart=always
+RestartSec=3
+# De uploadsmap staat op een eigen volume buiten de repo; geef het proces daar schrijfrecht en nergens
+# anders (docs/ENVIRONMENTS.md §4 punt 2).
+ReadWritePaths=/var/lib/ilmnet-staging/uploads
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=full
+ProtectHome=yes
+# Bewust géén ConditionPathExists op het env-bestand: een ontbrekend bestand moet de service luid
+# laten falen (en in `systemctl status` zichtbaar zijn), niet stil overslaan.
+
+[Install]
+WantedBy=multi-user.target

@@ -110,28 +110,22 @@ guards — with different values:
    that output is deployed everywhere. Staging is never built from a different commit than the one
    that will be promoted.
 
-Suggested systemd shape (mirrors the production unit, different paths and env file):
+The service unit and the environment file are **committed and installable** — do not hand-write them
+from memory:
 
-```ini
-# /etc/systemd/system/ilmnet-staging.service
-[Service]
-EnvironmentFile=/etc/ilmnet/staging.env          # ENVIRONMENT=staging NODE_ENV=production …
-ExecStart=/usr/bin/node /srv/ilmnet-staging/server/dist/server.js
+```bash
+sudo install -m 0644 ops/systemd/ilmnet-staging.service /etc/systemd/system/
+sudo install -m 0600 ops/systemd/staging.env.example    /etc/ilmnet/staging.env
+sudo editor /etc/ilmnet/staging.env                      # fill in the real values
+sudo systemctl daemon-reload && sudo systemctl enable --now ilmnet-staging
 ```
 
-`/etc/ilmnet/staging.env` (values, not shape, differ per environment):
-
-```
-ENVIRONMENT=staging
-NODE_ENV=production
-DATABASE_URL=postgresql://…/ilmnet_staging?schema=public
-UPLOADS_DIR=/var/lib/ilmnet-staging/uploads
-PUBLIC_ORIGIN=https://staging.ilmnet.example
-CORS_ORIGIN=https://staging.ilmnet.example
-TRUST_PROXY=127.0.0.1
-ADMIN_TOKEN=<openssl rand -hex 32>
-GIT_COMMIT=<commit being deployed>
-```
+`ops/systemd/ilmnet-staging.service` runs `npx prisma migrate deploy && node dist/server.js` from
+`/srv/ilmnet-staging/server` with `EnvironmentFile=/etc/ilmnet/staging.env`; that file carries
+`ENVIRONMENT=staging`, `NODE_ENV=production`, `DATABASE_URL`, `UPLOADS_DIR`, `PUBLIC_ORIGIN`,
+`CORS_ORIGIN`, `TRUST_PROXY`, `ADMIN_TOKEN` (`openssl rand -hex 32`) and `GIT_COMMIT`. The same
+`docker compose` stack runs staging by exporting `ENVIRONMENT=staging` (it defaults to `production`).
+Step-by-step host procedure: `docs/DEPLOYMENT.md` §10.
 
 ---
 

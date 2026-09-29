@@ -13,7 +13,7 @@ Provider-agnostic operational scripts. No dependencies beyond the PostgreSQL cli
 | `alert.sh` | Sends one alert to a webhook (JSON POST) and/or `mail`, always keeps a copy on stderr, redacts credentials/tokens from the message, and escapes **every** value of the JSON payload (a quote in a subject used to produce invalid JSON at the receiver while the script still exited 0); `--dry-run` shows exactly what would be sent. Used by the watchdog and by the systemd `OnFailure=` units. |
 | `deploy-check.sh` | Post-deploy (and post-rollback) smoke test: readiness, deep health + the release it reports, app shell, deep link, `robots.txt`, `sitemap.xml`, the official favicon (`/brand/favicon/favicon-32.png`), `/admin`, a missing file = 404, gzip, and `--expect-commit` to prove *which* release is live. |
 | `logrotate/ilmnet` | Example logrotate config for file-based logs (journald and Docker need their own size limits — see `docs/DEPLOYMENT.md` §9d). |
-| `systemd/` | Timers + services: nightly backup (`ilmnet-backup.timer`), 5-minute watchdog (`ilmnet-healthcheck.timer`), the `OnFailure` alert template (`ilmnet-alert@.service`), and example env files for both. |
+| `systemd/` | Timers + services: nightly backup (`ilmnet-backup.timer`), 5-minute watchdog (`ilmnet-healthcheck.timer`), the `OnFailure` alert template (`ilmnet-alert@.service`), the **staging service** (`ilmnet-staging.service` — `NODE_ENV=production` + `ENVIRONMENT=staging`), and an example env file for each. |
 
 Full procedure, scheduling, off-site copies and the recovery runbook: `docs/DEPLOYMENT.md`
 § *Backup en herstel*. Monitoring, alerts, logging and the host-only checklist: § *Monitoring, logging

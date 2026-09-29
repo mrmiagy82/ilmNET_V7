@@ -2,6 +2,11 @@
 #
 #   docker compose up -d --build
 #
+# Dezelfde stack draait ook staging: zet dan ENVIRONMENT=staging in de omgeving van de host (of in het
+# .env-bestand naast dit bestand). De identiteit reist mee naar de container, zodat /api/health,
+# het startlog en ops/deploy-check.sh --expect-environment staging kloppen; zonder die variabele
+# leidt de server de identiteit af als `production` (met een waarschuwing in het log).
+#
 # Required env — provide these as real environment variables (export them, or put them in a .env
 # file next to THIS compose file: compose only uses that file for ${VAR} substitution on the host,
 # and the container receives them through the environment: block below). Never copy a .env into the
@@ -56,6 +61,10 @@ services:
       PORT: "3001"
       HOST: 0.0.0.0
       NODE_ENV: production
+      # development | staging | production. Default `production`; een stagingstack van deze compose
+      # zet ENVIRONMENT=staging in de procesomgeving zodat de crawlposture (robots.txt Disallow: /,
+      # x-robots-tag: noindex) en de deploy-check-verwachting kloppen (docs/ENVIRONMENTS.md §2/§4).
+      ENVIRONMENT: "${ENVIRONMENT:-production}"
       # exact origins of the frontend(s) that may call this API from a browser
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173}
       # Quoted on purpose: an unquoted `${VAR:?message: with a colon}` is invalid YAML and makes

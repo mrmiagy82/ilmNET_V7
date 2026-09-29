@@ -2414,6 +2414,86 @@ laad-/fout-/lege teksten.
 Archive.org) niet dekt. De browser logt daardoor één report-only melding; er wordt niets geblokkeerd.
 Het is een bestaande serverconfiguratie en valt buiten deze frontendfase (geen backendwijzigingen).
 
+## 7y. Stagingvoorbereiding — de vaste omgeving in de repo
+
+**Wat deze fase is:** de repository klaarzetten voor een **permanente** stagingomgeving, zodat de
+levering niet meer afhankelijk is van de tijdelijke preview. Geen nieuwe dependency, geen
+schemawijziging, geen redesign, geen mockdata en geen wijziging aan de previewflow; alleen de
+ontbrekende, installeerbare stagingbestanden plus de runbookstap die erbij hoort.
+
+### Wat al klaar was (en dus niet is aangeraakt)
+
+De environmentregel zat al in de code en de scripts, niet in de documentatie alleen:
+
+- **`server/src/lib/env.ts`** dwingt de drie omgevingen af: `ENVIRONMENT=staging` vereist
+  `NODE_ENV=production` (E1), mag niet uit een `.env`-bestand komen (E2/R3), een onbekende waarde
+  stopt de boot (E0), en de tokenregels van productie gelden ook in staging (R4). Er bestaat bewust
+  geen `NODE_ENV=staging`.
+- **Zichtbaarheid**: `/api/health` meldt `environment` + `environmentSource`, het startlog print
+  `Environment: staging · NODE_ENV=production (process)` en waarschuwt expliciet bij een stagingdienst.
+- **Stagingposture**: `robots.txt` met `Disallow: /`, `x-robots-tag: noindex, nofollow` en een lege
+  sitemap.
+- **`ops/deploy-check.sh --expect-environment staging`** assert dat alles hierboven, plus
+  `--expect-commit` voor de release-identiteit (`GIT_COMMIT`).
+- **`ops/healthcheck.sh`**, `ops/backup.sh`/`restore.sh`/`restore-drill.sh`/`offsite-copy.sh`,
+  `ops/alert.sh` en de timers/units onder `ops/systemd/` — allemaal omgevingsonafhankelijk en mét
+  voorbeeld-env-bestanden.
+- **`docs/ENVIRONMENTS.md`** (de regel + matrix + promotieflow + wat alleen de host kan) en
+  **`docs/DEPLOYMENT.md`** (het volledige hostrunbook).
+- **`server/test/environment.test.ts`** (38 checks, inclusief stagingposture) en de omgevingsbanner in
+  elke suite.
+
+### Wat ontbrak en nu in de repo staat
+
+1. **`ops/systemd/ilmnet-staging.service`** — de installeerbare stagingunit: `EnvironmentFile=/etc/ilmnet/staging.env`,
+   `WorkingDirectory=/srv/ilmnet-staging/server`, `ExecStartPre=/usr/bin/env npx prisma migrate deploy`,
+   `ExecStart=/usr/bin/node dist/server.js`, `Restart=always` en beperkte rechten
+   (`NoNewPrivileges`, `PrivateTmp`, `ProtectSystem=full`, `ProtectHome`, `ReadWritePaths` naar de
+   uploadsmap). Bewust géén `Environment=` met de identiteit en geen `ConditionPathExists`: één bron
+   van waarheid (het env-bestand) en een ontbrekend bestand moet luid falen in plaats van stil
+   overslaan. `systemd-analyze verify` is schoon.
+2. **`ops/systemd/staging.env.example`** — het sjabloon voor `/etc/ilmnet/staging.env` met alle
+   sleutels uit de matrix (identiteit, database, uploads, origin, proxy-vertrouwen, token, frontend,
+   `GIT_COMMIT`, `LOG_LEVEL`) en de waarschuwingen die er in dit project toe doen (nooit `NODE_ENV=staging`,
+   geen `.env` in de appmap, `ADMIN_LEGACY_TOKEN` uit tenzij een script het nodig heeft).
+   De plaatsvervangers zijn bewust echte plaatsvervangers: de tokenregel weigert `CHANGE_ME…`, dus een
+   half ingevuld bestand stopt de boot in plaats van een zwakke omgeving te openen.
+3. **`server/docker-compose.yml`**: `ENVIRONMENT: "${ENVIRONMENT:-production}"`. Dezelfde stack kon
+   staging niet uitdrukken en leidde de identiteit altijd af als `production` — een compose-staging
+   zou daarmee de eigen crawlposture en `--expect-environment staging` missen. De default verandert
+   niets voor bestaande productiegebruikers.
+4. **`docs/DEPLOYMENT.md` §10** — de operationele stagingrunbook: hostinrichting (gebruiker, mappen,
+   eigen database, artefact, env-bestand, unit, eerste beheerdersaccount, TLS), de poort met de
+   stagingcontroles (`deploy-check --expect-environment staging`, `healthcheck`, de browsersuites en de
+   API-suites tegen staging), het verschil staging ↔ productie in één tabel, en de timer/alarmeringsstap.
+5. **`docs/ENVIRONMENTS.md` §4** verwijst nu naar die twee bestanden in plaats van naar een vorm die
+   je uit het hoofd moest overtypen; **`ops/README.md`** noemt de stagingunit in de systeemrij.
+
+### Bewijs (29 september 2026, development)
+
+- `npx tsc --noEmit` schoon (root én `server/`) · `npm run build` ok · `dist/index.html` 695 120 B
+  (ongewijzigd: deze fase raakt geen frontendcode).
+- **Stagingconfiguratie echt gedraaid**: het voorbeeldbestand ingevuld (wegwerp-database, random token)
+  en de server ermee gestart → startlog `Environment: staging · NODE_ENV=production (process)` +
+  `Staging posture: crawling is disabled`, `/api/health` → `environment=staging, source=process`;
+  daarna **`ops/deploy-check.sh --expect-environment staging` → 12 passed, 0 failed** (inclusief
+  `x-robots-tag: noindex`, `robots.txt Disallow: /`, lege sitemap) en als negatieve controle
+  `--expect-environment production` → **1 failed** (de check is betekenisvol).
+- **Negatieve controle op het sjabloon**: starten met het *on-ingevulde* `staging.env.example` weigert
+  de boot met `ADMIN_TOKEN looks like placeholder value ("change-me…") and must never authenticate a
+  production deployment.`
+- `docker-compose.yml` parseert (PyYAML) en de nieuwe sleutel stelt `${ENVIRONMENT:-production}` in;
+  docker zelf is in deze sandbox niet beschikbaar, dus de compose-stack is hier niet gestart.
+- `server: npm run test:all` tegen de wegwerp-database `ilmnet_polish_e2e`: audit-suite groen,
+  uploads **30/0**, production readiness **163/0**, env-hardening **13/0**, **environment rule 38/0**
+  (inclusief stagingposture), ops **21/0**, YouTube-duur/embed groen, auth **69/0**.
+- `systemd-analyze verify ops/systemd/ilmnet-staging.service` → schoon (exit 0).
+
+**Bewust niet gedaan:** geen nieuwe dependency, geen schemawijziging, geen wijziging aan de previewflow,
+geen release naar staging (daar is nog steeds geen host voor) en dus ook geen entry in
+`docs/RELEASES.md` — dit is voorbereiding, geen uitrol. De hostkant blijft precies zoals
+`docs/ENVIRONMENTS.md` §8 en `docs/DEPLOYMENT.md` §9f/§10a hem beschrijven.
+
 ## 8. Known remaining issues (not blockers)
 
 From `docs/FASE3_9_CODEBASE_REVIEW.md` § Restrisico's plus the 3.9.1 report:
@@ -2602,7 +2682,12 @@ From `docs/FASE3_9_CODEBASE_REVIEW.md` § Restrisico's plus the 3.9.1 report:
 
 ## 9. Next step
 
-**Immediate next step: de visuele polish afronden en leveren.** De fase is geïmplementeerd en in
+**Immediate next step: de staginghost inrichten.** De repositorykant is klaar (§7y): unit,
+env-sjabloon, compose-identiteit, runbook §10 en bewezen guards/posture. Wat rest is hostwerk dat niet
+in de repo kan: host + DNS/TLS, eigen database en uploadsvolume, `/etc/ilmnet/staging.env` vullen, het
+eerste beheerdersaccount, de release uitrollen en de poort draaien
+(`ops/deploy-check.sh --expect-environment staging`, daarna de browsersuites). Eerdere notitie:
+**de visuele polish afronden en leveren** was de vorige stap en is afgerond (`a776686`, §7x). De fase is geïmplementeerd en in
 development bewezen (§7x): typechecks, build, `polish-verify.mjs` 114/114, D5- en D6-regressie opnieuw
 groen, alle bestaande suites op hun bekende niveau. Wat rest is de levering — commit `Visual UI Polish`,
 push naar `origin/master` met een verse PAT, en daarna de worktree schoon houden. Inhoudelijk blijft **B5** (volgorde/nummering in schema + importeur +
