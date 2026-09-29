@@ -954,7 +954,20 @@ sudo journalctl -u ilmnet-staging -n 30    # moet tonen: Environment: staging ·
 # 5. eigen beheerdersaccount (nooit een productieaccount, nooit een gedeeld wachtwoord)
 cd /srv/ilmnet-staging/server && npm run admin:create -- --username staging-admin --password '<uniek>'
 
-# 6. TLS bij de reverse proxy (§5b/§5c) — de sessiecookie is Secure, dus staging heeft https nodig
+# 6. daarna het legacy scripttoken dichtzetten (het sjabloon heeft het tijdens de eerste boot aan,
+#    want zonder account én zonder token weigert de server te starten): zet
+#    ADMIN_LEGACY_TOKEN=false in /etc/ilmnet/staging.env en herstart. Het startlog moet dan
+#    "session sign-in enabled (1 active account) · legacy ADMIN_TOKEN disabled" tonen.
+sudo sed -i 's/^ADMIN_LEGACY_TOKEN=.*/ADMIN_LEGACY_TOKEN=false/' /etc/ilmnet/staging.env
+sudo systemctl restart ilmnet-staging && sudo journalctl -u ilmnet-staging -n 5
+curl -s https://staging.ilmnet.example/api/health | grep -o '"adminProtection":"[^"]*"'   # → "sessions"
+
+# 7. TLS bij de reverse proxy (§5b/§5c) — de sessiecookie is Secure, dus staging heeft https nodig
+#
+# Bootstrapvolgorde in één regel: met ENVIRONMENT=staging + ADMIN_LEGACY_TOKEN=false moet er al een
+# actief account bestaan, anders stopt de boot (dat is de grendel, zie §5d). Daarom: eerst starten met
+# het token aan, dan het account aanmaken, dan het token uit en herstarten. Op een bestaande host waar
+# al een account staat, mag het token meteen uit blijven.
 ```
 
 **Vorm B (Docker).** Dezelfde `server/docker-compose.yml`, met `ENVIRONMENT=staging` in de omgeving van

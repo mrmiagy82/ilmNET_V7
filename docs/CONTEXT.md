@@ -2494,6 +2494,66 @@ geen release naar staging (daar is nog steeds geen host voor) en dus ook geen en
 `docs/RELEASES.md` — dit is voorbereiding, geen uitrol. De hostkant blijft precies zoals
 `docs/ENVIRONMENTS.md` §8 en `docs/DEPLOYMENT.md` §9f/§10a hem beschrijven.
 
+## 7z. Staging — deploymentproef en de status van de uitrol
+
+**Doel van deze fase:** de voorbereide stagingomgeving daadwerkelijk online zetten. **Uitkomst: de
+procedure is volledig bewezen, maar de uitrol zelf is geblokkeerd** — deze werkomgeving heeft geen
+host, geen credentials en geen permanente VM. Wat hieronder staat is daarom precies wat het is: een
+proef op een wegwerp-database in deze sandbox, met dezelfde stappen en dezelfde configuratie als
+§10a voorschrijft.
+
+### Waarom een echte uitrol hier niet kan (onderzocht, niet aangenomen)
+
+- **Geen host of credentials.** Geen `docker`/`podman`, geen cloud-CLI, geen `~/.ssh`, geen
+  `~/.netrc`, geen CI/CD-config in de repo, geen PaaS-manifest — en dus ook geen account waar een
+  host uit kan komen. Uitgaand netwerk is er wél (github.com, example.com, hetzner.com, fly.io
+  antwoorden), maar zonder account of sleutel levert dat geen machine op.
+- **Deze sandbox is zelf geen host.** De VM wordt per agent-run weggegooid (nieuw `E2B_SANDBOX_ID`,
+  `/tmp` leeg, uptime ~25 s bij elke start) en zijn poorten zijn alleen via de platformedge
+  bereikbaar, die een sessietoken eist dat een browser niet kan meesturen (zie de eerdere
+  previewdiagnose). Geen domein, geen TLS, geen blijvende URL.
+- **Niets gefaked:** er is geen DNS-naam aangemaakt, geen certificaat geregeld en geen externe dienst
+  gebruikt. Een "staging-URL" die na deze run verdwijnt zou een leugen zijn; de verwachte definitieve
+  origin blijft `https://staging.ilmnet.example` tot de eigenaar de echte naam vastlegt.
+
+### Wat de proef wél bewees (29 september 2026, sandbox, wegwerp-database `ilmnet_staging_dryrun`)
+
+De stappen van `docs/DEPLOYMENT.md` §10a zijn één voor één uitgevoerd, inclusief de dingen die nog
+nooit eerder waren aangetoond:
+
+| stap | resultaat |
+| --- | --- |
+| Eigen database | `ilmnet_staging_dryrun` aangemaakt, `prisma migrate deploy` → alle migraties toegepast |
+| Referentiedata | `npm run seed:reference` → 11 subjects, 8 scholars, **0 contents** (geen mockdata) |
+| Destructieve seed | wordt geweigerd: *"Refusing to run the destructive demo seed in a production environment"* |
+| Eigen beheerdersaccount | `npm run admin:create -- --username staging-admin` → aangemaakt (id geredigeerd) |
+| Start met de stagingconfiguratie | bootlog `Environment: staging · NODE_ENV=production (process)`, stagingposture-waarschuwing, `Proxy trust: TRUST_PROXY trusted proxies: 127.0.0.1` |
+| Beveiliging zonder legacy token | `ADMIN_LEGACY_TOKEN=false` + 1 account → `Admin protection: session sign-in enabled (1 active account) · legacy ADMIN_TOKEN disabled` |
+| `/api/health` | `status=ok environment=staging source=process commit=987b9e3 adminProtection=sessions db=up` |
+| `/api/ready` | 200 ready |
+| Stagingposture | `robots.txt` → `Disallow: /` zonder sitemapregel · HTML → `x-robots-tag: noindex, nofollow` · sitemap met **0** `<loc>` |
+| Publieke pagina's | `/`, `/lectures`, `/books`, `/scholars`, `/subjects`, `/admin` → alle 200 (met de eerlijke lege staten van een referentie-only database) |
+| Beheerderstoegang | `POST /api/admin/login` → 200 met sessie (`expiresAt` 12 uur); beveiligd admin-endpoint met cookie 200, **zonder cookie 401** |
+| Uploads/opslag | echte PNG-upload via `POST /api/admin/uploads` → teruggeserveerd op `/uploads/…` met `200 image/png`, bestand staat op het volume, volumeschrijfprobe ok |
+| Deploy-check | `ops/deploy-check.sh --expect-commit 987b9e3 --expect-environment staging` → **13 passed, 0 failed** |
+
+Eén operationele gap kwam uit de proef en is gedicht: het sjabloon start met `ADMIN_LEGACY_TOKEN=true`
+(nodig voor de állereerste boot — zonder account én zonder token weigert de server), maar de runbook
+zei niet dat je daarna naar account-only moet. `docs/DEPLOYMENT.md` §10a stap 6 doet dat nu expliciet,
+met het commando en de controle erbij.
+
+### Wat de hostkant nog moet doen (onveranderd, docs/DEPLOYMENT.md §10a + docs/ENVIRONMENTS.md §8)
+
+1. Host + DNS + TLS voor de definitieve staging-origin (sessiecookie is `Secure`, dus https is verplicht).
+2. `/etc/ilmnet/staging.env` vullen vanuit `ops/systemd/staging.env.example` (echte waarden blijven daar).
+3. `ops/systemd/ilmnet-staging.service` installeren en starten; `GIT_COMMIT` zetten zodat de
+   deploy-check de release kan bewijzen.
+4. Beheerdersaccount aanmaken, daarna `ADMIN_LEGACY_TOKEN=false` en herstarten.
+5. De poort draaien: `deploy-check --expect-commit <sha> --expect-environment staging`, de
+   browsersuites en de API-suites tegen de staging-URL; uitkomst vastleggen in `docs/RELEASES.md`.
+
+Zodra die host er is, is dit een uitvoering van de bewezen procedure — geen ontwerpwerk meer.
+
 ## 8. Known remaining issues (not blockers)
 
 From `docs/FASE3_9_CODEBASE_REVIEW.md` § Restrisico's plus the 3.9.1 report:
@@ -2682,7 +2742,10 @@ From `docs/FASE3_9_CODEBASE_REVIEW.md` § Restrisico's plus the 3.9.1 report:
 
 ## 9. Next step
 
-**Immediate next step: de staginghost inrichten.** De repositorykant is klaar (§7y): unit,
+**Immediate next step: hosttoegang voor de staginghost.** De procedure is bewezen (§7z) en de
+configuratie staat in de repo; wat ontbreekt is een machine met DNS/TLS die blijft bestaan plus de
+inloggegevens om hem in te richten. Zodra die er zijn: §10a uitvoeren (ongeveer een half uur) en de
+poort draaien. Zonder die toegang kan deze fase niet verder — zie §7z. De repositorykant is klaar (§7y): unit,
 env-sjabloon, compose-identiteit, runbook §10 en bewezen guards/posture. Wat rest is hostwerk dat niet
 in de repo kan: host + DNS/TLS, eigen database en uploadsvolume, `/etc/ilmnet/staging.env` vullen, het
 eerste beheerdersaccount, de release uitrollen en de poort draaien
