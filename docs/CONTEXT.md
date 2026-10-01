@@ -5,7 +5,20 @@ Update it after every finished phase, commit, sanity check or significant discov
 Rules: only facts that are verifiable from the repository, Git history or existing docs — and
 **never** secrets, tokens or credentials.
 
-_Last updated: Visual Maturity 1 (29 september 2026) — de homepage en de kaarten hebben een rijker
+_Last updated: Visual Maturity 2 (1 oktober 2026) — de homepage is opnieuw gecomponeerd in plaats van
+_bijgewerkt: drie banden zijn geen standaard rail meer (een voorpagina met feature + lijst, een
+_leesmuur met grote featured cover en een grid van vier, een colofon-grid voor de scholars), de
+_"three ways to seek"-band is een genummerde editorial index, de subjectenband een atlas-mozaïek, en de
+_pagina eindigt op een olijfband en een full-bleed nachtband. Twee nieuwe oppervlakken uit bestaande
+_tokens; cream ging van ~80 % naar 40 % van de pagina. Geen nieuwe kleur, geen dependency, geen
+_backend-, schema- of contentwijziging; hero, typografie en D1–D6 blijven staan (§7ab)._
+
+_Oudere samenvatting (Visual Maturity 1): de homepage en de kaarten kregen een rijker visueel idioom
+_binnen dezelfde merkidentiteit — vier banden met elk een eigen compositie (grote lead-kaart, gerezen
+_luisterplank, vlakke sand-leesplank met losse covers, vlakke schalentegels) en een expliciete betekenis
+_voor neumorfisme (§7aa)._
+
+_Oudere samenvatting (D5) — de homepage en de kaarten hebben een rijker
 _visueel idioom binnen dezelfde merkidentiteit: vier banden met elk een eigen compositie (grote
 _lead-kaart, gerezen luisterplank, vlakke sand-leesplank met losse covers, vlakke schalentegels), een
 _lead-kaart en een shelf-kaart als nieuwe composities op bestaande componenten, en een expliciete
@@ -2657,6 +2670,82 @@ buiten de repo) gecorrigeerd; daarna 81/0.
 extra dependency, geen wijziging in `server/`, `/api`, het schema, de auth of de content, geen
 verzonnen stat, geen populariteits- of voortgangsindicatie, geen aanpassing van laad-/fout-/lege
 teksten, en de hero/Aurora zijn niet aangeraakt.
+
+## 7ab. Visual Maturity 2 — editorial composities
+
+**Wat deze fase is:** de homepage echt rijker maken na de meting uit de VM1-review (die review staat in
+het werkbestand `visual-maturity-1-review.md`, buiten de repo): ~80 % van de pagina was cream, zes van
+de negen banden waren "kop + één horizontale rij", en subjects, how-it-works en CTA waren vrijwel
+onveranderd. Geen nieuwe kleur, geen nieuw lettertype, geen dependency, geen backend-, database- of
+contentwijziging, geen mockdata. De hero/Aurora is niet aangeraakt.
+
+### Twee nieuwe oppervlakken (uit bestaande tokens)
+
+`src/index.css` kreeg `band-sand-deep` (de deep-warme band die eerder een inline style was in de
+subjectenband) en **`band-olive`** — het eerste echte olijfoppervlak in het product, met inkttekst
+(gemeten contrast 6,45:1). Geen nieuwe kleurwaarde: beide gebruiken `--color-sand-deep` en
+`--color-olive`.
+
+**Gemeten oppervlakteverdeling van de homepage na deze fase** (1440 px, Playwright):
+cream 3 245 px (40 %) · sand 2 739 px (34 %) · sand-deep 833 px (10 %) · nacht 661 px (8 %) ·
+olijf 651 px (8 %). Cream is daarmee van ~80 % naar 40 % gegaan, en geen twee identieke oppervlakken
+staan meer naast elkaar.
+
+### Drie banden die geen standaard horizontale rail meer zijn
+
+1. **New in the library — de voorpagina.** Geen rail: het nieuwste item is een **feature** (echte
+   thumbnail of cover op het grootste formaat van de pagina) en de volgende vijf staan als **rijen**
+   ernaast — kleine echte thumbnail, titel, leraar, één metaregel, haarlijnen ertussen
+   (`ListEntry` in `cards.tsx`). Het schaalverschil is de compositie: één ding om naar te kijken, vijf
+   om te scannen. Op mobiel stapelt het: feature boven, rijen eronder.
+2. **Newest books — de leesmuur.** Sand band met een **featured book** (één grote echte cover, 5/7
+   asymmetrische split met tekst ernaast, `FeaturedBook`) en daaronder een **grid van vier over de
+   breedte** in plaats van een scroller. Dit is de grootste presentatie van echte covers op de pagina.
+   Op mobiel blijven vier covers zichtbaar (twee rijen) zodat de pagina geen eindeloze scroll wordt;
+   vanaf `sm` staan alle acht er.
+3. **Scholars — het colofon.** Een **drie-koloms grid** in plaats van een rail, zodat meer leraren
+   tegelijk zichtbaar zijn en de band als colofon leest in plaats van als een vierde plank.
+
+### Drie banden met een duidelijk ander oppervlak of karakter
+
+4. **One library. Three ways to seek.** is nu een **editorial index**: de sand band met drie genummerde
+   rijen in de ladder van een inhoudsopgave — groot accentcijfer (roze/olijf/inkt), de planknaam, de
+   uitleg, de onderwerpchips als illustratie, en één echte link naar die plank. De drie kaarten en het
+   grote inset-paneel zijn weg: vlak, met haarlijnen. Geen knop en geen schaduw.
+5. **Start from what you want to understand.** is een **atlas**: dezelfde kop links, rechts een mozaïek
+   van acht echte subjects — de eerste groot met zijn eigen beschrijving, de rest compact, elk met
+   eigen accent en eigen link. Sortering blijft alfabetisch en er staat nog steeds geen aantal op een
+   tegel (audit A5).
+6. **Designed for steady learning** is de **olijfband**: volle breedte, inkttekst, grote
+   displaycijfers, haarlijnen tussen de kolommen, nergens schaduw — het enige luide moment van de
+   pagina, en dat mag, want het is de enige band die over de bibliotheek gaat in plaats van er deel van
+   uit te maken. **Begin with a single lesson.** is nu een **full-bleed nachtband** (geen zwevende
+   kaart meer) met een grotere kop (max 5 rem).
+
+### Neumorfisme
+
+Niet verder verfijnd, maar teruggebracht tot betekenis: `neu-raised` staat nog op de mediakaarten van de
+luisterband (daar is de kaart een speler die je opent), op de feature-kaart van de voorpagina en op
+`/lectures`, `/books` en de admin. De editorial banden (index, leesmuur, atlas, olijfband) zijn
+**volledig vlak**; de leesmuur geeft alleen de cover zelf diepte (`cover-edge`). De gegenereerde rug is
+voor deze fase schaalbaar gemaakt (`BookSpine size="large"`), zodat een boek zonder cover in een grote
+plaat niet als postzegel op een groot vlak staat.
+
+### Bewijs (1 oktober 2026)
+
+`npx tsc --noEmit` schoon (root én `server/`) · `npm run build` ok, `dist/index.html` 695,94 kB →
+gzip 173,23 kB (was 172,03 kB gzip) · **`polish-verify.mjs` 114/114** tegen de stagingvorm op
+`:3121` · **`d6-verify.mjs` 50/50** en **`d5-verify.mjs` 81/81** · browser **`cms.spec.mjs` 39/0** en
+**`admin-auth.spec.mjs` 60/0** · `server: npm run test:all` tegen `ilmnet_polish_e2e`
+(NODE_ENV=development, `ENVIRONMENT` onbemand zodat de suites hun eigen doelomgeving zetten):
+audit ✅, uploads 30/0, production readiness 163/0, env-hardening 13/0, environment rule 38/0,
+ops 21/0, YouTube ✅, auth 69/0 — 409 groen, 0 rood · screenshots en bandopnames in
+`/home/user/polish-shots/vm2/` (buiten de repo).
+
+**Bewust niet gedaan:** hero/Aurora ongewijzigd, typografie en tokens ongewijzigd, geen nieuwe kleur,
+geen extra dependency, geen wijziging in `/api`, `server/`, het schema, de auth of de content, geen
+verzonnen aantallen of beelden, geen populariteitsindicatie, en de laad-/fout-/lege teksten zijn
+dezelfde gebleven.
 
 ## 8. Known remaining issues (not blockers)
 

@@ -270,6 +270,27 @@
     inset 0 -22px 44px -28px rgba(150, 123, 80, 0.5);
 }
 
+/* Visual Maturity 2 — the two surfaces the page was missing.
+ *
+ * So far a band could be cream (the page itself), sand or sand-deep. Visual Maturity 2 gives the
+ * homepage two more, both built from tokens that already existed: the deep warm band that used to be
+ * an inline style on one section, and the first real **olive** surface in the product. The olive band
+ * carries ink text (measured contrast 6.45:1) — it is the one loud moment on the page, and it belongs
+ * to the explainer, not to the content. */
+@utility band-sand-deep {
+  background-color: var(--color-sand-deep);
+  box-shadow:
+    inset 0 22px 44px -28px rgba(150, 123, 80, 0.5),
+    inset 0 -22px 44px -28px rgba(150, 123, 80, 0.5);
+}
+
+@utility band-olive {
+  background-color: var(--color-olive);
+  box-shadow:
+    inset 0 26px 52px -30px rgba(74, 80, 46, 0.45),
+    inset 0 -26px 52px -30px rgba(74, 80, 46, 0.45);
+}
+
 @utility hairline-brand {
   height: 1px;
   background-image: linear-gradient(

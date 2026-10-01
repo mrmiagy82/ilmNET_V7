@@ -22,38 +22,44 @@ const steps = [
   },
 ];
 
+/**
+ * "The path" — Visual Maturity 2 turned the explainer into the page's one loud moment.
+ *
+ * It used to be a raised sand panel with three inset numbered discs: the same cream-on-cream, the same
+ * shadow language as the twelve cards above it, and the fourth surface in a row that changed nothing.
+ * It is now a **full-bleed olive band** — the first real olive surface in the product — carrying ink
+ * text (measured contrast 6.45:1), hairline-separated editorial columns and large display numerals.
+ *
+ * Why this is allowed to be loud: it is the only band on the page that is about the library rather than
+ * part of it, so it can be the one place where the brand colour takes the whole surface. No shadow is
+ * used anywhere in it: on a saturated ground the numbers do not need depth to be readable.
+ */
 export function HowItWorks() {
   return (
-    <section id="how" className="px-5 pb-20 sm:px-6 lg:pb-28">
+    <section id="how" className="band-olive relative px-5 py-16 sm:px-6 lg:py-24">
       <div className="mx-auto max-w-[1180px]">
-        <div className="bg-sand neu-raised overflow-hidden rounded-[40px] px-6 py-12 sm:px-12 sm:py-16 lg:px-16 lg:py-20">
-          <p className="text-ink-muted text-[0.72rem] font-semibold tracking-[0.22em] uppercase">The path</p>
-          <h2 className="text-display-xl text-ink mt-5 max-w-[18ch] text-[clamp(1.95rem,4.4vw,3rem)]">
-            Designed for steady learning, not endless scrolling.
-          </h2>
+        <p className="text-ink/80 text-[0.72rem] font-semibold tracking-[0.22em] uppercase">The path</p>
+        <h2 className="text-display-xl text-ink mt-5 max-w-[18ch] text-[clamp(1.95rem,4.4vw,3.1rem)]">
+          Designed for steady learning, not endless scrolling.
+        </h2>
 
-          <div className="border-line mt-14 grid gap-10 border-t pt-4 sm:gap-0 md:grid-cols-3">
-            {steps.map((s, i) => (
-              <div
-                key={s.n}
-                className={`pt-10 md:px-10 ${i === 0 ? 'md:pl-0' : ''} ${i === 2 ? 'md:pr-0' : ''} ${
-                  i > 0 ? 'md:border-line md:border-l' : ''
-                }`}
-              >
-                {/* Visual Maturity 1: the three steps were one olive. The numbers now walk the same
-                    rose → olive → ink distribution the library cards use, so the closing panel is not a
-                    fourth monochrome surface. The pressed-in shell stays: inside this raised panel the
-                    numbers are the one thing pressed into it. */}
-                <span className={`bg-cream neu-inset-sm ${s.accent} font-display inline-grid h-11 w-11 place-items-center rounded-full text-[0.85rem] font-extrabold`}>
-                  {s.n}
-                </span>
-                <h3 className="font-display text-ink mt-6 text-[1.32rem] font-extrabold tracking-[-0.03em]">
-                  {s.title}
-                </h3>
-                <p className="text-ink-soft mt-3 max-w-[34ch] text-[0.97rem] leading-[1.68]">{s.body}</p>
-              </div>
-            ))}
-          </div>
+        <div className="border-ink/25 mt-14 grid gap-10 border-t pt-10 sm:gap-0 md:grid-cols-3">
+          {steps.map((s, i) => (
+            <div
+              key={s.n}
+              className={`md:px-10 ${i === 0 ? 'md:pl-0' : ''} ${i === 2 ? 'md:pr-0' : ''} ${
+                i > 0 ? 'md:border-ink/25 md:border-l' : ''
+              }`}
+            >
+              <span className="font-display text-night block text-[2.4rem] leading-none font-extrabold tracking-[-0.05em]">
+                {s.n}
+              </span>
+              <h3 className="font-display text-ink mt-6 text-[1.35rem] font-extrabold tracking-[-0.03em]">
+                {s.title}
+              </h3>
+              <p className="text-ink mt-3 max-w-[34ch] text-[0.97rem] leading-[1.68]">{s.body}</p>
+            </div>
+          ))}
         </div>
       </div>
     </section>
@@ -62,8 +68,10 @@ export function HowItWorks() {
 
 export function FinalCTA() {
   return (
-    <section className="px-5 pb-20 sm:px-6 lg:pb-28">
-      <div className="bg-night relative mx-auto max-w-[1180px] overflow-hidden rounded-[40px] px-6 py-16 text-center sm:px-12 lg:py-24">
+    // Visual Maturity 2: the closing panel is now a full-bleed night band instead of a rounded card
+    // floating on cream. The page therefore ends on the darkest surface after the loudest one, and the
+    // two stop competing with the cream middle. Inside, only the type grew.
+    <section className="bg-night relative overflow-hidden px-5 py-20 text-center sm:px-6 lg:py-28">
         <div
           className="pointer-events-none absolute inset-x-0 bottom-0 h-[420px] opacity-70"
           style={{
@@ -80,7 +88,7 @@ export function FinalCTA() {
             <span className="bg-olive h-2 w-2 rounded-full" />
             Free for everyone
           </span>
-          <h2 className="text-display-xl text-cream mt-8 text-[clamp(2.3rem,6.4vw,4.2rem)]">
+          <h2 className="text-display-xl text-cream mt-8 text-[clamp(2.5rem,7.2vw,5rem)]">
             Begin with a single lesson.
           </h2>
           <p className="text-cream/70 mx-auto mt-6 max-w-[48ch] text-[1.05rem] leading-[1.7]">
@@ -103,7 +111,6 @@ export function FinalCTA() {
           </div>
           <p className="text-cream/40 mt-5 text-[0.8rem]">No sign-in. No noise. Just knowledge.</p>
         </div>
-      </div>
     </section>
   );
 }

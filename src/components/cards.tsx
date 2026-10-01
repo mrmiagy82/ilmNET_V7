@@ -201,19 +201,22 @@ export function SeriesCard({ s }: { s: SeriesGroup }) {
  * Visual Maturity 1 split the spine out of `BookCover` so the flat shelf card can show the same object;
  * the markup is unchanged.
  */
-export function BookSpine({ c }: { c: BackendContent }) {
+export function BookSpine({ c, size = 'card' }: { c: BackendContent; size?: 'card' | 'large' }) {
   const subj = c.subjects[0]?.subject;
   const cover = subj?.accent === 'rose' ? 'from-rose/85 to-rose-deep' : subj?.accent === 'olive' ? 'from-olive to-olive-deep' : 'from-ink/80 to-ink';
+  // Visual Maturity 2: the spine scales with the plate it stands in. On the reading wall the covers are
+  // twice the size of a card's, so a fixed 112 px spine would look like a stamp on a large surface.
+  const large = size === 'large';
   return (
     <div className="absolute inset-0 grid place-items-center">
-      <div className={`relative h-[150px] w-[112px] overflow-hidden rounded-[8px] bg-gradient-to-br ${cover} shadow-[10px_14px_26px_rgba(60,45,30,0.28)]`}>
+      <div className={`relative overflow-hidden rounded-[8px] bg-gradient-to-br ${cover} shadow-[10px_14px_26px_rgba(60,45,30,0.28)] ${large ? 'h-[74%] w-[62%] max-h-[300px] max-w-[210px]' : 'h-[150px] w-[112px]'}`}>
         <div className="absolute inset-y-0 left-0 w-2.5 bg-black/20" />
         <div className="absolute inset-y-0 left-2.5 w-1 bg-white/25" />
-        <div className="flex h-full flex-col justify-between p-3 pl-4">
-          <span className="text-cream/80 text-[0.6rem] font-semibold uppercase tracking-[0.14em]">{c.type === 'document' ? 'Document' : 'Book'}</span>
+        <div className={`flex h-full flex-col justify-between ${large ? 'p-4 pl-6' : 'p-3 pl-4'}`}>
+          <span className={`text-cream/80 font-semibold uppercase tracking-[0.14em] ${large ? 'text-[0.68rem]' : 'text-[0.6rem]'}`}>{c.type === 'document' ? 'Document' : 'Book'}</span>
           <div>
-            <p className="font-display text-cream text-[0.92rem] leading-tight font-extrabold line-clamp-3">{c.title}</p>
-            <p className="text-cream/70 mt-1 text-[0.66rem] line-clamp-1">{c.scholars[0]?.scholar?.name ?? ''}</p>
+            <p className={`font-display text-cream leading-tight font-extrabold line-clamp-3 ${large ? 'text-[1.15rem]' : 'text-[0.92rem]'}`}>{c.title}</p>
+            <p className={`text-cream/70 mt-1 line-clamp-1 ${large ? 'text-[0.74rem]' : 'text-[0.66rem]'}`}>{c.scholars[0]?.scholar?.name ?? ''}</p>
           </div>
         </div>
       </div>
@@ -460,8 +463,8 @@ export function ShelfBookCard({ c }: { c: BackendContent }) {
         src={media.src}
         kind={media.kind}
         testId="shelf-cover"
-        className="bg-sand-deep/45 cover-edge aspect-[3/4] rounded-[14px]"
-        fallback={<BookSpine c={c} />}
+        className="bg-sand-deep/60 cover-edge aspect-[3/4] rounded-[14px]"
+        fallback={<BookSpine c={c} size="large" />}
       />
       <div className="flex flex-1 flex-col pt-4">
         <h3 className="font-display text-ink text-[1.02rem] leading-snug font-extrabold tracking-[-0.02em] line-clamp-2">
@@ -476,6 +479,122 @@ export function ShelfBookCard({ c }: { c: BackendContent }) {
               <span>{c.pages ? `${c.pages} pages` : c.year}</span>
             </>
           )}
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+/**
+ * A compact editorial entry in the landing's front-page list (Visual Maturity 2).
+ *
+ * The "New in the library" band used to be twelve equal cards in a rail. Its newest entry is now a
+ * full feature and the next few follow as **rows**: a small real thumbnail, the title, the scholar and
+ * one honest meta line, separated by hairlines. No card, no shadow, no rail — the scale difference
+ * between the feature and these rows is the point, and a row reads faster than a card when the visitor
+ * already knows what the band is about.
+ *
+ * Everything shown is a field the API returned; a row with a missing thumbnail shows the same
+ * placeholder the cards use, never a stand-in image.
+ */
+export function ListEntry({ c }: { c: BackendContent }) {
+  const isBook = isBookType(c.type);
+  const media = isBook ? resolveCover(c) : resolveThumbnail(c);
+  const person = c.scholars[0]?.scholar?.name ?? '';
+  const subj = c.subjects[0]?.subject;
+  const meta = isBook
+    ? c.pages
+      ? `${c.pages} pages`
+      : c.type === 'document'
+        ? 'Document'
+        : 'Book'
+    : c.durationMin
+      ? `${formatDuration(c.durationMin)} / ep`
+      : c.type === 'audio'
+        ? 'Audio'
+        : c.year
+          ? `${c.year}`
+          : 'Lecture';
+  return (
+    <Link
+      to={`/${isBook ? 'books' : 'lectures'}/${c.slug}`}
+      className="border-line/70 group flex items-center gap-4 border-t py-3.5 first:border-t-0"
+    >
+      <MediaThumb
+        src={media.src}
+        kind={media.kind}
+        testId="list-entry-thumb"
+        className={`bg-sand-deep/60 shrink-0 overflow-hidden rounded-[12px] ${isBook ? 'aspect-[3/4] h-[76px]' : 'aspect-[16/10] w-[100px]'}`}
+        imgClassName="object-cover"
+        // A row without artwork keeps a neutral mark instead of an empty box — never a stand-in image.
+        fallback={
+          isBook ? (
+            <span className="font-display text-ink/25 grid h-full w-full place-items-center text-[1.3rem] font-extrabold" aria-hidden="true">
+              {c.title.charAt(0)}
+            </span>
+          ) : (
+            <span className="text-rose/35 grid h-full w-full place-items-center" aria-hidden="true">
+              <PlayGlyph className="h-6 w-6" />
+            </span>
+          )
+        }
+      />
+      <div className="min-w-0">
+        <p className="font-display text-ink text-[1rem] leading-snug font-bold tracking-[-0.02em] line-clamp-2 group-hover:text-rose transition-colors">
+          {c.title}
+        </p>
+        <p className="text-ink-muted mt-1 truncate text-[0.8rem] font-medium">
+          {person || subj?.name || ''}
+          {person && subj?.name ? ` · ${subj.name}` : ''}
+        </p>
+        <p className="text-ink-soft mt-0.5 text-[0.78rem]">{meta}</p>
+      </div>
+      <span className="text-rose ml-auto shrink-0 text-[1.05rem] opacity-0 transition-opacity group-hover:opacity-100" aria-hidden="true">
+        →
+      </span>
+    </Link>
+  );
+}
+
+/**
+ * The featured book of the landing's reading shelf (Visual Maturity 2).
+ *
+ * The band's own card is flat (`ShelfBookCard`), so the feature cannot be a card either: it is a book
+ * on a table — one large cover with the title, author and description beside it, asymmetric (five
+ * columns of cover, seven of text). A real cover is used at the largest size the page gives a book;
+ * without one the generated spine stands in, at the same size, so the composition never collapses.
+ */
+export function FeaturedBook({ c }: { c: BackendContent }) {
+  const media = resolveCover(c);
+  const author = c.scholars[0]?.scholar?.name ?? '';
+  const subj = c.subjects[0]?.subject;
+  return (
+    <Link to={`/books/${c.slug}`} className="lift group grid gap-6 sm:gap-8 lg:grid-cols-[0.42fr_1fr] lg:items-center">
+      <MediaThumb
+        src={media.src}
+        kind={media.kind}
+        testId="featured-cover"
+        className="bg-sand-deep/60 cover-edge mx-auto w-full max-w-[340px] aspect-[3/4] rounded-[14px] lg:max-w-none"
+        fallback={<BookSpine c={c} size="large" />}
+      />
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          {subj && <Tag tone={toneOf(subj.accent)}>{subj.name}</Tag>}
+          {c.year && <Tag>{c.year}</Tag>}
+        </div>
+        <h3 className="font-display text-ink mt-4 text-[1.6rem] leading-[1.08] font-extrabold tracking-[-0.035em] line-clamp-3 sm:text-[2.05rem]">
+          {c.title}
+        </h3>
+        {author && <p className="text-rose mt-3 text-[1rem] font-semibold">{author}</p>}
+        {c.description && (
+          <p className="text-ink-soft mt-4 max-w-[54ch] text-[0.95rem] leading-relaxed line-clamp-3">{c.description}</p>
+        )}
+        <div className="text-ink-soft mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 text-[0.84rem]">
+          <span className="text-rose inline-flex items-center gap-2 font-semibold">
+            Open book <span className="transition-transform group-hover:translate-x-1" aria-hidden="true">→</span>
+          </span>
+          {c.pages && <span className="text-ink-muted">{c.pages} pages</span>}
+          {c.language && <span className="text-ink-muted">{c.language}</span>}
         </div>
       </div>
     </Link>
