@@ -2423,7 +2423,9 @@ in de review-database) · `test:e2e:production` **133/2**, `test:e2e:brand` **22
 afspeelcontroles die internet vereisen (§8.11/§8.25), geen van de visuele controles · `server:
 npm run test:all` tegen de wegwerp-database `ilmnet_polish_unit` (audit suite groen, uploads 30/0,
 production 163/0, env-hardening 13/0, environment 38/0, ops 21/0, auth 69/0, YouTube-duur/embed voor
-drie playlistitems) · screenshots vóór/na in `/home/user/polish-shots/{before,after}` (buiten de repo).
+drie playlistitems) · screenshots vóór/na in `/home/user/polish-shots/{before,after}` (buiten de repo;
+daarvan is één desktop- en één mobiele opname per set bewaard, de rest is in de workspace-hygiënefase
+opgeruimd).
 
 **Bewust niet gedaan:** geen nieuw component naast een bestaand component, geen tweede lettertype- of
 radiusstelsel, geen enkele wijziging in `/api`, `server/`, het schema, de auth of de content, geen
@@ -2654,8 +2656,10 @@ build · browser **`cms.spec.mjs` 39/0** en **`admin-auth.spec.mjs` 60/0** tegen
 `server: npm run test:all` tegen de wegwerp-database `ilmnet_polish_e2e` (NODE_ENV=development,
 `ENVIRONMENT` onbemand zodat de suites hun eigen doelomgeving zetten): audit ✅, uploads 30/0,
 production readiness **163/0**, env-hardening 13/0, environment rule 38/0, ops 21/0, YouTube ✅,
-auth 69/0 — 409 groene checks, 0 rood · screenshots van vóór/na per band in
-`/home/user/polish-shots/vm1/` (buiten de repo).
+auth 69/0 — 409 groene checks, 0 rood. De bandopnamen van die fase stonden in
+`/home/user/polish-shots/vm1/` (buiten de repo) en zijn in de workspace-hygiënefase opgeruimd; de
+metingen hierboven zijn de blijvende evidence, en de review hieronder bewaart de twee vergelijkende
+opnamen die het verschil het duidelijkst laten zien.
 
 **Onderweg gevonden en gedicht (buiten de repo):** de D5-harness faalde op drie checks. Een A/B tegen de
 vórige build met dezelfde database gaf exact dezelfde drie fouten, dus de oorzaak was de
@@ -2739,8 +2743,9 @@ gzip 173,23 kB (was 172,03 kB gzip) · **`polish-verify.mjs` 114/114** tegen de 
 **`admin-auth.spec.mjs` 60/0** · `server: npm run test:all` tegen `ilmnet_polish_e2e`
 (NODE_ENV=development, `ENVIRONMENT` onbemand zodat de suites hun eigen doelomgeving zetten):
 audit ✅, uploads 30/0, production readiness 163/0, env-hardening 13/0, environment rule 38/0,
-ops 21/0, YouTube ✅, auth 69/0 — 409 groen, 0 rood · screenshots en bandopnames in
-`/home/user/polish-shots/vm2/` (buiten de repo).
+ops 21/0, YouTube ✅, auth 69/0 — 409 groen, 0 rood · van de screenshots en bandopnames in
+`/home/user/polish-shots/vm2/` (buiten de repo) zijn de drie paginadelen (`whole-0/1/2.png`) en de
+mobiele volledige pagina bewaard; de losse bandopnamen zijn in de workspace-hygiënefase opgeruimd.
 
 **Bewust niet gedaan:** hero/Aurora ongewijzigd, typografie en tokens ongewijzigd, geen nieuwe kleur,
 geen extra dependency, geen wijziging in `/api`, `server/`, het schema, de auth of de content, geen

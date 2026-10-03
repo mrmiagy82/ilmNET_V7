@@ -194,3 +194,18 @@ verify that they did, and never point a mutating suite at a database whose conte
       subject for chores)
 - [ ] pushed to `origin/master`, then confirm `local == remote` and a clean working tree
 - [ ] `docs/CONTEXT.md` updated when the phase changed the project state
+
+## 5. WORKSPACE HYGIENE
+
+De workspace heeft beperkte opslagruimte. Maak geen onnodige tijdelijke bestanden en laat geen
+gegenereerde screenshots, logs, builds, testoutput of review-artefacts achter wanneer deze niet meer
+nodig zijn.
+
+Gebruik tijdelijke output alleen wanneer dit nodig is voor de huidige taak. Bewaar visuele/testevidence
+alleen wanneer deze expliciet wordt gebruikt door documentatie of een volgende fase.
+
+Ruim tijdelijke artefacts aan het einde van iedere fase op. Verwijder nooit broncode, documentatie,
+configuratie, tests, database/migrations, uploads of andere projectbestanden zonder expliciete
+toestemming.
+
+Houd de workspace zo klein mogelijk zodat toekomstige agent-runs voldoende werkruimte behouden.
