@@ -30,7 +30,9 @@
  *      Cream, so it reads as the page itself rather than as a shelf.
  *   2. **Newest lectures — the listening shelf.** The one band that keeps the raised media cards and
  *      the horizontal scroller: this is where the neumorphic language still means "this is a player
- *      you can open". Cream, rose kicker, pill show-all.
+ *      you can open". Rose kicker, pill show-all. **Visual Balance** moved this band off cream onto
+ *      the deep warm ground: the cards keep their meaning and gain a ground to be raised from, and the
+ *      page loses the third cream band in a row at the top.
  *   3. **Newest books — the reading wall.** A sand band with a *featured book* (one large real cover,
  *      text beside it, asymmetric 5/7 split) above a grid of eight further covers at four across. Flat:
  *      the cover is the only object with depth. This is the page's largest presentation of real covers
@@ -72,9 +74,30 @@ const MASTHEAD = 6;
  *  full marketing section so several rails read as one browse surface. */
 const RAIL_BAND = 'relative px-5 py-12 sm:px-6 lg:py-14';
 
+/**
+ * Visual Balance — the listening shelf moves off cream onto the deep warm ground.
+ *
+ * After Visual Maturity 2 the page was 40 % cream: the hero and the front page formed one 1 747 px
+ * cream field at the top, and the listening shelf was the third cream band in a row of two. That is the
+ * one band on the page that can take a deeper ground without any loss: it carries raised *cards* (no
+ * hairlines, no row plates), so nothing that depends on a light surface moves with it. On the deeper
+ * ground those cards finally have something to be raised *from* — the depth the band was missing — and
+ * the shelf now sits between two sand bands instead of repeating them.
+ */
+const LISTEN_BAND = 'relative band-sand-deep px-5 py-12 sm:px-6 lg:py-14';
+
 /** The reading wall and the masthead are not rails, so they own their padding. */
 const WALL_BAND = 'relative band-sand px-5 py-14 sm:px-6 lg:py-20';
-const MASTHEAD_BAND = 'relative px-5 py-12 sm:px-6 lg:py-16';
+/**
+ * Visual Balance — the scholars masthead moves from cream to sand.
+ *
+ * After the listening shelf moved onto the deep warm ground, the page ran cream → sand → sand-deep →
+ * sand → sand-deep → cream, so the band *before* the olive explainer was the last cream field in the
+ * lower half and broke the warm descent. On sand the whole lower half becomes one warm run that ends
+ * in the olive explainer and the night closing band, while cream stays what it should be: the breath
+ * at the top of the page (hero + front page).
+ */
+const MASTHEAD_BAND = 'relative band-sand px-5 py-12 sm:px-6 lg:py-16';
 
 export function NewInLibrary() {
   const { data, total, loading, shouldHide } = useContentQuery({}, { shelf: 'library', limit: FRONT_PAGE, sort: 'publishedAt:desc' });
@@ -132,7 +155,8 @@ export function ListenRail() {
   if (shouldHide) return null;
   return (
     <Rail
-      className={RAIL_BAND}
+      className={LISTEN_BAND}
+      ground="deep"
       bleed
       tone="rose"
       label="Listen"

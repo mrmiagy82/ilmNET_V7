@@ -113,10 +113,26 @@ export function Tag({ children, tone = 'plain' }: { children: ReactNode; tone?: 
  * is decorative (screen readers already get the label text) and only ever uses the two brand colours
  * that the section is really about.
  */
-export function SectionLabel({ children, tone }: { children: ReactNode; tone?: Tone }) {
+export function SectionLabel({
+  children,
+  tone,
+  ground = 'light',
+}: {
+  children: ReactNode;
+  tone?: Tone;
+  /**
+   * Visual Balance — which surface the label sits on. The default `light` pairing (`text-ink-muted`
+   * on cream, measured 3.8:1) is unchanged everywhere. On the deep warm band the same shade measures
+   * 3.3:1, so the label steps one shade darker (`text-ink-soft`, 7.7:1) — the band gets its depth
+   * without its small type becoming the least legible text on the page.
+   */
+  ground?: 'light' | 'deep';
+}) {
   const dot = tone === 'rose' ? 'bg-rose' : tone === 'olive' ? 'bg-olive' : null;
   return (
-    <p className="text-ink-muted inline-flex items-center gap-2 text-[0.72rem] font-semibold tracking-[0.22em] uppercase">
+    <p
+      className={`${ground === 'deep' ? 'text-ink-soft' : 'text-ink-muted'} inline-flex items-center gap-2 text-[0.72rem] font-semibold tracking-[0.22em] uppercase`}
+    >
       {dot && <span className={`h-1.5 w-1.5 rounded-full ${dot}`} aria-hidden="true" />}
       {children}
     </p>

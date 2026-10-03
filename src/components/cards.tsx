@@ -643,7 +643,7 @@ export function ScholarTile({
     <article
       className={
         flat
-          ? 'bg-sand/70 flat-edge lift group flex h-full flex-col rounded-[26px] p-6'
+          ? 'bg-cream/70 flat-edge lift group flex h-full flex-col rounded-[26px] p-6'
           : 'bg-cream neu-raised lift group flex h-full flex-col rounded-[30px] p-7'
       }
     >

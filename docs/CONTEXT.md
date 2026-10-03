@@ -5,7 +5,11 @@ Update it after every finished phase, commit, sanity check or significant discov
 Rules: only facts that are verifiable from the repository, Git history or existing docs — and
 **never** secrets, tokens or credentials.
 
-_Last updated: Visual Maturity 2 (1 oktober 2026) — de homepage is opnieuw gecomponeerd in plaats van
+_Last updated: Visual Balance (1 oktober 2026) — een kleine balanspass na VM2: twee banden van
+_oppervlak gewisseld (de luistershelf naar `band-sand-deep`, het scholars-colofon naar sand), cream op de
+_homepage van 40 % naar 21,5 % (desktop) en van 45,6 % naar 24,0 % (mobiel) zonder de pagina één pixel
+_langer te maken, en één contrastcorrectie via een optionele `ground`-prop. Daarvoor: de homepage is
+_opnieuw gecomponeerd in plaats van
 _bijgewerkt: drie banden zijn geen standaard rail meer (een voorpagina met feature + lijst, een
 _leesmuur met grote featured cover en een grid van vier, een colofon-grid voor de scholars), de
 _"three ways to seek"-band is een genummerde editorial index, de subjectenband een atlas-mozaïek, en de
@@ -2751,6 +2755,57 @@ mobiele volledige pagina bewaard; de losse bandopnamen zijn in de workspace-hygi
 geen extra dependency, geen wijziging in `/api`, `server/`, het schema, de auth of de content, geen
 verzonnen aantallen of beelden, geen populariteitsindicatie, en de laad-/fout-/lege teksten zijn
 dezelfde gebleven.
+
+## 7ac. Visual Balance — less cream
+
+**Wat deze fase is:** een kleine balanspass ná Visual Maturity 2, geen nieuw ontwerp. De meting van VM2
+liet zien dat cream nog steeds het grootste oppervlak was (40 % van de homepage) en dat de bovenste
+1 747 px van de pagina één doorlopend creamveld waren: hero, voorpagina én de luistershelf. Opdracht:
+subtiel minder cream, uitsluitend bestaande tokens, enkele banden meer diepte, beter ritme tussen de
+vijf oppervlakken — zonder de hero/Aurora, de editorial composities van VM2, de typografie, de
+merkidentiteit, de accessibility en de backend te raken.
+
+### Twee banden van oppervlak gewisseld (geen nieuwe composities)
+
+1. **Newest lectures — de luistershelf** staat nu op `band-sand-deep` in plaats van cream. Dat is de
+   enige band op de pagina die dit zonder verlies kan: hij draagt *raised* kaarten (geen haarlijnen,
+   geen rijplaten), dus niets dat van een licht vlak afhankelijk is verhuist mee — en de kaarten krijgen
+   eindelijk een grond om vanaf te stijgen in plaats van op nog een creamvlak te liggen.
+2. **Every lesson has a teacher — het scholars-colofon** staat nu op `band-sand` in plaats van cream, en
+   de platte tegels kregen een `bg-cream/70`-plaat in plaats van `bg-sand/70` (dezelfde `flat-edge`, geen
+   nieuwe schaduwtaal). Daardoor is de onderste helft één warme afdaling — sand → sand-deep → sand →
+   olijf → nacht — en blijft cream wat het moet zijn: de ademruimte bovenaan (hero + voorpagina).
+
+### Eén contrastcorrectie, geen nieuwe stijl
+
+Kleine tekst op de diepe warme grond zakte onder de AA-grens (`--color-ink-muted` op `sand-deep`:
+3,3:1). `SectionLabel` (in `ui.tsx`) en `SectionHeading`/`Rail` kregen daarom één optionele prop,
+`ground` (`light` = ongewijzigd, de default voor elke bestaande caller; `deep` = kicker en ondertitel
+één tint donkerder, `text-ink-soft`, 7,7:1). Alleen de luistershelf vraagt om `deep`; koppen, links en
+knoppen waren en blijven ongewijzigd. Geen extra schaduw, geen extra oppervlak, geen nieuwe kleur.
+
+### Gemeten resultaat (zelfde database, dezelfde build op :3121 vs. de vorige revisie op :3123)
+
+| viewport | cream vóór | cream ná | sand | sand-deep | olijf | nacht | paginahoogte |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 1440 px | 3 246 px (40,0 %) | **1 747 px (21,5 %)** | 2 716 → 3 478 px (42,9 %) | 833 → 1 570 px (19,4 %) | 651 px (8,0 %) | 661 px (8,2 %) | 8 506 px (gelijk) |
+| 390 px | 5 041 px (45,6 %) | **2 660 px (24,0 %)** | 3 001 → 4 681 px (42,3 %) | 1 468 → 2 169 px (19,6 %) | 933 px (8,4 %) | 619 px (5,6 %) | 12 007 px (gelijk) |
+
+Cream is in absolute pixels bijna gehalveerd (−46 % op desktop, −47 % op mobiel) en de pagina is op
+beide viewports precies even lang gebleven: dit is een oppervlaktewijziging, geen herindeling. Olijf en
+nacht zijn ongemoeid (de twee uithoeken van het ritme), sand en sand-deep dragen nu het midden.
+
+**Bewust niet gedaan:** hero/Aurora, typografie en tokens ongewijzigd, geen nieuwe kleur, geen nieuwe
+compositie, geen extra neumorfisme, geen extra schaduw op niet-interactieve vlakken, geen dependency,
+geen wijziging in `/api`, `server/`, het schema, de auth of de content, geen mockdata, geen
+populariteits- of voortgangsindicatie, en dezelfde laad-/fout-/lege teksten.
+
+**Bewijs:** `npx tsc --noEmit` schoon (root én `server/`) · `npm run build` ok, single-file
+`dist/index.html` 696,2 kB → gzip 173,3 kB · eigen browsercontrole `polish-verify.mjs` **114/114** ·
+`d6-verify.mjs` **50/50** · `d5-verify.mjs` **81/81** · `test:e2e:cms` **39/0** · `test:e2e:auth`
+**60/0** · `server npm run test:all` (audit ✅, uploads 30/0, production 163/0, env-hardening 13/0,
+environment rule 38/0, ops 21/0, YouTube ✅, auth 69/0) — exit 0. Twee representatieve opnamen staan in
+`/home/user/polish-shots/balance/` (buiten de repo): de volledige desktoppagina en de mobiele pagina.
 
 ## 8. Known remaining issues (not blockers)
 

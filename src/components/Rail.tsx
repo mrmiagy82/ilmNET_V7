@@ -55,6 +55,13 @@ export type SectionHeadingProps = {
   layout?: 'stacked' | 'split' | 'centered';
   /** the brand hairline under the heading (primary bands only) */
   rule?: boolean;
+  /**
+   * Visual Balance — the surface the band stands on. `light` (default) is cream/sand and leaves every
+   * colour exactly as it was. `deep` darkens the small type (kicker + subtitle) one shade, so a band
+   * that moved onto the deep warm ground keeps its contrast; titles, links and buttons already pass
+   * and are unchanged by this prop.
+   */
+  ground?: 'light' | 'deep';
   /** `link` (default) is the existing text link; `button` is the same link as a pressed pill */
   showAllVariant?: 'link' | 'button';
   /** extra controls next to the show-all link (the rail's paging buttons) */
@@ -71,9 +78,11 @@ export function SectionHeading({
   layout = 'stacked',
   rule = false,
   showAllVariant = 'link',
+  ground = 'light',
   actions,
   className = '',
 }: SectionHeadingProps) {
+  const smallClass = ground === 'deep' ? 'text-ink-soft' : 'text-ink-muted';
   const showAllLink = showAll && (
     <Link
       to={showAll.to}
@@ -97,9 +106,9 @@ export function SectionHeading({
     return (
       <div className={className}>
         <div className="text-center">
-          {label && <SectionLabel tone={tone}>{label}</SectionLabel>}
+          {label && <SectionLabel tone={tone} ground={ground}>{label}</SectionLabel>}
           <h2 className={`${titleClass} mt-2.5`}>{title}</h2>
-          {subtitle && <p className="text-ink-muted mx-auto mt-2 max-w-[62ch] text-[0.85rem]">{subtitle}</p>}
+          {subtitle && <p className={`${smallClass} mx-auto mt-2 max-w-[62ch] text-[0.85rem]`}>{subtitle}</p>}
         </div>
         {rule && <div className={`${ruleClass} mx-auto`} aria-hidden="true" />}
         {(showAll || actions) && (
@@ -117,11 +126,11 @@ export function SectionHeading({
       <div className={className}>
         <div className="grid gap-x-10 gap-y-3 lg:grid-cols-[1.15fr_1fr] lg:items-end">
           <div className="min-w-0">
-            {label && <SectionLabel tone={tone}>{label}</SectionLabel>}
+            {label && <SectionLabel tone={tone} ground={ground}>{label}</SectionLabel>}
             <h2 className={`${titleClass} mt-2.5`}>{title}</h2>
           </div>
           <div className="min-w-0 lg:pb-1">
-            {subtitle && <p className="text-ink-muted max-w-[46ch] text-[0.9rem] leading-relaxed lg:ml-auto lg:text-right">{subtitle}</p>}
+            {subtitle && <p className={`${smallClass} max-w-[46ch] text-[0.9rem] leading-relaxed lg:ml-auto lg:text-right`}>{subtitle}</p>}
           </div>
         </div>
         {rule && <div className={ruleClass} aria-hidden="true" />}
@@ -139,9 +148,9 @@ export function SectionHeading({
     <div className={className}>
       <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-3">
         <div className="min-w-0">
-          {label && <SectionLabel tone={tone}>{label}</SectionLabel>}
+          {label && <SectionLabel tone={tone} ground={ground}>{label}</SectionLabel>}
           <h2 className={`${titleClass} mt-2.5`}>{title}</h2>
-          {subtitle && <p className="text-ink-muted mt-2 max-w-[62ch] text-[0.85rem]">{subtitle}</p>}
+          {subtitle && <p className={`${smallClass} mt-2 max-w-[62ch] text-[0.85rem]`}>{subtitle}</p>}
         </div>
         {(showAll || actions) && (
           <div className="flex shrink-0 items-center gap-3">
@@ -201,6 +210,8 @@ export type RailProps = {
   bleed?: boolean;
   /** `start` keeps each card at its own height; `stretch` (default) gives them one row height */
   align?: 'start' | 'stretch';
+  /** the surface the band stands on — see `SectionHeadingProps.ground` */
+  ground?: 'light' | 'deep';
   className?: string;
   children?: ReactNode;
 };
@@ -240,6 +251,7 @@ export function Rail({
   lead,
   leadClassName = RAIL_LEAD,
   align = 'stretch',
+  ground = 'light',
   className = '',
   children,
 }: RailProps) {
@@ -312,6 +324,7 @@ export function Rail({
           showAllVariant={showAllVariant}
           layout={layout}
           rule={rule}
+          ground={ground}
           actions={buttons}
         />
         <div
